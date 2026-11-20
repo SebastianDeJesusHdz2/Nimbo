@@ -17,14 +17,14 @@ public sealed partial class Studio
 {
     void Editor()
     {
-        var work = current!; var root = new DockPanel(); var top = Row(); top.Children.Add(Action("‹ Biblioteca", Library));
+        var work = current!; var root = new DockPanel(); var top = new WrapPanel{Margin=new Thickness(0,0,0,12)}; top.Children.Add(Action("‹ Biblioteca", Library));
         top.Children.Add(Action("Obra", Details)); top.Children.Add(Action("Glosario", () => Glossary(null)));
         top.Children.Add(Action("PDF", async () => await Export(true))); top.Children.Add(Action("LaTeX", async () => await Export(false)));
         top.Children.Add(Action("Guardar", () => TrySave())); top.Children.Add(Action("Guardar copia", () => Run(() =>
         {
             var clone = session.SaveCopy(); Open(clone, session.Revision);
         }))); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
-        var left = Column(); left.Width = 196; left.Children.Add(Label(work.Title, 22)); left.Children.Add(Label(work.Type));
+        var left = Column(); left.Width = 196; left.Children.Add(Display(work.Title, 25)); left.Children.Add(Label(work.Type));
         var outline = new ListBox { ItemsSource = WorldModel.Ordered(work).ToArray(), SelectedItem = chapter, MaxHeight = 360 };
         outline.SelectionChanged += (_, _) => { if (outline.SelectedItem is Chapter c && c != chapter) { chapter = c; Editor(); } }; left.Children.Add(outline);
         void Add(string level, string title, string parent)
@@ -48,8 +48,8 @@ public sealed partial class Studio
             }
             ordering.Children.Add(Action("↑", () => Move(-1))); ordering.Children.Add(Action("↓", () => Move(1))); left.Children.Add(ordering);
         }
-        var side = Card(left); side.Margin = new Thickness(0, 0, 16, 10); DockPanel.SetDock(side, Dock.Left); root.Children.Add(side);
-        var body = Column();
+        var side = Card(new ScrollViewer{Content=left}); side.Margin = new Thickness(0, 0, 16, 10); side.IsVisible=!work.FocusWriting;top.Children.Insert(1,Action(work.FocusWriting?"Ver índice":"Concentración",()=>{work.FocusWriting=!work.FocusWriting;Changed();Editor();}));DockPanel.SetDock(side, Dock.Left); root.Children.Add(side);
+        var body = Column();body.MaxWidth=860;body.HorizontalAlignment=HorizontalAlignment.Stretch;
         if (chapter is { } c)
         {
             Field(body, work.Type == "Presentación" ? "Título de diapositiva" : "Título de sección", c.Title, v => c.Title = v);
@@ -62,7 +62,7 @@ public sealed partial class Studio
                 layouts.SelectionChanged += (_, _) => { if (layouts.SelectedItem is string choice) { c.Layout = choice; Changed(); } };
                 body.Children.Add(layouts); Field(body, "Texto secundario", c.Summary, v => c.Summary = v, true);
             }
-            var input = Field(body, "Texto", c.PlainText, v => c.PlainText = v, true); input.FontSize = 18; input.MinHeight = 235;
+            var input = Field(body, "Texto", c.PlainText, v => c.PlainText = v, true); input.FontSize = 18; input.MinHeight = 340;input.FontFamily=new FontFamily("Georgia, Liberation Serif, serif");input.Padding=new Thickness(22);input.LineHeight=30;
             var bar = Row();
             void Wrap(string marker)
             {
@@ -76,12 +76,12 @@ public sealed partial class Studio
                 var old = input.Text ?? ""; input.Text = old[..start] + text + old[end..]; input.Focus(); input.CaretIndex = start + text.Length;
             }
             var formats = Row(); formats.Children.Add(Action("Subtítulo", () => Insert("\n## "))); formats.Children.Add(Action("Lista", () => Insert("\n- ")));
-            formats.Children.Add(Action("Tabla", () => Insert("\n| Columna 1 | Columna 2 |\n| Dato | Dato |\n"))); body.Children.Add(formats);
+            formats.Children.Add(Action("Tabla", () => Insert("\n| Columna 1 | Columna 2 |\n| Dato | Dato |\n"))); body.Children.Remove(input);body.Children.Add(formats);
             bar.Children.Add(Action("Añadir imagen…", async () => await Guard(async () =>
             {
                 var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Imagen PNG o JPEG" })).FirstOrDefault()?.TryGetLocalPath();
                 if (path == null) return; c.Images.Add(shelf.AddImage(path)); if (work.Type != "Presentación") Insert(Environment.NewLine + Illustrations.At(c.Images.Count - 1) + Environment.NewLine); Changed(); Editor();
-            }))); body.Children.Add(bar);
+            }))); body.Children.Add(bar);body.Children.Add(input);
             if (c.Images.Count > 0 && work.Type != "Presentación") { body.Children.Add(Label("Disposición de las ilustraciones")); var layout = new ComboBox { ItemsSource = ImageLayouts, SelectedItem = ImageLayouts.Contains(c.Layout) ? c.Layout : ImageLayouts[0] }; layout.SelectionChanged += (_, _) => { if (layout.SelectedItem is string choice) { c.Layout = choice; Changed(); } }; body.Children.Add(layout); }
             foreach (var (key, index) in c.Images.Select((key, i) => (key, i)).ToArray())
             {
@@ -95,7 +95,7 @@ public sealed partial class Studio
     }
     void Details()
     {
-        var work = current!; var body = Column(); body.Children.Add(Action("‹ Manuscrito", Editor)); body.Children.Add(Label("Ficha de la obra", 28));
+        var work = current!; var body = Column();body.MaxWidth=860;body.HorizontalAlignment=HorizontalAlignment.Stretch; body.Children.Add(Action("‹ Manuscrito", Editor)); body.Children.Add(Label("Ficha de la obra", 28));
         body.Children.Add(Action("Elegir portada…", async () => await Guard(async () =>
         {
             var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Portada PNG o JPEG" })).FirstOrDefault()?.TryGetLocalPath();
@@ -127,6 +127,8 @@ public sealed partial class Studio
         page.Content = new ScrollViewer { Content = Card(body) };
     }
 }
+
+
 
 
 

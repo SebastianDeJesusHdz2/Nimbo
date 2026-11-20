@@ -33,7 +33,7 @@ public sealed partial class Studio : Window
     public Studio()
     {
         session = new(shelf);
-        Title = "Nimbo"; Width = 1230; Height = 820; MinWidth = 760; MinHeight = 540;
+        Title = "Nimbo"; Width = 1280; Height = 850;WindowState=WindowState.Maximized; MinWidth = 760; MinHeight = 540;
         Background = Brush.Parse("#141C23");
         var frame = new DockPanel { Margin = new Thickness(24) };
         var footer = Row(); footer.Children.Add(status); footer.Children.Add(updateButton);
@@ -59,7 +59,7 @@ public sealed partial class Studio : Window
     static StackPanel Column(double spacing = 12) => new() { Spacing = spacing };
     static StackPanel Row() => new() { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 6) };
     static TextBlock Label(string text, double size = 14) => new() { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap };
-    static Button Action(string text, Action action) { var b = new Button { Content = text }; b.Click += (_, _) => action(); return b; }
+    static Button Action(string text, Action action) { var b = new Button { Content = text, CornerRadius=new CornerRadius(6),Padding=new Thickness(12,7) }; b.Click += (_, _) => action(); return b; }
     static Border Card(Control child) => new() { Background = PanelColor, CornerRadius = new CornerRadius(10), Padding = new Thickness(18), Child = child };
     async Task Guard(Func<Task> action) { try { await action(); } catch (Exception ex) { status.Text = ex.Message; } }
     void Run(Action action) { try { action(); } catch (Exception ex) { status.Text = ex.Message; } }
@@ -89,14 +89,19 @@ public sealed partial class Studio : Window
     {
         var body = Column(); body.Children.Add(Action("‹ Biblioteca", Library)); body.Children.Add(Label("Preferencias", 28));
         var theme = new ComboBox { ItemsSource = new[] { "Oscuro", "Claro" }, SelectedIndex = ActualThemeVariant == Avalonia.Styling.ThemeVariant.Light ? 1 : 0 };
-        theme.SelectionChanged += (_, _) => Run(() => { File.WriteAllText(Config("tema"), theme.SelectedIndex == 1 ? "Claro" : "Oscuro"); ApplyTheme(); }); body.Children.Add(Label("Apariencia")); body.Children.Add(theme);
+        theme.SelectionChanged += (_, _) => Run(() => { File.WriteAllText(Config("tema"), theme.SelectedIndex == 1 ? "Claro" : "Oscuro"); ApplyTheme();Preferences(); }); body.Children.Add(Label("Apariencia")); body.Children.Add(theme);
         body.Children.Add(Label("Nombre para las obras nuevas")); var author = new TextBox { Text = File.Exists(Config("autor")) ? File.ReadAllText(Config("autor")) : "", Watermark = "Nombre o seudónimo" }; body.Children.Add(author); body.Children.Add(Action("Guardar nombre", () => Run(() => File.WriteAllText(Config("autor"), author.Text ?? ""))));
+        body.Children.Add(Label("Fondo de la biblioteca"));
+        var backgrounds=Row();backgrounds.Children.Add(Action("Elegir imagen…",async()=>await Guard(async()=>{
+            var f=(await StorageProvider.OpenFilePickerAsync(new(){Title="Fondo PNG o JPEG"})).FirstOrDefault()?.TryGetLocalPath();
+            if(f!=null){File.WriteAllText(Config("fondo"),shelf.AddImage(f));Library();}
+        })));if(File.Exists(Config("fondo")))backgrounds.Children.Add(Action("Quitar fondo",()=>Run(()=>{File.Delete(Config("fondo"));Library();})));body.Children.Add(backgrounds);
         body.Children.Add(Label("Motor de publicación")); body.Children.Add(Label(Engine() ?? "XeLaTeX del sistema"));
         body.Children.Add(Action("Seleccionar XeLaTeX…", async () => await Guard(async () =>
         {
             var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Seleccionar xelatex o xelatex.exe" })).FirstOrDefault()?.TryGetLocalPath();
             if (path != null) { if (!Path.GetFileNameWithoutExtension(path).Equals("xelatex", StringComparison.OrdinalIgnoreCase)) throw new IOException("Selecciona el ejecutable xelatex."); File.WriteAllText(Config("xelatex"), path); Preferences(); }
-        }))); page.Content = Card(body);
+        }))); page.Content = new ScrollViewer{Content=Card(body)};
     }
     void ApplyTheme()
     {
@@ -113,6 +118,8 @@ public sealed partial class Studio : Window
         status.Text = "Componiendo…"; await Task.Run(() => Publisher.Export(snapshot, shelf.Media, path, pdf, glossary, Engine())); status.Text = "Exportado · " + Path.GetFileName(path);
     });
 }
+
+
 
 
 

@@ -35,7 +35,7 @@ jobs:
         run: dotnet publish src/Nimbo.Desktop -c Release -r ${{ matrix.rid }} --self-contained -o artifacts/app
       - name: Abrir la biblioteca en Linux
         if: runner.os == 'Linux'
-        run: xvfb-run -a artifacts/app/Nimbo.Desktop --verify-ui
+        run: NIMBO_UI_CAPTURE="$RUNNER_TEMP/Biblioteca.png" xvfb-run -a -s "-screen 0 1920x1080x24" artifacts/app/Nimbo.Desktop --verify-ui
       - name: Abrir la biblioteca en Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -53,7 +53,7 @@ jobs:
           test -s artifacts/app/LICENSE
           ./tools/vpk pack --packId Nimbo --packTitle Nimbo --packVersion "$version" --runtime ${{ matrix.rid }} --packDir artifacts/app --mainExe ${{ matrix.exe }} --outputDir artifacts/release
       - if: runner.os == 'Linux'
-        run: cp packaging/instalar-linux.sh artifacts/release/
+        run: cp packaging/instalar-linux.sh "$RUNNER_TEMP/Biblioteca.png" artifacts/release/
       - name: Instalar y abrir desde el escritorio de Linux
         if: runner.os == 'Linux'
         run: |
@@ -92,7 +92,8 @@ jobs:
         run: |
           shopt -s nullglob
           assets=(packages/*/*.exe packages/*/*.AppImage packages/*/*.nupkg packages/*/releases.*.json packages/*/*.sh)
-          gh release create "$GITHUB_REF_NAME" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --draft --title "Nimbo ${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --draft --prerelease --title "Nimbo ${GITHUB_REF_NAME#v}"
+
 
 
 

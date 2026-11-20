@@ -36,6 +36,11 @@ public sealed class App : Avalonia.Application
                 window.Opened += (_, _) => Dispatcher.UIThread.Post(() =>
                 {
                     var rendered = window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "Crear obra"));
+                    if(rendered && Environment.GetEnvironmentVariable("NIMBO_UI_CAPTURE") is string path && window.Content is Control content){
+                        var size=new PixelSize((int)Math.Ceiling(content.Bounds.Width),(int)Math.Ceiling(content.Bounds.Height));
+                        using var image=new Avalonia.Media.Imaging.RenderTargetBitmap(size);
+                        image.Render(content);image.Save(path);
+                    }
                     desktop.Shutdown(rendered ? 0 : 3);
                 }, DispatcherPriority.ApplicationIdle);
             }
@@ -43,4 +48,5 @@ public sealed class App : Avalonia.Application
         base.OnFrameworkInitializationCompleted();
     }
 }
+
 

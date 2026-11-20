@@ -76,3 +76,5 @@ AVANCE DE IMPLEMENTACIÓN · 0.5.0-alpha.1
 [x] Insertar una ilustración en el punto de escritura y situarla allí en el PDF. Conversión de marcas WPF de énfasis, listas y tablas simples si conservan las palabras del manuscrito.
 [ ] Resolver la firma de confianza exigida por el equipo de desarrollo. La política local bloqueó Nimbo.Desktop.dll en una prueba de arranque. La compilación anterior abrió en los equipos limpios de GitHub para Windows y Ubuntu.
 [x] Licencia GPLv3 exacta elegida por el titular e incluida en el repositorio y en los paquetes de escritorio.
+[x] Biblioteca con acceso por colección, búsqueda por autor o título, reanudación de la última obra y selector visual de formatos para la primera sesión.
+[x] Fondo personal completo con desenfoque, área de lectura centrada y modo de concentración por obra.
