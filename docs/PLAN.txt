@@ -79,3 +79,4 @@ AVANCE DE IMPLEMENTACIÓN · 0.5.0-alpha.1
 [x] Biblioteca con acceso por colección, búsqueda por autor o título, reanudación de la última obra y selector visual de formatos para la primera sesión.
 [x] Fondo personal completo con desenfoque, área de lectura centrada y modo de concentración por obra.
 [x] Alfa 2. Búsqueda en la sección con atajos, reanudación del último capítulo y detección de nuevas versiones preliminares.
+[x] Alfa 3. Plantillas editoriales, CV con entradas estructuradas, campos por formato, preferencias de escritura, búsqueda en el glosario, vista de catálogo y vista previa con XeLaTeX.

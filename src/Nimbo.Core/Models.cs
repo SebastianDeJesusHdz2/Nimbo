@@ -31,6 +31,12 @@ public class Work : Extensible
     public double WritingPadding { get; set; } = 40; public int WritingZoom { get; set; } = 100; public string DeskTone { get; set; } = "Niebla"; public bool ShowReadingTime { get; set; } = true;
     public string GlossaryLayout { get; set; } = "Índice"; public string GlossaryOrder { get; set; } = "Nombre"; public bool OnlyPinned { get; set; }
     public int WordGoal { get; set; } = 50000; public string CreatedAt { get; set; } = DateTime.Now.ToString("o"); public string? ModifiedAt { get; set; }
+    public string Template {get;set;}="";
+    public Dictionary<string,string> Contact {get;set;}=[];
+    public Dictionary<string,string> DocumentFacts {get;set;}=[];
+    public string PrintSpacing {get;set;}="Normal";
+    public string PrintIndent {get;set;}="Automática";
+    public string PrintAccent {get;set;}="";
     public List<EditionFile> Editions { get; set; } = [];
     public List<Chapter> Chapters { get; set; } = []; public List<Node> Glossary { get; set; } = [];
     public Publication Publication { get; set; } = new(); public bool IsDemo { get; set; }
@@ -46,6 +52,7 @@ public class Chapter : Extensible
     public string Summary { get; set; } = ""; public string ContentPackage { get; set; } = ""; public string PlainText { get; set; } = ""; public string LatexContent { get; set; } = "";
     public string RevisionState { get; set; } = "Borrador"; public string AuthorMemo { get; set; } = ""; public int SectionGoal { get; set; }
     public string Detail { get; set; } = ""; public string Layout { get; set; } = "Texto"; public List<string> Images { get; set; } = []; public string BodyStyle { get; set; } = "Normal";
+    public List<ResumeEntry> Entries {get;set;}=[];
     public int CaretOffset { get; set; }
 }
 public class TextStyleSpec { public string Id { get; set; } = Guid.NewGuid().ToString(); public string Name { get; set; } = "Estilo propio"; public string Font { get; set; } = "Georgia"; public double SizePt { get; set; } = 12; public double LineSpacing { get; set; } = 1.5; public double IndentMm { get; set; } = 0; public double BeforePt { get; set; } = 0; public double AfterPt { get; set; } = 8; public bool Bold { get; set; } public bool Italic { get; set; } public string Alignment { get; set; } = "Justificar"; public override string ToString() => Name; }
@@ -124,6 +131,9 @@ public static class WorldModel
         foreach (var c in w.Chapters.Where(c => c.ParentId == "").OrderBy(c => c.Order)) Visit(c); foreach (var c in w.Chapters.OrderBy(c => c.Order)) Visit(c); return result;
     }
 }
+
+
+
 
 
 

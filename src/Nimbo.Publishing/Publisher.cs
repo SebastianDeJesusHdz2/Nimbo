@@ -55,19 +55,36 @@ public static class Publisher
             var slide = work.Type == "Presentación" && !glossary;
             var novel = work.IsNovel && !glossary;
             var tex = new StringBuilder();
+            var format=Format.All.FirstOrDefault(f=>f.Name==work.Type);
+            var style=format==null?"Clásica":EditorialTemplate.For(format).FirstOrDefault(t=>t.Name==work.Template)?.Style??"Clásica";
+            var paper=work.Publication.Paper switch {"A5"=>"a5paper","Carta"=>"letterpaper","A4"=>"a4paper",_=>novel?"a5paper":"a4paper"};
             tex.AppendLine(slide ? @"\documentclass[aspectratio=169]{beamer}" :
                 novel ? @"\documentclass[11pt,a5paper,openany]{book}" : @"\documentclass[11pt]{article}");
             tex.AppendLine(@"\usepackage{fontspec,graphicx,xcolor,tabularx}");
             if (!slide) tex.AppendLine(glossary ? @"\usepackage[a6paper,margin=12mm]{geometry}" :
-                novel ? @"\usepackage[a5paper,inner=18mm,outer=15mm]{geometry}" :
-                @"\usepackage[" + (work.Publication.Paper == "Carta" ? "letterpaper" : "a4paper") + @",margin=23mm]{geometry}");
+                novel ? @"\usepackage["+paper+@",inner=18mm,outer=15mm]{geometry}" :
+                @"\usepackage[" + paper + @",margin=23mm]{geometry}");
             var accent = work.Type switch { "CV" => "65455B", "Informe" => "315671", "Artículo" => "4E476E", "Carta" => "784F3E", "Acta" => "5C634F", "Apuntes" => "506C46", "Propuesta" => "474F76", _ => "365E64" };
+            accent=work.PrintAccent switch {"Petróleo"=>"245966","Vino"=>"843B59","Oliva"=>"51683C","Grafito"=>"414650",_=>accent};
+            if(!glossary && style=="Moderna")tex.AppendLine(@"\renewcommand{\familydefault}{\sfdefault}");
             tex.AppendLine(@"\definecolor{accent}{HTML}{" + accent + "}");
             if (slide) tex.AppendLine(@"\setbeamercolor{structure}{fg=accent}\setbeamercolor{frametitle}{bg=accent,fg=white}\setbeamertemplate{navigation symbols}{}");
             if (novel) tex.AppendLine(@"\renewcommand{\chaptername}{Capítulo}\renewcommand{\partname}{Parte}\renewcommand{\contentsname}{Contenido}");
             if (!slide && work.Chapters.Any(c => c.Layout.StartsWith("Ajustar") && c.Images.Count > 0)) tex.AppendLine(@"\usepackage{wrapfig}");
+            if(!glossary && work.Type=="CV")tex.AppendLine(@"\setlength{\parindent}{0pt}");
             var title = glossary ? "Glosario de " + work.Title : work.Title;
-            tex.AppendLine(@"\title{" + Escape(title) + @"}\author{" + Escape(work.Author) + @"}\date{}\begin{document}");
+            if(slide){
+                var affiliation=string.Join(" · ",new[]{"Institución","Evento"}.Select(k=>work.DocumentFacts.GetValueOrDefault(k,"")).Where(v=>v!=""));
+                tex.AppendLine(@"\institute{"+Escape(affiliation)+@"}\subtitle{"+Escape(work.Subtitle)+"}");
+            }
+            var date=slide?work.DocumentFacts.GetValueOrDefault("Fecha",""):"";
+            tex.AppendLine(@"\title{" + Escape(title) + @"}\author{" + Escape(work.Author) + @"}\date{"+Escape(date)+@"}\begin{document}");
+            if(!slide && !glossary){
+                var leading=work.PrintSpacing switch {"Abierto"=>"1.2","Amplio"=>"1.5",_=>"1"};
+                tex.AppendLine(@"\linespread{"+leading+@"}\selectfont");
+                var indent=work.PrintIndent switch {"Sin sangría"=>"0mm","5 mm"=>"5mm","8 mm"=>"8mm",_=>null};
+                if(indent!=null)tex.AppendLine(@"\setlength{\parindent}{"+indent+"}");
+            }
             void Image(string key, string layout = "Centrada")
             {
                 if (string.IsNullOrEmpty(key)) return;
@@ -88,7 +105,21 @@ public static class Publisher
                 tex.AppendLine(@"\begin{titlepage}\centering"); Image(work.CoverImage);
                 tex.AppendLine(@"{\Huge " + Escape(work.Title) + @"\par}\vfill " + Escape(work.Author) + @"\end{titlepage}");
             }
-            else if (!glossary && work.Type is "CV" or "Carta" or "Acta" or "Apuntes")
+            else if(!glossary && work.Type=="CV"){
+                string Contact(string key)=>work.Contact.GetValueOrDefault(key,"").Trim();
+                var name=Contact("Nombre profesional");if(name=="")name=work.Title;
+                var profession=Contact("Profesión");if(profession=="")profession=work.Subtitle;
+                if(style=="Académica")tex.AppendLine(@"\begin{center}");
+                if(style=="Moderna")tex.AppendLine(@"\noindent\colorbox{accent}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{\color{white}\Large\bfseries\strut "+Escape(name)+@"\strut}}\par");
+                else tex.AppendLine(@"\noindent{\Huge\color{accent}"+Escape(name)+@"\par}");
+                if(profession!="")tex.AppendLine(@"\medskip{\large "+Escape(profession)+@"\par}");
+                if(Contact("Nombre profesional")=="" && work.Author!="" && work.Author!=name)tex.AppendLine(Escape(work.Author)+@"\par");
+                var contact=new[]{"Correo","Teléfono","Ciudad","Portafolio","Perfil profesional en línea"}.Select(Contact).Where(v=>v!="");
+                tex.AppendLine(@"\smallskip{\small "+(style=="Académica"?@"\centering ":@"\raggedright ")+string.Join(@" \enspace·\enspace ",contact.Select(Escape))+@"\par}");
+                if(style=="Académica")tex.AppendLine(@"\end{center}");
+                else tex.AppendLine(@"\noindent{\color{accent}\rule{\linewidth}{1pt}}\par");
+            }
+            else if (!glossary && work.Type is "Carta" or "Acta" or "Apuntes")
             {
                 tex.AppendLine(@"\noindent{\sffamily\Huge\color{accent}" + Escape(work.Title) + @"\par}\medskip");
                 if (work.Subtitle != "") tex.AppendLine(@"{\large " + Escape(work.Subtitle) + @"\par}");
@@ -96,6 +127,12 @@ public static class Publisher
                 tex.AppendLine(@"\noindent{\color{accent}\rule{\linewidth}{1pt}}\medskip");
             }
             else tex.AppendLine(slide ? @"\begin{frame}\titlepage\end{frame}" : @"\maketitle");
+            var facts=EditorialTemplate.FrontMatter(work.Type).Where(k=>!string.IsNullOrWhiteSpace(work.DocumentFacts.GetValueOrDefault(k))).ToArray();
+            if(!slide && !glossary && facts.Length>0){
+                if(slide)tex.AppendLine(@"\begin{frame}{"+Escape(work.Subtitle==""?work.Title:work.Subtitle)+"}");
+                foreach(var key in facts)tex.AppendLine(@"\noindent{\bfseries "+Escape(key)+@"}\enspace "+Escape(work.DocumentFacts[key])+@"\par");
+                if(slide)tex.AppendLine(@"\end{frame}");
+            }
             if (novel && work.Publication.Contents && work.Chapters.Count > 1) tex.AppendLine(@"\tableofcontents");
             if (glossary)
             {
@@ -109,8 +146,11 @@ public static class Publisher
             }
             else
             {
+                static bool HasContent(Chapter c)=>c.PlainText!="" || c.Detail!="" || c.Summary!="" || c.Entries.Count>0 || c.Images.Count>0;
+                var omitEmpty=work.Type=="CV" && work.Chapters.Any(HasContent);
                 foreach (var chapter in WorldModel.Ordered(work))
                 {
+                    if(omitEmpty && !HasContent(chapter))continue;
                     var heading = Escape(chapter.Title);
                     tex.AppendLine(slide ? @"\begin{frame}[allowframebreaks]{" + heading + "}" : novel ?
                         (chapter.Level == "Arc" ? @"\part{" : chapter.Level == "Subchapter" ? @"\section{" : @"\chapter{") + heading + "}" :
@@ -136,6 +176,13 @@ public static class Publisher
                     tex.AppendLine(Paragraphs(chapter.PlainText[start..]));
                     if (columns) tex.AppendLine(@"\end{column}\begin{column}{.50\textwidth}");
                     for (int i = 0; i < chapter.Images.Count; i++) if (!used.Contains(i)) Image(chapter.Images[i], chapter.Layout);
+                    if(work.Type=="CV"){
+                        foreach(var entry in chapter.Entries){
+                            tex.AppendLine(@"\par\medskip\noindent{\bfseries "+Escape(entry.Heading)+@"}\hfill{\small "+Escape(entry.Period)+@"}\par\nopagebreak");
+                            if(entry.Organization!="")tex.AppendLine(@"{\itshape "+Escape(entry.Organization)+@"\par}\nopagebreak");
+                            tex.AppendLine(Paragraphs(entry.Description));
+                        }
+                    }
                     if (chapter.Summary != "") tex.AppendLine(@"\par\medskip\textit{" + Escape(chapter.Summary) + "}");
                     if (columns) tex.AppendLine(@"\end{column}\end{columns}");
                     if (slide) tex.AppendLine(@"\end{frame}");
@@ -173,6 +220,11 @@ public static class Publisher
         finally { File.Delete(pending); Directory.Delete(temp, true); }
     }
 }
+
+
+
+
+
 
 
 

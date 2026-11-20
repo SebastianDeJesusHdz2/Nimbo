@@ -3,10 +3,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.5.0-alpha.2</Version>
+    <Version>0.5.0-alpha.3</Version>
     <Product>Nimbo</Product>
     <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/SebastianDeJesusHdz2/Nimbo</RepositoryUrl>
   </PropertyGroup>
 </Project>
+
 

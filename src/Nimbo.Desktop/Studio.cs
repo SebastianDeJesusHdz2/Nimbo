@@ -15,7 +15,7 @@ namespace Nimbo.Desktop;
 
 public sealed partial class Studio : Window
 {
-    readonly Shelf shelf = new(UserLibrary.OpenDirectory(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)));
+    readonly Shelf shelf;
     readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap };
     readonly ContentControl page = new();
     readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1.2) };
@@ -30,8 +30,9 @@ public sealed partial class Studio : Window
     static IBrush Accent = Brush.Parse("#A4DACC");
     static IBrush PanelColor = Brush.Parse("#202A32");
 
-    public Studio()
+    public Studio(string? testLibrary=null)
     {
+        shelf=new Shelf(testLibrary??UserLibrary.OpenDirectory(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)));
         session = new(shelf);
         Title = "Nimbo"; Width = 1280; Height = 850;WindowState=WindowState.Maximized; MinWidth = 760; MinHeight = 540;
         Background = Brush.Parse("#141C23");
@@ -88,26 +89,32 @@ public sealed partial class Studio : Window
     void Preferences()
     {
         var body = Column(); body.Children.Add(Action("‹ Biblioteca", Library)); body.Children.Add(Label("Preferencias", 28));
+        var sections=new TabControl();var design=Column();var identity=Column();var publishing=Column();
         var theme = new ComboBox { ItemsSource = new[] { "Oscuro", "Claro" }, SelectedIndex = ActualThemeVariant == Avalonia.Styling.ThemeVariant.Light ? 1 : 0 };
-        theme.SelectionChanged += (_, _) => Run(() => { File.WriteAllText(Config("tema"), theme.SelectedIndex == 1 ? "Claro" : "Oscuro"); ApplyTheme();Preferences(); }); body.Children.Add(Label("Apariencia")); body.Children.Add(theme);
-        body.Children.Add(Label("Nombre para las obras nuevas")); var author = new TextBox { Text = File.Exists(Config("autor")) ? File.ReadAllText(Config("autor")) : "", Watermark = "Nombre o seudónimo" }; body.Children.Add(author); body.Children.Add(Action("Guardar nombre", () => Run(() => File.WriteAllText(Config("autor"), author.Text ?? ""))));
-        body.Children.Add(Label("Fondo de la biblioteca"));
+        theme.SelectionChanged += (_, _) => Run(() => { File.WriteAllText(Config("tema"), theme.SelectedIndex == 1 ? "Claro" : "Oscuro"); ApplyTheme();Preferences(); }); design.Children.Add(Label("Apariencia")); design.Children.Add(theme);
+        WritingPreferences(design);body.MaxWidth=900;body.Margin=new Thickness(24);
+        identity.Children.Add(Label("Nombre para las obras nuevas")); var author = new TextBox { Text = File.Exists(Config("autor")) ? File.ReadAllText(Config("autor")) : "", Watermark = "Nombre o seudónimo" }; identity.Children.Add(author); identity.Children.Add(Action("Guardar nombre", () => Run(() => File.WriteAllText(Config("autor"), author.Text ?? ""))));
+        design.Children.Add(Label("Fondo de la biblioteca"));
         var backgrounds=Row();backgrounds.Children.Add(Action("Elegir imagen…",async()=>await Guard(async()=>{
             var f=(await StorageProvider.OpenFilePickerAsync(new(){Title="Fondo PNG o JPEG"})).FirstOrDefault()?.TryGetLocalPath();
             if(f!=null){File.WriteAllText(Config("fondo"),shelf.AddImage(f));Library();}
-        })));if(File.Exists(Config("fondo")))backgrounds.Children.Add(Action("Quitar fondo",()=>Run(()=>{File.Delete(Config("fondo"));Library();})));body.Children.Add(backgrounds);
-        body.Children.Add(Label("Motor de publicación")); body.Children.Add(Label(Engine() ?? "XeLaTeX del sistema"));
-        body.Children.Add(Action("Seleccionar XeLaTeX…", async () => await Guard(async () =>
+        })));if(File.Exists(Config("fondo")))backgrounds.Children.Add(Action("Quitar fondo",()=>Run(()=>{File.Delete(Config("fondo"));Library();})));design.Children.Add(backgrounds);
+        publishing.Children.Add(Label("Motor de publicación")); publishing.Children.Add(Label(Engine() ?? "XeLaTeX del sistema"));
+        publishing.Children.Add(Action("Seleccionar XeLaTeX…", async () => await Guard(async () =>
         {
             var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Seleccionar xelatex o xelatex.exe" })).FirstOrDefault()?.TryGetLocalPath();
             if (path != null) { if (!Path.GetFileNameWithoutExtension(path).Equals("xelatex", StringComparison.OrdinalIgnoreCase)) throw new IOException("Selecciona el ejecutable xelatex."); File.WriteAllText(Config("xelatex"), path); Preferences(); }
-        }))); page.Content = new ScrollViewer{Content=Card(body)};
+        }))); sections.ItemsSource=new[]{new TabItem{Header="Apariencia y escritura",Content=Card(design)},new TabItem{Header="Autor",Content=Card(identity)},new TabItem{Header="Publicación",Content=Card(publishing)}};sections.SelectedIndex=0;body.Children.Add(sections);page.Content = new ScrollViewer{Content=Card(body)};
     }
     void ApplyTheme()
     {
         var light = File.Exists(Config("tema")) && File.ReadAllText(Config("tema")) == "Claro";
+        var tone=ReadPref("paleta","Océano");
         RequestedThemeVariant = light ? Avalonia.Styling.ThemeVariant.Light : Avalonia.Styling.ThemeVariant.Dark;
-        Background = Brush.Parse(light ? "#F5F3ED" : "#141C23"); PanelColor = Brush.Parse(light ? "#E7ECE9" : "#202A32"); Accent = Brush.Parse(light ? "#23584E" : "#A4DACC");
+        Background = Brush.Parse(light ? "#F5F3ED" : tone switch {"Bosque"=>"#12221F","Vino"=>"#251921","Grafito"=>"#202124",_=>"#141C23"}); PanelColor = Brush.Parse(light ? (tone switch {"Vino"=>"#F1E4E9","Bosque"=>"#E3EEE6","Grafito"=>"#E5E6E8",_=>"#E5EDF0"}) : tone switch {"Bosque"=>"#20362F","Vino"=>"#3B2631","Grafito"=>"#303236",_=>"#202A32"}); Accent = Brush.Parse((tone,light) switch {("Vino",true)=>"#863955",("Vino",false)=>"#EDADC3",("Bosque",false)=>"#A5D5A6",("Grafito",false)=>"#C7CEDC",(_,true)=>"#23584E",_=>"#A4DACC"});
+        var tint=(Accent as ISolidColorBrush)!.Color;
+        Resources["SystemAccentColor"]=tint;
+        foreach(var key in new[]{"SystemAccentColorLight1","SystemAccentColorLight2","SystemAccentColorLight3","SystemAccentColorDark1","SystemAccentColorDark2","SystemAccentColorDark3"})Resources[key]=tint;
     }
     async Task Export(bool pdf, bool glossary = false) => await Guard(async () =>
     {
@@ -118,6 +125,10 @@ public sealed partial class Studio : Window
         status.Text = "Componiendo…"; await Task.Run(() => Publisher.Export(snapshot, shelf.Media, path, pdf, glossary, Engine())); status.Text = "Exportado · " + Path.GetFileName(path);
     });
 }
+
+
+
+
 
 
 

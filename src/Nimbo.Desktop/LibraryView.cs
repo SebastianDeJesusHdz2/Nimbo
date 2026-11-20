@@ -40,16 +40,19 @@ public sealed partial class Studio
         var create=Column(10);
         var title=new TextBox{Watermark="Título de tu obra"};
         var format=new ComboBox{ItemsSource=Format.All,SelectedIndex=0,HorizontalAlignment=HorizontalAlignment.Stretch};
+        var templates=new ComboBox{HorizontalAlignment=HorizontalAlignment.Stretch};
+        void SetTemplates(){templates.ItemsSource=EditorialTemplate.For((Format)format.SelectedItem!);templates.SelectedIndex=0;}
+        format.SelectionChanged+=(_,_)=>SetTemplates();SetTemplates();
         var createButton=Action("Crear obra",()=>Run(()=>{
             if(string.IsNullOrWhiteSpace(title.Text)){title.Focus();return;}
-            var work=((Format)format.SelectedItem!).Create(title.Text);
+            var work=((EditorialTemplate)templates.SelectedItem!).Create((Format)format.SelectedItem!,title.Text);
             if(File.Exists(Config("autor")))work.Author=File.ReadAllText(Config("autor"));
             Open(work,shelf.Save(work,0));
         }));
-        createButton.Background=Accent;createButton.Foreground=Brushes.Black;
+        createButton.Background=Accent;createButton.Foreground=ActualThemeVariant==Avalonia.Styling.ThemeVariant.Light?Brushes.White:Brushes.Black;
         var createFields=new Grid{ColumnDefinitions=new ColumnDefinitions("1.2*,2*,Auto"),ColumnSpacing=8};
         createFields.Children.Add(format);Grid.SetColumn(title,1);createFields.Children.Add(title);Grid.SetColumn(createButton,2);createFields.Children.Add(createButton);
-        create.Children.Add(Display("Nueva obra",24));create.Children.Add(createFields);
+        create.Children.Add(Display("Nueva obra",24));create.Children.Add(createFields);create.Children.Add(Label("Plantilla"));create.Children.Add(templates);
         if(entries.Count==0){
             var gallery=new WrapPanel();
             foreach(var (kind,color) in new[]{("Novela","#435D61"),("Apuntes","#686342"),("CV","#664D61"),("Presentación","#435877")}){
@@ -80,12 +83,16 @@ public sealed partial class Studio
         var section=new DockPanel();DockPanel.SetDock(search,Dock.Right);section.Children.Add(search);
         var groupTitle=Display("Tu estantería",26);section.Children.Add(groupTitle);content.Children.Add(section);
         var books=new WrapPanel();content.Children.Add(books);
+        var browse=Row();
+        var types=new ComboBox{ItemsSource=new[]{"Todos los formatos"}.Concat(entries.Select(e=>e.Type).Distinct().Order()).ToArray(),SelectedIndex=0};
+        var view=new ComboBox{ItemsSource=new[]{"Portadas","Catálogo"},SelectedIndex=ReadPref("vista","Portadas")=="Catálogo"?1:0};
+        browse.Children.Add(types);browse.Children.Add(view);content.Children.Insert(content.Children.IndexOf(books),browse);
         string selected="";
         void Filter(){
             books.Children.Clear();groupTitle.Text=selected==""?"Tu estantería":selected;
-            foreach(var entry in entries.Where(e=>(selected==""||e.Collection==selected) && (e.Title+" "+e.Author).Contains(search.Text??"",StringComparison.CurrentCultureIgnoreCase))){
+            foreach(var entry in entries.Where(e=>(selected==""||e.Collection==selected) && (types.SelectedIndex==0||e.Type==types.SelectedItem as string) && (e.Title+" "+e.Author).Contains(search.Text??"",StringComparison.CurrentCultureIgnoreCase))){
                 var book=new BookCover(entry,shelf.Media,()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));
-                books.Children.Add(book);
+                if(view.SelectedIndex==0)books.Children.Add(book);else{var record=Column(4);record.Width=215;record.Children.Add(Label(entry.Type));record.Children.Add(Display(entry.Title,20));if(entry.Author!="")record.Children.Add(Label(entry.Author));var open=Action("",()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));open.Content=record;open.Margin=new Thickness(0,0,8,8);books.Children.Add(open);}
             }
             if(books.Children.Count==0)books.Children.Add(Label(entries.Count==0?"Aquí aparecerá tu primera obra.":"Ninguna obra coincide con la búsqueda."));
         }
@@ -94,7 +101,7 @@ public sealed partial class Studio
             var item=Action(collection==""?"Todas las obras":collection,()=>{selected=collection;Filter();});
             item.HorizontalAlignment=HorizontalAlignment.Stretch;controls.Children.Add(item);
         }
-        search.TextChanged+=(_,_)=>Filter();Filter();
+        types.SelectionChanged+=(_,_)=>Filter();view.SelectionChanged+=(_,_)=>Run(()=>{File.WriteAllText(Config("vista"),view.SelectedItem!.ToString());Filter();});search.TextChanged+=(_,_)=>Filter();Filter();
                 layout.Children.Add(new ScrollViewer{Content=content});
         var surface=new Grid();
         if(File.Exists(Config("fondo"))){
@@ -108,4 +115,5 @@ public sealed partial class Studio
         surface.Children.Add(layout);page.Content=surface;
     }
 }
+
 

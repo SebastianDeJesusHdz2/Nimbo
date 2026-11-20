@@ -29,7 +29,11 @@ public sealed class App : Avalonia.Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new Studio();
+            var verifyEditors=desktop.Args?.Contains("--verify-editors")==true;
+            var scratch=verifyEditors?Directory.CreateTempSubdirectory("nimbo-views-").FullName:null;
+            var studio=new Studio(scratch);desktop.MainWindow=studio;
+            if(verifyEditors)studio.Opened+=(_,_)=>Dispatcher.UIThread.Post(()=>desktop.Shutdown(studio.VerifyEditorialViews()?0:4),DispatcherPriority.ApplicationIdle);
+            if(scratch!=null)desktop.Exit+=(_,_)=>{Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();Directory.Delete(scratch,true);};
             if (desktop.Args?.Contains("--verify-ui") == true)
             {
                 var window = desktop.MainWindow;
@@ -48,5 +52,6 @@ public sealed class App : Avalonia.Application
         base.OnFrameworkInitializationCompleted();
     }
 }
+
 
 

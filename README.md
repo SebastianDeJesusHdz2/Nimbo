@@ -45,3 +45,9 @@ El avance y las comprobaciones pendientes se registran en [el plan](docs/PLAN.tx
 El código de Nimbo se distribuye bajo la [GNU General Public License, versión 3](LICENSE) (GPL-3.0-only). Los derechos sobre los manuscritos, ilustraciones y presentaciones que creas siguen correspondiendo a sus respectivos autores. Las bibliotecas de terceros conservan sus propias licencias.
 
 En el manuscrito, **Ctrl+F** busca en la sección abierta. **F3** avanza y **Mayús+F3** retrocede. **Esc** devuelve el foco al texto. Al reabrir una obra, Nimbo recupera la última sección visitada.
+
+### Plantillas y lectura
+
+En **Nueva obra** elige el formato y la plantilla. En un CV, **Perfil y diseño** reúne los datos de contacto y el estilo impreso. Cada sección admite varias entradas con puesto, institución, fechas y resultados. Cambiar el estilo desde la ficha conserva los apartados que ya escribiste.
+
+**Leer** abre la sección sin herramientas de edición. **Vista previa** compone el PDF con XeLaTeX y lo abre en el lector del sistema. En **Ficha y diseño** puedes elegir papel, tinta, interlineado y sangría. Las preferencias de pantalla se guardan aparte, en **Preferencias → Apariencia y escritura**.

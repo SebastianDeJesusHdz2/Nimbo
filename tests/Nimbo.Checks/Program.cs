@@ -27,6 +27,35 @@ try
         var output = Path.Combine(root, "source.zip"); await Publisher.Export(work, shelf.Media, output, false);
         using (var zip = ZipFile.OpenRead(output)) { using var reader = new StreamReader(zip.GetEntry("obra.tex")!.Open()); Check(reader.ReadToEnd().Contains(@"50\%"), "escape"); }
     }
+    foreach(var format in Format.All){
+        foreach(var template in EditorialTemplate.For(format)){
+            var doc=template.Create(format,"Ejemplo "+format.Name);
+            Check(doc.Chapters.Count==template.Sections.Length && doc.Template==template.Name,"estructura de plantilla");
+            var keys=EditorialTemplate.FrontMatter(format.Name);
+            foreach(var k in keys)doc.DocumentFacts[k]="Ensayo & revisión";
+            if(format.Name=="CV"){
+                doc.Contact["Nombre profesional"]="Marina Rivera";
+                doc.Contact["Profesión"]="Diseñadora editorial";
+                doc.Contact["Correo"]="marina@example.org";
+                doc.Contact["Ciudad"]="San Luis Potosí";
+                doc.Chapters[0].PlainText="Diseño publicaciones para equipos culturales y coordino su preparación para imprenta.";
+                var experience=doc.Chapters.First(c=>c.Title is "Experiencia laboral" or "Proyectos" or "Investigación");
+                experience.Entries.Add(new(){Heading="Diseño de publicaciones",Organization="Estudio de ejemplo",Period="2022–2025",Description="- Diseñé una colección de catálogos.\n- Coordiné pruebas de impresión con el equipo editorial."});
+                doc.Chapters.First(c=>c.Title=="Formación").Entries.Add(new(){Heading="Licenciatura en Diseño",Organization="Universidad de ejemplo",Period="2017–2021"});
+            }
+            shelf.Save(doc,0);var reopened=shelf.Open(doc.Id).Work;
+            var zipPath=Path.Combine(root,"plantilla.zip");await Publisher.Export(reopened,shelf.Media,zipPath,false);
+            using(var zip=ZipFile.OpenRead(zipPath)){using var sr=new StreamReader(zip.GetEntry("obra.tex")!.Open());var tex=sr.ReadToEnd();
+                if(keys.Length>0)Check(tex.Contains(@"Ensayo \& revisión"),"datos específicos impresos");
+                if(format.Name=="CV")Check(tex.Contains("Marina Rivera") && tex.Contains("Estudio de ejemplo") && !tex.Contains("Certificaciones"),"CV con entradas y secciones opcionales");
+            }
+            if(format.Name=="CV" && args.Contains("--pdf")){
+                var output=Environment.GetEnvironmentVariable("NIMBO_SAMPLE_DIR")??root;
+                Directory.CreateDirectory(output);
+                await Publisher.Export(reopened,shelf.Media,Path.Combine(output,template.Name+".pdf"),true,false,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
+            }
+        }
+    }
     var legacy = Path.Combine(root, "anterior"); var studio = Directory.CreateDirectory(Path.Combine(legacy, "Data", "Studio")).FullName;
     var old = Format.All[0].Create("Prueba migrada");
     var race = new Node { Name = "Elfos", AttributeDefinitions = [new() { Name = "Orejas", DefaultValue = "8 cm" }] };
@@ -68,6 +97,8 @@ try
 }
 finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(root, true); }
 static void Check(bool result, string check) { if (!result) throw new Exception(check); }
+
+
 
 
 

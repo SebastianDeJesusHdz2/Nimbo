@@ -19,7 +19,7 @@ public sealed partial class Studio
     {
         var work = current!; var body = Column(); var bar = Row(); bar.Children.Add(Action("‹ Manuscrito", Editor));
         bar.Children.Add(Action("Nueva ficha", () => { var n = new Node { ParentId = node?.Id ?? "" }; work.Glossary.Add(n); Changed(); Glossary(n); }));
-        bar.Children.Add(Action("Cuadernillo PDF", async () => await Export(true, true))); body.Children.Add(bar); body.Children.Add(Label("Glosario", 28));
+        bar.Children.Add(Action("Vista previa A6",async()=>await Preview(true)));bar.Children.Add(Action("Cuadernillo PDF", async () => await Export(true, true))); body.Children.Add(bar); body.Children.Add(Label("Glosario", 28));
         var tree = new TreeView();
         var branches = work.Glossary.ToDictionary(n => n.Id, n => new TreeViewItem { Header = n.Name, Tag = n, IsExpanded = true });
         foreach (var item in work.Glossary)
@@ -32,6 +32,20 @@ public sealed partial class Studio
         if (node != null) tree.SelectedItem = branches[node.Id];
         tree.SelectionChanged += (_, _) => { if (tree.SelectedItem is TreeViewItem { Tag: Node chosen } && chosen != node) Glossary(chosen); };
         var sidebar = Column(); sidebar.Width = 205; sidebar.Children.Add(Label("Índice", 20));
+        var search=new TextBox{Watermark="Buscar nombre, clase o alias"};sidebar.Children.Add(search);
+        var matches=new ListBox{IsVisible=false,MaxHeight=350};sidebar.Children.Add(matches);
+        matches.SelectionChanged+=(_,_)=>{if(matches.SelectedItem is Node hit)Glossary(hit);};
+        search.TextChanged+=(_,_)=>{
+            var term=search.Text?.Trim()??"";tree.IsVisible=term.Length==0;matches.IsVisible=!tree.IsVisible;
+            matches.ItemsSource=term.Length==0?Array.Empty<Node>():work.Glossary.Where(n=>(n.Name+" "+n.NodeKind+" "+n.Aliases).Contains(term,StringComparison.CurrentCultureIgnoreCase)).ToArray();
+        };
+        if(node==null){
+            body.Children.Add(Display("Fichas por clase",24));
+            foreach(var group in work.Glossary.GroupBy(n=>n.NodeKind).OrderBy(g=>g.Key)){
+                var section=Column(5);section.Children.Add(Label(group.Key+" · "+group.Count(),17));
+                foreach(var item in group.OrderBy(n=>n.Name))section.Children.Add(Action(item.Name,()=>Glossary(item)));body.Children.Add(Card(section));
+            }
+        }
         sidebar.Children.Add(Action("+ Categoría", () => { var n = new Node { Name = "Nueva categoría", NodeKind = "Categoría", ParentId = node?.Id ?? "" }; work.Glossary.Add(n); Changed(); Glossary(n); }));
         sidebar.Children.Add(Action("Ir a raíz", () => Glossary(null))); sidebar.Children.Add(tree);
         if (node != null)
@@ -79,4 +93,5 @@ public sealed partial class Studio
         DockPanel.SetDock(index, Dock.Left); panel.Children.Add(index); panel.Children.Add(new ScrollViewer { Content = Card(body) }); page.Content = panel;
     }
 }
+
 
