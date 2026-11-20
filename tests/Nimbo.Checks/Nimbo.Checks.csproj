@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType></PropertyGroup><ItemGroup>
+<ProjectReference Include="../../src/Nimbo.Storage/Nimbo.Storage.csproj"/>
+<ProjectReference Include="../../src/Nimbo.Publishing/Nimbo.Publishing.csproj"/>
+</ItemGroup></Project>

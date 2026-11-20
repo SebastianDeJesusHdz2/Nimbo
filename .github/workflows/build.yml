@@ -1,0 +1,79 @@
+name: Nimbo desktop
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            exe: Nimbo.Desktop.exe
+          - os: ubuntu-24.04
+            rid: linux-x64
+            exe: Nimbo.Desktop
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Verificar biblioteca e intercambio LaTeX
+        run: dotnet run --project tests/Nimbo.Checks -c Release
+      - name: Verificar libro ilustrado y glosario A6 con XeLaTeX
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends texlive-xetex texlive-latex-extra
+          dotnet run --project tests/Nimbo.Checks -c Release -- --pdf
+      - name: Publicar escritorio
+        run: dotnet publish src/Nimbo.Desktop -c Release -r ${{ matrix.rid }} --self-contained -o artifacts/app
+      - name: Abrir la biblioteca en Linux
+        if: runner.os == 'Linux'
+        run: xvfb-run -a artifacts/app/Nimbo.Desktop --verify-ui
+      - name: Abrir la biblioteca en Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $process = Start-Process artifacts/app/Nimbo.Desktop.exe -ArgumentList '--verify-ui' -PassThru -Wait -WindowStyle Hidden
+          exit $process.ExitCode
+      - name: Instalar empaquetador
+        run: dotnet tool install --tool-path tools vpk --version 1.2.161
+      - name: Preparar versión
+        shell: bash
+        run: |
+          version=0.5.0-alpha.1
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then version="${GITHUB_REF_NAME#v}"; fi
+          ./tools/vpk pack --packId Nimbo --packTitle Nimbo --packVersion "$version" --runtime ${{ matrix.rid }} --packDir artifacts/app --mainExe ${{ matrix.exe }} --outputDir artifacts/release
+      - if: runner.os == 'Linux'
+        run: cp packaging/instalar-linux.sh artifacts/release/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nimbo-${{ matrix.rid }}
+          path: artifacts/release/
+          retention-days: 3
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: desktop
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+      - name: Preparar borrador de distribución
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          assets=(packages/*/*.exe packages/*/*.AppImage packages/*/*.nupkg packages/*/releases.*.json packages/*/*.sh)
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --draft --title "Nimbo ${GITHUB_REF_NAME#v}"
+
+
+

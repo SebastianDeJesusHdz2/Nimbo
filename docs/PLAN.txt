@@ -1,0 +1,71 @@
+NIMBO · PLAN DE REFACTORIZACIÓN Y DISTRIBUCIÓN
+Propuesta del 19 de noviembre de 2026 · Nombre y plataformas confirmados
+
+OBJETIVO
+Una aplicación gratuita e instalable para Windows y Linux. Objetivos iniciales de prueba propuestos: Windows 11 x64 y Ubuntu 24.04 LTS x64. Una persona debe poder abrir su último capítulo, preparar un CV o componer una presentación desde la misma biblioteca. La escritura, la búsqueda y la publicación en LaTeX y PDF funcionan sin conexión. GitHub se utiliza para el desarrollo y para entregar versiones. Los manuscritos permanecen en el equipo.
+
+PUNTO DE PARTIDA
+[x] Revisado StudioApp. El editor narrativo usa C#, WPF y FlowDocument. La composición actual también depende de controles y tipos WPF. Mover archivos entre carpetas por sí solo dejaría esa dependencia intacta.
+[x] Revisado Documentos. La ventana Tk, el catálogo, SQLite y el compositor Python ya tienen responsabilidades parcialmente separadas. El inicio abre este estudio y desde allí se accede a los libros.
+[x] Identificadas dos bibliotecas, Data/Studio/library.json y Data/Documentos/estudio.sqlite, con medios asociados, así como un taller de impresión específico de una novela.
+[x] Revisada la distribución. El ejecutable operativo está en la rama de producto 0.4.7. Las pruebas anteriores registraron el rechazo de un ejecutable nuevo por Control de aplicaciones de Windows.
+[x] Medición local aproximada, sin compresión. MiKTeX ocupa 1.064 MiB, Poppler 87 MiB, el runtime de documentos 61 MiB y el SDK de desarrollo 770 MiB. Medir el instalador y la descarga incremental por separado.
+
+DECISIONES Y PROPUESTA TÉCNICA
+[x] Nombre definitivo: Nimbo. Aplicación gratuita para Windows y Linux, con distribución por GitHub y presupuesto de publicación cero.
+[ ] Base recomendada: .NET 10, Avalonia UI con licencia MIT, SQLite y XeLaTeX. Elegir controles gratuitos y comprobar sus licencias antes de adoptarlos. La licencia del código de Nimbo queda pendiente de elección.
+[ ] Probar primero el editor multiplataforma. Usar una copia del manuscrito existente para validar selección, acentos, portapapeles, deshacer, tablas e imágenes con texto alrededor. Convertir FlowDocument a un modelo portable y comprobar su exportación antes de retirar el editor anterior.
+[ ] Publicar con runtime .NET incluido para cada sistema. Probar fuentes redistribuibles, rutas relativas, diferencias entre mayúsculas y minúsculas y composición XeLaTeX sin conexión en ambos.
+
+ARQUITECTURA
+src/Frontend.Desktop (Avalonia): biblioteca, lector/editor, inspector, glosario, lienzo de diapositivas y ajustes. MVVM para comandos, selección, estado de guardado y deshacer.
+src/Core: modelo de obras, capítulos, bloques de texto, imágenes, tablas, fichas, atributos, relaciones, formatos y diseño de página. Identificadores estables. Ninguna referencia a ventanas, SQLite o motores externos.
+src/Application: operaciones de usuario, validación, transacciones, autosave y contratos para almacenamiento, imágenes y publicación. El frontend accede por estos contratos en el mismo proceso.
+src/Infrastructure: SQLite con versión de esquema, medios por identificador, migraciones y copias de seguridad. Unificar el catálogo y conservar las diferencias entre una novela, un documento y una presentación.
+src/Publishing: una instantánea inmutable del documento alimenta la vista previa, el PDF y el paquete LaTeX. Conservar fuentes y recursos relativos. Ejecutar la composición fuera del hilo de interfaz, con cancelación y diagnóstico por sección. Adaptadores temporales para los compositores existentes durante la migración.
+src/Launcher y packaging/: acceso desde el menú de aplicaciones de cada sistema, comprobación de versiones, instalador y proceso de actualización. Mantener binarios reemplazables separados de biblioteca, configuración, música y copias. La biblioteca debe poder residir en una ubicación elegida por el usuario.
+tests/: obras sintéticas y medios redistribuibles, regresión de datos y composición, pruebas de instalación, actualización y recuperación.
+
+EXPERIENCIA DE USO
+[ ] Una biblioteca con Recientes, colecciones y búsqueda. Crear abre tres familias: Libros, Documentos y Presentaciones. Cada formato presenta una miniatura real y el tipo de resultado impreso.
+[ ] Tema oscuro inicial, contraste y foco de teclado visibles, densidad y tipografía configurables. Validar a 1920×1080 y escalado 100/125/150 %. Acciones frecuentes accesibles desde teclado y menús breves.
+[ ] Manuscrito con árbol de arcos y capítulos, edición enriquecida, ajuste de imágenes y guardado visible. Glosario acoplable, búsqueda por atributos, fichas relacionadas, herencia y cuadernillo A6.
+[ ] Documentos con los nueve formatos actuales. Herramientas específicas para experiencia y formación del CV, preguntas y síntesis Cornell, responsables del acta y apartados del informe. Conversión por copia.
+[ ] Presentaciones con miniaturas, duplicación y reordenación, paletas y encuadre en el lienzo. Conservar composición 16:9, planos con leyenda, moodboard y landmark, y diagnosticar la diapositiva que desborda.
+[ ] Un solo panel de publicación. Previsualizar la composición real. En libros, cubierta y contraportada, cabeceras opcionales y márgenes enfrentados. En documentos y diapositivas, aplicar las reglas de su formato.
+
+GITHUB, FIRMA Y ACTUALIZACIÓN
+Propuesta de un repositorio público con GitHub Releases y compilaciones en los ejecutores estándar gratuitos de Windows y Linux. Mantener el almacenamiento dentro de las cuotas gratuitas. Decidir la licencia antes de publicar.
+Crear el repositorio con una lista explícita de fuentes. Excluir bibliotecas personales, PDFs universitarios, medios privados, respaldos, certificados, SDK y builds. Revisar licencias de fuentes, paquetes TeX, componentes redistribuidos y ejemplos.
+En cada pull request, Actions compila y ejecuta pruebas. Un tag de versión prepara instalador e índices de actualización en un borrador de release. Generar un manifiesto de paquetes firmado con clave del proyecto y proteger su clave privada. El lanzador comprobará la firma con una clave pública incluida antes de aplicar una actualización. Para Windows, probar por separado la confianza en el instalador con la política del equipo. Evaluar firma de editor gratuita si el proyecto cumple los requisitos. Registrar advertencias o bloqueos en los equipos probados.
+El launcher abre la versión instalada inmediatamente y comprueba GitHub en segundo plano con caché y reintentos espaciados. Si existe una versión posterior, muestra las notas y permite descargarla. Aplicar al cerrar o al elegir reiniciar, después de guardar. Verificar procedencia, firma y contenido antes del relevo. Si la descarga falla, seguir trabajando con la versión instalada. El canal estable ignora las versiones preliminares.
+Entregar un instalador .exe en Windows. En Linux, integrar la AppImage de Velopack mediante instalación por usuario con icono, entrada .desktop y desinstalación. Probar permisos, lanzador y actualizaciones desde el menú. Ofrecer instalación completa sin conexión y evaluar paquete de publicación versionado aparte. Reparar o actualizar ese paquete de forma independiente. Incluir las dependencias necesarias para exportar sin red en la instalación completa y excluir el SDK del usuario final.
+Validar una restauración que empareje versión de programa y esquema compatible de biblioteca. Antes de migrar, crear copia consistente de base y medios. Una reversión del programa por sí sola puede ser insuficiente tras una migración.
+
+ORDEN DE TRABAJO Y PRUEBAS DE SALIDA
+[ ] 1. Instalar dos versiones mínimas sucesivas en Windows 11 y Ubuntu LTS x64 limpios, sin SDK. Actualizar A a B desde el lanzador, conservar un documento y abrirlo sin red. Rechazar una descarga alterada. Repetir en el Windows que bloqueó la versión anterior y registrar cualquier limitación. Probar el editor multiplataforma antes de extender la migración.
+[ ] 2. Congelar una referencia verificable. Inventariar formatos, atajos y rutas. Registrar PDFs de referencia y tiempos de apertura, guardado y exportación. Usar copias aisladas de la novela, el glosario A6, un CV y la presentación de siete diapositivas.
+[ ] 3. Primera entrega vertical. Biblioteca oscura → crear informe → escribir → guardar → cerrar → reabrir → exportar. La interfaz consume el backend local y se instala mediante el launcher. Validar el flujo con el usuario antes de extenderlo.
+[ ] 4. Migración de bibliotecas. Vista previa de recuentos, medios ausentes y conflictos. Importación repetible con verificación de imágenes, orden, enlaces e identificadores. Abrir tanto la biblioteca original como la copia migrada y ensayar restauración.
+[ ] 5. Escritura y glosario. Comparar párrafos, tablas, imágenes, posición del cursor, atributos heredados, destacados y enlaces. Editar una sección y cambiar de ficha durante autoguardado sin perder cambios.
+[ ] 6. Documentos y presentaciones. Completar las nueve familias existentes, vista previa y conversión. Publicar muestras reales y confirmar la legibilidad de galerías, leyendas, tablas y márgenes. Preservar el contenido al duplicar o reordenar.
+[ ] 7. Unificar publicación. Reproducir la novela de referencia y sus 18 fichas, cotejar contenido y formato físico, comprobar enlaces y recompilar el ZIP LaTeX fuera de la aplicación. Documentar cualquier repaginación intencionada.
+[ ] 8. Beta y entrega. Probar actualización con el editor abierto, sin red, con descarga interrumpida y con migración fallida. Verificar recuperación, integridad de obras y funcionamiento del instalador completo. Retirar los componentes anteriores por módulo una vez demostrada la equivalencia.
+Primera meta: beta 0.5.0 propuesta. La publicación debe mantenerse en el presupuesto de cero. La fecha depende de la prueba de actualización, el editor y la migración en ambos sistemas.
+
+REFERENCIAS TÉCNICAS
+Avalonia — https://avaloniaui.net/solutions/desktop
+Velopack — https://docs.velopack.io/packaging/overview
+GitHub Actions — https://docs.github.com/en/actions/concepts/billing-and-usage
+GitHub Releases y actualización — https://docs.velopack.io/integrating/update-sources
+
+AVANCE DE IMPLEMENTACIÓN · 0.5.0-alpha.1
+[x] Crear el proyecto Nimbo y separar el modelo de dominio, SQLite, publicación y escritorio Avalonia.
+[x] Arranque con Velopack y compilación autónoma para Windows y Linux x64. Flujo de construcción y pruebas en GitHub.
+[x] Biblioteca básica, diez formatos de creación, secciones, capítulos, arcos y subcapítulos, portada, autoguardado con control de revisión y guardado por copia.
+[x] Primera importación de las dos bibliotecas a una base temporal. Se recuperaron seis obras y la segunda importación no duplicó registros.
+[x] Primera exportación de libro y cuadernillo A6 con XeLaTeX. Exportación LaTeX con medios relativos.
+[ ] Paridad de formato enriquecido y posición de imágenes, maquetación especializada para los nueve formatos y edición visual de diapositivas.
+[ ] Migrar perfil, colecciones y configuración global. Comprobar paridad visual individual de obras importadas.
+[ ] Validar el paquete Linux en una sesión de escritorio, la instalación sin conexión con motor TeX incluido, la confianza del instalador Windows y una actualización real entre versiones publicadas.
+[ ] Firmar y validar el manifiesto de distribución con la clave del proyecto. Elegir licencia antes de la entrega estable.

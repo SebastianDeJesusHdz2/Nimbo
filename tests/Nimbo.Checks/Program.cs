@@ -1,0 +1,50 @@
+using System.IO.Compression;
+using Nimbo.Core;
+using Nimbo.Storage;
+using Nimbo.Publishing;
+using System.Text.Json;
+using System.Text;
+
+var root=Directory.CreateTempSubdirectory("nimbo-check-").FullName;
+try {
+    var shelf=new Shelf(root);
+    foreach(var format in Format.All){
+        var work=format.Create("Prueba de "+format.Name+" & 50%");
+        work.Chapters[0].PlainText="Acentos, ñ y **énfasis**.\nUna segunda línea.";
+        var revision=shelf.Save(work,0);
+        var reopened=new Shelf(root).Open(work.Id);
+        Check(reopened.Work.Chapters[0].PlainText==work.Chapters[0].PlainText,"texto");
+        var next=shelf.Save(work,revision); Check(next==2,"revisión");
+        try{shelf.Save(work,revision);throw new Exception("No detectó el conflicto.");}catch(IOException){}
+        var output=Path.Combine(root,"source.zip");await Publisher.Export(work,shelf.Media,output,false);
+        using(var zip=ZipFile.OpenRead(output)){using var reader=new StreamReader(zip.GetEntry("obra.tex")!.Open());Check(reader.ReadToEnd().Contains(@"50\%"),"escape");}
+    }
+    var legacy=Path.Combine(root,"anterior");var studio=Directory.CreateDirectory(Path.Combine(legacy,"Data","Studio")).FullName;
+    var old=Format.All[0].Create("Prueba migrada");
+    var race=new Node{Name="Elfos",AttributeDefinitions=[new(){Name="Orejas",DefaultValue="8 cm"}]};
+    var elf=new Node{Name="Ada",BaseId=race.Id};old.Glossary.AddRange([race,elf]);
+    old.Chapters[0].PlainText="## Inicio\nLínea inicial.\n- Segunda línea.\n| Columna A | Columna B |\n| Uno | Dos |";
+    var png=Path.Combine(root,"figura.png");
+    File.WriteAllBytes(png,Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAzSURBVEhLY4ift+A/LTEDugC18agFBPGoBQTxqAUE8agFBPGoBQTxqAUE8agFBDHNLQAAbzffTAnMZXYAAAAASUVORK5CYII="));
+    var image=shelf.AddImage(png);
+    var filename=Path.Combine(studio,"library.json");
+    File.WriteAllText(filename,JsonSerializer.Serialize(new Library{Projects=[old]}));
+    Check(Legacy.Import(shelf,legacy)==1 && Legacy.Import(shelf,legacy)==0,"importación repetible");
+    Check(WorldModel.Effective(shelf.Open(old.Id).Work,elf).Single().Value=="8 cm","herencia");
+    if(args.Contains("--pdf")){
+        old.Chapters[0].Images.Add(image);old.Chapters[0].Layout="Centrada";
+        var book=Path.Combine(root,"book.pdf");var glossary=Path.Combine(root,"glossary.pdf");
+        await Publisher.Export(old,shelf.Media,book,true,false,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
+        await Publisher.Export(old,shelf.Media,glossary,true,true,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
+        foreach(var path in new[]{book,glossary})Check(Encoding.ASCII.GetString(File.ReadAllBytes(path),0,5)=="%PDF-","PDF");
+    }
+    if(Environment.GetEnvironmentVariable("NIMBO_TEST_LEGACY") is string source){
+        int count=Legacy.Import(shelf,source);Check(Legacy.Import(shelf,source)==0,"biblioteca duplicada");
+        Console.WriteLine($"Biblioteca local comprobada: {count} obras.");
+    }
+    Console.WriteLine("OK: 10 formatos, guardado, conflictos, migración, herencia y exportación.");
+} finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(root,true); }
+static void Check(bool result,string check){if(!result)throw new Exception(check);}
+
+
+
