@@ -13,7 +13,7 @@ PUNTO DE PARTIDA
 
 DECISIONES Y PROPUESTA TÉCNICA
 [x] Nombre definitivo: Nimbo. Aplicación gratuita para Windows y Linux, con distribución por GitHub y presupuesto de publicación cero.
-[ ] Base recomendada: .NET 10, Avalonia UI con licencia MIT, SQLite y XeLaTeX. Elegir controles gratuitos y comprobar sus licencias antes de adoptarlos. La licencia del código de Nimbo queda pendiente de elección.
+[ ] Base recomendada: .NET 10, Avalonia UI con licencia MIT, SQLite y XeLaTeX. Elegir controles gratuitos y comprobar sus licencias antes de adoptarlos. Licencia elegida para Nimbo: GPL-3.0-only.
 [ ] Probar primero el editor multiplataforma. Usar una copia del manuscrito existente para validar selección, acentos, portapapeles, deshacer, tablas e imágenes con texto alrededor. Convertir FlowDocument a un modelo portable y comprobar su exportación antes de retirar el editor anterior.
 [ ] Publicar con runtime .NET incluido para cada sistema. Probar fuentes redistribuibles, rutas relativas, diferencias entre mayúsculas y minúsculas y composición XeLaTeX sin conexión en ambos.
 
@@ -35,7 +35,7 @@ EXPERIENCIA DE USO
 [ ] Un solo panel de publicación. Previsualizar la composición real. En libros, cubierta y contraportada, cabeceras opcionales y márgenes enfrentados. En documentos y diapositivas, aplicar las reglas de su formato.
 
 GITHUB, FIRMA Y ACTUALIZACIÓN
-Propuesta de un repositorio público con GitHub Releases y compilaciones en los ejecutores estándar gratuitos de Windows y Linux. Mantener el almacenamiento dentro de las cuotas gratuitas. Decidir la licencia antes de publicar.
+Propuesta de un repositorio público con GitHub Releases y compilaciones en los ejecutores estándar gratuitos de Windows y Linux. Mantener el almacenamiento dentro de las cuotas gratuitas. Publicar el código y la licencia junto a cada versión.
 Crear el repositorio con una lista explícita de fuentes. Excluir bibliotecas personales, PDFs universitarios, medios privados, respaldos, certificados, SDK y builds. Revisar licencias de fuentes, paquetes TeX, componentes redistribuidos y ejemplos.
 En cada pull request, Actions compila y ejecuta pruebas. Un tag de versión prepara instalador e índices de actualización en un borrador de release. Generar un manifiesto de paquetes firmado con clave del proyecto y proteger su clave privada. El lanzador comprobará la firma con una clave pública incluida antes de aplicar una actualización. Para Windows, probar por separado la confianza en el instalador con la política del equipo. Evaluar firma de editor gratuita si el proyecto cumple los requisitos. Registrar advertencias o bloqueos en los equipos probados.
 El launcher abre la versión instalada inmediatamente y comprueba GitHub en segundo plano con caché y reintentos espaciados. Si existe una versión posterior, muestra las notas y permite descargarla. Aplicar al cerrar o al elegir reiniciar, después de guardar. Verificar procedencia, firma y contenido antes del relevo. Si la descarga falla, seguir trabajando con la versión instalada. El canal estable ignora las versiones preliminares.
@@ -68,10 +68,11 @@ AVANCE DE IMPLEMENTACIÓN · 0.5.0-alpha.1
 [ ] Paridad de formato enriquecido y posición de imágenes, maquetación especializada para los nueve formatos y edición visual de diapositivas.
 [ ] Migrar perfil, colecciones y configuración global. Comprobar paridad visual individual de obras importadas.
 [ ] Validar el paquete Linux en una sesión de escritorio, la instalación sin conexión con motor TeX incluido, la confianza del instalador Windows y una actualización real entre versiones publicadas.
-[ ] Firmar y validar el manifiesto de distribución con la clave del proyecto. Elegir licencia antes de la entrega estable.
+[ ] Firmar y validar el manifiesto de distribución con la clave del proyecto.
 [x] Separar la sesión de escritura en Nimbo.Application y las pantallas de biblioteca, manuscrito y glosario en el proyecto de interfaz.
 [x] Estantería con portada, contraportada y lomo, giro continuo por arrastre, apertura con un clic y filtro de colección.
 [x] Índice jerárquico del glosario, ilustraciones, ficha base, categorías y campos personalizados. Reordenación de capítulos y composición en dos columnas en presentaciones.
 [x] Conservar los originales de la edición de lectura al migrar un taller. Recuperación del PDF y el ZIP de referencia desde la ficha de la obra.
 [x] Insertar una ilustración en el punto de escritura y situarla allí en el PDF. Conversión de marcas WPF de énfasis, listas y tablas simples si conservan las palabras del manuscrito.
 [ ] Resolver la firma de confianza exigida por el equipo de desarrollo. La política local bloqueó Nimbo.Desktop.dll en una prueba de arranque. La compilación anterior abrió en los equipos limpios de GitHub para Windows y Ubuntu.
+[x] Licencia GPLv3 exacta elegida por el titular e incluida en el repositorio y en los paquetes de escritorio.
