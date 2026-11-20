@@ -6,7 +6,7 @@ Estudio de escritura de escritorio para Windows y Linux. Esta primera alfa usa C
 
 Elige un formato en la biblioteca, escribe un título y pulsa **Crear obra**. A la izquierda se selecciona la sección o el capítulo. Nimbo guarda después de una pausa al escribir. **Ctrl+S** guarda inmediatamente. Desde **Obra** puedes editar título, autor, portada y descripción. Desde **Glosario** puedes crear fichas, asignar una ficha base y añadir campos heredables.
 
-**LaTeX** entrega un ZIP con el archivo fuente y las ilustraciones. **PDF** requiere una instalación local de XeLaTeX con sus paquetes, por ejemplo TeX Live en Linux o MiKTeX en Windows. En **Preferencias** puedes seleccionar el ejecutable de una instalación existente. En un equipo que ya utilizaba LumenWriter puedes elegir el archivo `Tools/MiKTeX/miktex/bin/x64/xelatex.exe` de ese proyecto. El runtime de .NET se incluye en los paquetes de distribución.
+**LaTeX** entrega un ZIP con el archivo fuente y las ilustraciones. **PDF** requiere una instalación local de XeLaTeX con sus paquetes, por ejemplo TeX Live en Linux o MiKTeX en Windows. En **Preferencias** puedes seleccionar el ejecutable de una instalación existente. En un equipo que ya utilizaba LumenWriter puedes elegir el archivo `Tools/MiKTeX/miktex/bin/x64/xelatex.exe` de ese proyecto. En Ubuntu, los paquetes de la prueba de impresión son `texlive-xetex`, `texlive-latex-extra` y `texlive-fonts-recommended`. Este último aporta las métricas de letra que utiliza Beamer. El runtime de .NET se incluye en los paquetes de distribución.
 
 ## Biblioteca anterior
 
@@ -35,6 +35,7 @@ La última prueba requiere XeLaTeX. La variable opcional `NIMBO_XELATEX` selecci
 La compilación en GitHub prepara Windows x64 y Linux x64. Una etiqueta de versión que empiece con `v` genera un borrador de publicación. En Linux el instalador por usuario se ejecuta con `sh instalar-linux.sh ./Nimbo.AppImage`, sustituyendo el nombre por el archivo descargado. Las actualizaciones del lanzador requieren versiones publicadas en GitHub Releases.
 
 El avance y las comprobaciones pendientes se registran en [el plan](docs/PLAN.txt).
+
 
 
 

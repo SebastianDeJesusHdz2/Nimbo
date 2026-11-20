@@ -29,7 +29,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends texlive-xetex texlive-latex-extra
+          sudo apt-get install -y --no-install-recommends texlive-xetex texlive-latex-extra texlive-fonts-recommended
           dotnet run --project tests/Nimbo.Checks -c Release -- --pdf
       - name: Publicar escritorio
         run: dotnet publish src/Nimbo.Desktop -c Release -r ${{ matrix.rid }} --self-contained -o artifacts/app
@@ -74,6 +74,7 @@ jobs:
           shopt -s nullglob
           assets=(packages/*/*.exe packages/*/*.AppImage packages/*/*.nupkg packages/*/releases.*.json packages/*/*.sh)
           gh release create "$GITHUB_REF_NAME" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --draft --title "Nimbo ${GITHUB_REF_NAME#v}"
+
 
 
 
