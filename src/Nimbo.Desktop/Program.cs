@@ -23,19 +23,21 @@ public sealed class App : Avalonia.Application
     public override void Initialize()
     {
         Styles.Add(new FluentTheme());
-        RequestedThemeVariant=ThemeVariant.Dark;
+        RequestedThemeVariant = ThemeVariant.Dark;
     }
     public override void OnFrameworkInitializationCompleted()
     {
-        if(ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow=new Studio();
-            if(desktop.Args?.Contains("--verify-ui")==true){
-                var window=desktop.MainWindow;
-                window.Opened+=(_,_)=>Dispatcher.UIThread.Post(()=>{
-                    var rendered=window.GetVisualDescendants().OfType<Button>().Any(b=>Equals(b.Content,"Crear obra"));
-                    desktop.Shutdown(rendered?0:3);
-                },DispatcherPriority.ApplicationIdle);
+            desktop.MainWindow = new Studio();
+            if (desktop.Args?.Contains("--verify-ui") == true)
+            {
+                var window = desktop.MainWindow;
+                window.Opened += (_, _) => Dispatcher.UIThread.Post(() =>
+                {
+                    var rendered = window.GetVisualDescendants().OfType<Button>().Any(b => Equals(b.Content, "Crear obra"));
+                    desktop.Shutdown(rendered ? 0 : 3);
+                }, DispatcherPriority.ApplicationIdle);
             }
         }
         base.OnFrameworkInitializationCompleted();

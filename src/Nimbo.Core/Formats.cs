@@ -15,8 +15,11 @@ public sealed record Format(string Name, string Section, string[] Initial, strin
         new("Presentación", "Diapositiva", ["Portada", "Idea principal", "Conclusiones"], "16:9")
     ];
     public override string ToString() => Name;
-    public Work Create(string title) => new() {
-        Title = title.Trim(), Type = Name, Publication = new() { Paper = Paper },
-        Chapters = Initial.Select((label,i) => new Chapter {Title=label, Order=i}).ToList()
+    public Work Create(string title) => new()
+    {
+        Title = title.Trim(),
+        Type = Name,
+        Publication = new() { Paper = Paper },
+        Chapters = Initial.Select((label, i) => new Chapter { Title = label, Order = i }).ToList()
     };
 }

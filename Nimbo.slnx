@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Nimbo.Application/Nimbo.Application.csproj" />
+    <Project Path="src/Nimbo.Core/Nimbo.Core.csproj" />
+    <Project Path="src/Nimbo.Desktop/Nimbo.Desktop.csproj" />
+    <Project Path="src/Nimbo.Publishing/Nimbo.Publishing.csproj" />
+    <Project Path="src/Nimbo.Storage/Nimbo.Storage.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Nimbo.Checks/Nimbo.Checks.csproj" />
+  </Folder>
+</Solution>

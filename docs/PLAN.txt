@@ -69,3 +69,6 @@ AVANCE DE IMPLEMENTACIÓN · 0.5.0-alpha.1
 [ ] Migrar perfil, colecciones y configuración global. Comprobar paridad visual individual de obras importadas.
 [ ] Validar el paquete Linux en una sesión de escritorio, la instalación sin conexión con motor TeX incluido, la confianza del instalador Windows y una actualización real entre versiones publicadas.
 [ ] Firmar y validar el manifiesto de distribución con la clave del proyecto. Elegir licencia antes de la entrega estable.
+[x] Separar la sesión de escritura en Nimbo.Application y las pantallas de biblioteca, manuscrito y glosario en el proyecto de interfaz.
+[x] Estantería con portada, contraportada y lomo, giro continuo por arrastre, apertura con un clic y filtro de colección.
+[x] Índice jerárquico del glosario, ilustraciones, ficha base, categorías y campos personalizados. Reordenación de capítulos y composición en dos columnas en presentaciones.

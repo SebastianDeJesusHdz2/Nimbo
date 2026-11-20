@@ -27,6 +27,7 @@ La última prueba requiere XeLaTeX. La variable opcional `NIMBO_XELATEX` selecci
 ## Estructura
 
 - `Nimbo.Core` contiene obras, capítulos, formatos, fichas y herencia de atributos.
+- `Nimbo.Application` coordina la sesión de escritura, las revisiones y la recuperación por copia.
 - `Nimbo.Storage` guarda en SQLite, comprueba conflictos entre revisiones e importa datos y medios.
 - `Nimbo.Publishing` compone PDF y proyectos LaTeX en carpetas temporales y entrega el resultado mediante reemplazo al finalizar.
 - `Nimbo.Desktop` contiene las ventanas de Avalonia y el arranque con Velopack.
@@ -34,4 +35,5 @@ La última prueba requiere XeLaTeX. La variable opcional `NIMBO_XELATEX` selecci
 La compilación en GitHub prepara Windows x64 y Linux x64. Una etiqueta de versión que empiece con `v` genera un borrador de publicación. En Linux el instalador por usuario se ejecuta con `sh instalar-linux.sh ./Nimbo.AppImage`, sustituyendo el nombre por el archivo descargado. Las actualizaciones del lanzador requieren versiones publicadas en GitHub Releases.
 
 El avance y las comprobaciones pendientes se registran en [el plan](docs/PLAN.txt).
+
 
