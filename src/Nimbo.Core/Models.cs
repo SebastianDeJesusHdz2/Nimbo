@@ -20,6 +20,7 @@ public class Preferences : Extensible
     public string Theme { get; set; } = "Océano"; public string LibraryBackgroundImage { get; set; } = ""; public double BackgroundBlur { get; set; } = 5; public double BackgroundShade { get; set; } = 55;
 }
 public class Collection : Extensible { public string Id { get; set; } = Guid.NewGuid().ToString(); public string Name { get; set; } = "Colección"; public string Description { get; set; } = ""; public string Color { get; set; } = "#315F65"; }
+public sealed record EditionFile(string Name, string Key);
 public class Work : Extensible
 {
     public string Id { get; set; } = Guid.NewGuid().ToString(); public string Title { get; set; } = "Sin título"; public string Type { get; set; } = "Historia";
@@ -30,6 +31,7 @@ public class Work : Extensible
     public double WritingPadding { get; set; } = 40; public int WritingZoom { get; set; } = 100; public string DeskTone { get; set; } = "Niebla"; public bool ShowReadingTime { get; set; } = true;
     public string GlossaryLayout { get; set; } = "Índice"; public string GlossaryOrder { get; set; } = "Nombre"; public bool OnlyPinned { get; set; }
     public int WordGoal { get; set; } = 50000; public string CreatedAt { get; set; } = DateTime.Now.ToString("o"); public string? ModifiedAt { get; set; }
+    public List<EditionFile> Editions { get; set; } = [];
     public List<Chapter> Chapters { get; set; } = []; public List<Node> Glossary { get; set; } = [];
     public Publication Publication { get; set; } = new(); public bool IsDemo { get; set; }
     public string LastChapterId { get; set; } = "";
@@ -122,5 +124,6 @@ public static class WorldModel
         foreach (var c in w.Chapters.Where(c => c.ParentId == "").OrderBy(c => c.Order)) Visit(c); foreach (var c in w.Chapters.OrderBy(c => c.Order)) Visit(c); return result;
     }
 }
+
 
 

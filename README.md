@@ -10,7 +10,7 @@ Elige un formato en la biblioteca, escribe un título y pulsa **Crear obra**. A 
 
 ## Biblioteca anterior
 
-Usa **Importar biblioteca…** y selecciona la carpeta de LumenWriter que contiene `Data`. Nimbo copia las obras a su propia base local e identifica las obras ya importadas por su ID. Cada obra se confirma por separado y una importación interrumpida se puede repetir. La edición del contenido importado usa texto y medios. La fidelidad de diseños anteriores, estilos de párrafo, tablas WPF y posiciones de figuras requiere cotejo antes de sustituir el editor anterior.
+Usa **Importar biblioteca…** y selecciona la carpeta de LumenWriter que contiene `Data`. Nimbo copia las obras a su propia base local e identifica las obras ya importadas por su ID. Cada obra se confirma por separado y una importación interrumpida se puede repetir. Cuando la biblioteca contiene una edición de lectura en su taller, **Obra → Edición anterior** permite recuperar los PDF y el ZIP originales. El PDF generado desde el manuscrito usa la maquetación de Nimbo. El importador convierte el énfasis, las listas, las tablas sencillas y las figuras que puede cotejar con el texto original. La fidelidad de diseños anteriores, estilos de párrafo, tablas WPF y posiciones de figuras requiere cotejo antes de sustituir el editor anterior.
 
 ## Compilación
 
@@ -35,5 +35,6 @@ La última prueba requiere XeLaTeX. La variable opcional `NIMBO_XELATEX` selecci
 La compilación en GitHub prepara Windows x64 y Linux x64. Una etiqueta de versión que empiece con `v` genera un borrador de publicación. En Linux el instalador por usuario se ejecuta con `sh instalar-linux.sh ./Nimbo.AppImage`, sustituyendo el nombre por el archivo descargado. Las actualizaciones del lanzador requieren versiones publicadas en GitHub Releases.
 
 El avance y las comprobaciones pendientes se registran en [el plan](docs/PLAN.txt).
+
 
 

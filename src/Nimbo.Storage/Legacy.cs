@@ -31,20 +31,42 @@ public static class Legacy
         {
             using var input = File.OpenRead(library);
             var catalog = JsonSerializer.Deserialize<Library>(input, Shelf.Json) ?? throw new InvalidDataException("Biblioteca ilegible.");
-            foreach (var w in catalog.Projects.Where(w => !known.Contains(w.Id)))
+            var workshops = Path.Combine(root, "Obras");
+            var editionFolders = Directory.Exists(workshops) ? Directory.GetDirectories(workshops) : [];
+            foreach (var w in catalog.Projects)
             {
+                var editionFolder = editionFolders.FirstOrDefault(f => Path.GetFileName(f).Equals(w.Title, StringComparison.OrdinalIgnoreCase));
+                if (editionFolder != null)
+                {
+                    var reading = Path.Combine(editionFolder, "Edición de lectura");
+                    var pdfs = Directory.Exists(reading) ? Directory.EnumerateFiles(reading, "*.pdf") : Enumerable.Empty<string>();
+                    foreach (var file in pdfs.Concat(Directory.EnumerateFiles(editionFolder, "*.zip")))
+                        w.Editions.Add(new(Path.GetFileName(file), shelf.AddAsset(file)));
+                }
+                if (known.Contains(w.Id))
+                {
+                    if (w.Editions.Count > 0)
+                    {
+                        var existing = shelf.Open(w.Id);
+                        var additions = w.Editions.Where(f => !existing.Work.Editions.Any(e => e.Key == f.Key)).ToList();
+                        if (additions.Count > 0) { existing.Work.Editions.AddRange(additions); shelf.Save(existing.Work, existing.Revision); }
+                    }
+                    continue;
+                }
                 var collection = catalog.Collections.FirstOrDefault(g => g.Id == w.CollectionId); if (collection != null) w.CollectionId = collection.Name;
                 if (w.CoverImage != "") w.CoverImage = Image(w.CoverImage, root);
                 foreach (var node in w.Glossary.Where(n => n.ImagePath != "")) node.ImagePath = Image(node.ImagePath, root);
                 foreach (var c in w.Chapters.Where(c => c.ContentPackage.StartsWith("LW5:") || c.ContentPackage.StartsWith("LW4:")))
                 {
                     var xml = XDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(c.ContentPackage[4..])));
+                    var pictures = new Dictionary<XElement, int>();
                     foreach (var img in xml.Descendants().Where(e => e.Name.LocalName == "Image"))
                     {
                         var path = (string?)img.Attribute("Tag") ?? (string?)img.Attribute("Source") ??
                             (string?)img.Descendants().FirstOrDefault(e => e.Name.LocalName == "BitmapImage")?.Attribute("UriSource");
-                        if (!string.IsNullOrWhiteSpace(path)) c.Images.Add(Image(path, root));
+                        if (!string.IsNullOrWhiteSpace(path)) { pictures[img] = c.Images.Count; c.Images.Add(Image(path, root)); }
                     }
+                    var readable = LegacyText.Read(xml.Root!, pictures); if (c.PlainText.Length == 0 || LegacyText.SameWords(c.PlainText, readable)) c.PlainText = readable;
                 }
                 Save(w);
             }
@@ -82,4 +104,6 @@ public static class Legacy
         return added;
     }
 }
+
+
 

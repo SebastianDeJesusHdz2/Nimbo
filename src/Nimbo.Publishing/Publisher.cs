@@ -61,10 +61,10 @@ public static class Publisher
             if (!slide) tex.AppendLine(glossary ? @"\usepackage[a6paper,margin=12mm]{geometry}" :
                 novel ? @"\usepackage[a5paper,inner=18mm,outer=15mm]{geometry}" :
                 @"\usepackage[" + (work.Publication.Paper == "Carta" ? "letterpaper" : "a4paper") + @",margin=23mm]{geometry}");
-            var accent = work.Type switch {"CV"=>"65455B","Informe"=>"315671","Artículo"=>"4E476E","Carta"=>"784F3E","Acta"=>"5C634F","Apuntes"=>"506C46","Propuesta"=>"474F76",_=>"365E64"};
-            tex.AppendLine(@"\definecolor{accent}{HTML}{"+accent+"}");
-            if(slide)tex.AppendLine(@"\setbeamercolor{structure}{fg=accent}\setbeamercolor{frametitle}{bg=accent,fg=white}\setbeamertemplate{navigation symbols}{}");
-            if(novel)tex.AppendLine(@"\renewcommand{\chaptername}{Capítulo}\renewcommand{\partname}{Parte}\renewcommand{\contentsname}{Contenido}");
+            var accent = work.Type switch { "CV" => "65455B", "Informe" => "315671", "Artículo" => "4E476E", "Carta" => "784F3E", "Acta" => "5C634F", "Apuntes" => "506C46", "Propuesta" => "474F76", _ => "365E64" };
+            tex.AppendLine(@"\definecolor{accent}{HTML}{" + accent + "}");
+            if (slide) tex.AppendLine(@"\setbeamercolor{structure}{fg=accent}\setbeamercolor{frametitle}{bg=accent,fg=white}\setbeamertemplate{navigation symbols}{}");
+            if (novel) tex.AppendLine(@"\renewcommand{\chaptername}{Capítulo}\renewcommand{\partname}{Parte}\renewcommand{\contentsname}{Contenido}");
             if (!slide && work.Chapters.Any(c => c.Layout.StartsWith("Ajustar") && c.Images.Count > 0)) tex.AppendLine(@"\usepackage{wrapfig}");
             var title = glossary ? "Glosario de " + work.Title : work.Title;
             tex.AppendLine(@"\title{" + Escape(title) + @"}\author{" + Escape(work.Author) + @"}\date{}\begin{document}");
@@ -88,20 +88,21 @@ public static class Publisher
                 tex.AppendLine(@"\begin{titlepage}\centering"); Image(work.CoverImage);
                 tex.AppendLine(@"{\Huge " + Escape(work.Title) + @"\par}\vfill " + Escape(work.Author) + @"\end{titlepage}");
             }
-            else if(!glossary && work.Type is "CV" or "Carta" or "Acta" or "Apuntes"){
-                tex.AppendLine(@"\noindent{\sffamily\Huge\color{accent}"+Escape(work.Title)+@"\par}\medskip");
-                if(work.Subtitle!="")tex.AppendLine(@"{\large "+Escape(work.Subtitle)+@"\par}");
-                if(work.Author!="")tex.AppendLine(Escape(work.Author)+@"\par");
+            else if (!glossary && work.Type is "CV" or "Carta" or "Acta" or "Apuntes")
+            {
+                tex.AppendLine(@"\noindent{\sffamily\Huge\color{accent}" + Escape(work.Title) + @"\par}\medskip");
+                if (work.Subtitle != "") tex.AppendLine(@"{\large " + Escape(work.Subtitle) + @"\par}");
+                if (work.Author != "") tex.AppendLine(Escape(work.Author) + @"\par");
                 tex.AppendLine(@"\noindent{\color{accent}\rule{\linewidth}{1pt}}\medskip");
             }
             else tex.AppendLine(slide ? @"\begin{frame}\titlepage\end{frame}" : @"\maketitle");
-            if(novel && work.Publication.Contents && work.Chapters.Count>1)tex.AppendLine(@"\tableofcontents");
+            if (novel && work.Publication.Contents && work.Chapters.Count > 1) tex.AppendLine(@"\tableofcontents");
             if (glossary)
             {
                 foreach (var node in work.Glossary)
                 {
                     tex.AppendLine(@"\clearpage\section*{" + Escape(node.Name) + "}"); Image(node.ImagePath);
-                    foreach (var field in new[] { ("Clase", node.NodeKind), ("Alias", node.Aliases), ("Edad / época",node.Age), ("Medidas",node.Measures), ("Función narrativa",node.Role), ("Tipo",node.Type), ("Etiquetas",node.Tags), ("Trasfondo", node.Background), ("Notas", node.Notes), ("Relaciones", node.Relations) }
+                    foreach (var field in new[] { ("Clase", node.NodeKind), ("Alias", node.Aliases), ("Edad / época", node.Age), ("Medidas", node.Measures), ("Función narrativa", node.Role), ("Tipo", node.Type), ("Etiquetas", node.Tags), ("Trasfondo", node.Background), ("Notas", node.Notes), ("Relaciones", node.Relations) }
                         .Concat(WorldModel.Effective(work, node).Select(f => (f.Definition.Name, f.Value))).Where(f => f.Item2 != ""))
                         tex.AppendLine(@"\paragraph{" + Escape(field.Item1) + "} " + Paragraphs(field.Item2));
                 }
@@ -113,18 +114,30 @@ public static class Publisher
                     var heading = Escape(chapter.Title);
                     tex.AppendLine(slide ? @"\begin{frame}[allowframebreaks]{" + heading + "}" : novel ?
                         (chapter.Level == "Arc" ? @"\part{" : chapter.Level == "Subchapter" ? @"\section{" : @"\chapter{") + heading + "}" :
-                        work.Type is "Informe" or "Artículo" or "Propuesta" ? @"\section{"+heading+"}" : work.Type=="Carta" ? @"\medskip" : @"\section*{\color{accent}" + heading + "}");
+                        work.Type is "Informe" or "Artículo" or "Propuesta" ? @"\section{" + heading + "}" : work.Type == "Carta" ? @"\medskip" : @"\section*{\color{accent}" + heading + "}");
                     if (work.Type == "Apuntes" && chapter.Detail != "") tex.AppendLine(@"\begin{quote}\small\textbf{Conceptos}\par " + Paragraphs(chapter.Detail) + @"\end{quote}");
                     else if (chapter.Detail != "") tex.AppendLine(@"\emph{" + Escape(chapter.Detail) + @"}\par");
-                    bool columns=slide && chapter.Layout is "Texto e imagen" or "Dos columnas" or "Plano y leyenda" or "Moodboard y paleta" or "Moodboard y landmark";
-                    if(columns)tex.AppendLine(@"\begin{columns}[T,onlytextwidth]\begin{column}{.46\textwidth}");
-                    var wrap = chapter.Layout.StartsWith("Ajustar") && !slide && chapter.Images.Count > 0;
-                    if (wrap) Image(chapter.Images[0], chapter.Layout);
-                    tex.AppendLine(Paragraphs(chapter.PlainText));
-                    if(columns)tex.AppendLine(@"\end{column}\begin{column}{.50\textwidth}");
-                    foreach (var key in chapter.Images.Skip(wrap ? 1 : 0)) Image(key, wrap ? "Centrada" : chapter.Layout);
+                    bool columns = slide && chapter.Layout is "Texto e imagen" or "Dos columnas" or "Plano y leyenda" or "Moodboard y paleta" or "Moodboard y landmark";
+                    if (columns) tex.AppendLine(@"\begin{columns}[T,onlytextwidth]\begin{column}{.46\textwidth}");
+                    var markers = Illustrations.Marker().Matches(chapter.PlainText)
+                        .Where(m => int.TryParse(m.Groups[1].Value, out var n) && n <= chapter.Images.Count && !slide).ToList();
+                    var used = new HashSet<int>();
+                    int start = 0;
+                    if (markers.Count == 0 && chapter.Layout.StartsWith("Ajustar") && !slide && chapter.Images.Count > 0)
+                    {
+                        Image(chapter.Images[0], chapter.Layout); used.Add(0);
+                    }
+                    foreach (var marker in markers)
+                    {
+                        tex.AppendLine(Paragraphs(chapter.PlainText[start..marker.Index]));
+                        var index = int.Parse(marker.Groups[1].Value) - 1; Image(chapter.Images[index], chapter.Layout);
+                        used.Add(index); start = marker.Index + marker.Length;
+                    }
+                    tex.AppendLine(Paragraphs(chapter.PlainText[start..]));
+                    if (columns) tex.AppendLine(@"\end{column}\begin{column}{.50\textwidth}");
+                    for (int i = 0; i < chapter.Images.Count; i++) if (!used.Contains(i)) Image(chapter.Images[i], chapter.Layout);
                     if (chapter.Summary != "") tex.AppendLine(@"\par\medskip\textit{" + Escape(chapter.Summary) + "}");
-                    if(columns)tex.AppendLine(@"\end{column}\end{columns}");
+                    if (columns) tex.AppendLine(@"\end{column}\end{columns}");
                     if (slide) tex.AppendLine(@"\end{frame}");
                 }
             }
@@ -160,6 +173,7 @@ public static class Publisher
         finally { File.Delete(pending); Directory.Delete(temp, true); }
     }
 }
+
 
 
 

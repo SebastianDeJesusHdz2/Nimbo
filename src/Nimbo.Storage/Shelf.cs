@@ -64,6 +64,11 @@ public sealed class Shelf : Nimbo.Application.IWorkRepository
     {
         var ext = Path.GetExtension(path).ToLowerInvariant();
         if (ext is not (".png" or ".jpg" or ".jpeg")) throw new InvalidDataException("Elige una imagen PNG o JPEG.");
+        return AddAsset(path);
+    }
+    internal string AddAsset(string path)
+    {
+        var ext = Path.GetExtension(path).ToLowerInvariant();
         using var source = File.OpenRead(path);
         var name = Convert.ToHexStringLower(SHA256.HashData(source)) + ext;
         var target = Path.Combine(Media, name);
@@ -78,5 +83,6 @@ public sealed class Shelf : Nimbo.Application.IWorkRepository
         return name;
     }
 }
+
 
 

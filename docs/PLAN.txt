@@ -72,3 +72,6 @@ AVANCE DE IMPLEMENTACIÓN · 0.5.0-alpha.1
 [x] Separar la sesión de escritura en Nimbo.Application y las pantallas de biblioteca, manuscrito y glosario en el proyecto de interfaz.
 [x] Estantería con portada, contraportada y lomo, giro continuo por arrastre, apertura con un clic y filtro de colección.
 [x] Índice jerárquico del glosario, ilustraciones, ficha base, categorías y campos personalizados. Reordenación de capítulos y composición en dos columnas en presentaciones.
+[x] Conservar los originales de la edición de lectura al migrar un taller. Recuperación del PDF y el ZIP de referencia desde la ficha de la obra.
+[x] Insertar una ilustración en el punto de escritura y situarla allí en el PDF. Conversión de marcas WPF de énfasis, listas y tablas simples si conservan las palabras del manuscrito.
+[ ] Resolver la firma de confianza exigida por el equipo de desarrollo. La política local bloqueó Nimbo.Desktop.dll en una prueba de arranque. La compilación anterior abrió en los equipos limpios de GitHub para Windows y Ubuntu.

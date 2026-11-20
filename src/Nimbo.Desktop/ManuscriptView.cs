@@ -54,12 +54,13 @@ public sealed partial class Studio
         {
             Field(body, work.Type == "Presentación" ? "Título de diapositiva" : "Título de sección", c.Title, v => c.Title = v);
             if (work.Type is "Apuntes" or "Acta" or "CV") Field(body, work.Type switch { "Apuntes" => "Preguntas y conceptos", "CV" => "Periodo y ubicación", _ => "Responsable y fecha" }, c.Detail, v => c.Detail = v);
-            if(work.Type=="Presentación"){
-                var options=new[]{"Portada","Texto","Texto e imagen","Plano y leyenda","Moodboard y paleta","Moodboard y landmark","Imagen protagonista","Dos columnas"};
+            if (work.Type == "Presentación")
+            {
+                var options = new[] { "Portada", "Texto", "Texto e imagen", "Plano y leyenda", "Moodboard y paleta", "Moodboard y landmark", "Imagen protagonista", "Dos columnas" };
                 body.Children.Add(Label("Composición de diapositiva"));
-                var layouts=new ComboBox{ItemsSource=options,SelectedItem=options.Contains(c.Layout)?c.Layout:"Texto"};
-                layouts.SelectionChanged+=(_,_)=>{if(layouts.SelectedItem is string choice){c.Layout=choice;Changed();}};
-                body.Children.Add(layouts);Field(body,"Texto secundario",c.Summary,v=>c.Summary=v,true);
+                var layouts = new ComboBox { ItemsSource = options, SelectedItem = options.Contains(c.Layout) ? c.Layout : "Texto" };
+                layouts.SelectionChanged += (_, _) => { if (layouts.SelectedItem is string choice) { c.Layout = choice; Changed(); } };
+                body.Children.Add(layouts); Field(body, "Texto secundario", c.Summary, v => c.Summary = v, true);
             }
             var input = Field(body, "Texto", c.PlainText, v => c.PlainText = v, true); input.FontSize = 18; input.MinHeight = 235;
             var bar = Row();
@@ -79,14 +80,14 @@ public sealed partial class Studio
             bar.Children.Add(Action("Añadir imagen…", async () => await Guard(async () =>
             {
                 var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Imagen PNG o JPEG" })).FirstOrDefault()?.TryGetLocalPath();
-                if (path == null) return; c.Images.Add(shelf.AddImage(path)); Changed(); Editor();
+                if (path == null) return; c.Images.Add(shelf.AddImage(path)); if (work.Type != "Presentación") Insert(Environment.NewLine + Illustrations.At(c.Images.Count - 1) + Environment.NewLine); Changed(); Editor();
             }))); body.Children.Add(bar);
-            if (c.Images.Count > 0 && work.Type!="Presentación") { body.Children.Add(Label("Disposición de las ilustraciones")); var layout = new ComboBox { ItemsSource = ImageLayouts, SelectedItem = ImageLayouts.Contains(c.Layout) ? c.Layout : ImageLayouts[0] }; layout.SelectionChanged += (_, _) => { if (layout.SelectedItem is string choice) { c.Layout = choice; Changed(); } }; body.Children.Add(layout); }
-            foreach (var key in c.Images.ToArray())
+            if (c.Images.Count > 0 && work.Type != "Presentación") { body.Children.Add(Label("Disposición de las ilustraciones")); var layout = new ComboBox { ItemsSource = ImageLayouts, SelectedItem = ImageLayouts.Contains(c.Layout) ? c.Layout : ImageLayouts[0] }; layout.SelectionChanged += (_, _) => { if (layout.SelectedItem is string choice) { c.Layout = choice; Changed(); } }; body.Children.Add(layout); }
+            foreach (var (key, index) in c.Images.Select((key, i) => (key, i)).ToArray())
             {
                 var row = Row(); var imagePath = Path.Combine(shelf.Media, Path.GetFileName(key));
                 if (File.Exists(imagePath)) { using var stream = File.OpenRead(imagePath); var bmp = Avalonia.Media.Imaging.Bitmap.DecodeToWidth(stream, 160); var preview = new Image { Source = bmp, Height = 78 }; preview.DetachedFromVisualTree += (_, _) => bmp.Dispose(); row.Children.Add(preview); }
-                row.Children.Add(Action("Quitar imagen", () => { c.Images.Remove(key); Changed(); Editor(); })); body.Children.Add(row);
+                row.Children.Add(Label("Imagen " + (index + 1))); row.Children.Add(Action("Quitar imagen", () => { Illustrations.Remove(c, index); Changed(); Editor(); })); body.Children.Add(row);
             }
             if (work.Type == "Apuntes") Field(body, "Síntesis", c.Summary, v => c.Summary = v, true);
         }
@@ -106,8 +107,26 @@ public sealed partial class Studio
             var bmp = Avalonia.Media.Imaging.Bitmap.DecodeToWidth(source, 220); var img = new Image { Source = bmp, Height = 150, HorizontalAlignment = HorizontalAlignment.Left };
             img.DetachedFromVisualTree += (_, _) => bmp.Dispose(); body.Children.Add(img);
         }
-        Field(body, "Título", work.Title, v => work.Title = v); Field(body, "Autor", work.Author, v => work.Author = v);Field(body,"Subtítulo",work.Subtitle,v=>work.Subtitle=v); Field(body, "Colección", work.CollectionId, v => work.CollectionId = v); Field(body, "Descripción", work.Description, v => work.Description = v, true);
+        Field(body, "Título", work.Title, v => work.Title = v); Field(body, "Autor", work.Author, v => work.Author = v); Field(body, "Subtítulo", work.Subtitle, v => work.Subtitle = v); Field(body, "Colección", work.CollectionId, v => work.CollectionId = v); Field(body, "Descripción", work.Description, v => work.Description = v, true);
+        if (work.Editions.Count > 0)
+        {
+            body.Children.Add(Label("Edición anterior", 21));
+            foreach (var edition in work.Editions)
+            {
+                body.Children.Add(Action("Guardar copia de " + edition.Name, async () => await Guard(async () =>
+                {
+                    var destination = await StorageProvider.SaveFilePickerAsync(new() { Title = "Guardar edición anterior", SuggestedFileName = Path.GetFileName(edition.Name) });
+                    if (destination?.TryGetLocalPath() is not string path) return;
+                    var source = Path.Combine(shelf.Media, Path.GetFileName(edition.Key));
+                    var temp = Path.GetFullPath(path) + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                    try { File.Copy(source, temp); File.Move(temp, path, true); } finally { File.Delete(temp); }
+                    status.Text = "Edición anterior guardada";
+                })));
+            }
+        }
         page.Content = new ScrollViewer { Content = Card(body) };
     }
 }
+
+
 
