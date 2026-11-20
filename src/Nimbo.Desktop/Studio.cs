@@ -20,7 +20,7 @@ public sealed partial class Studio : Window
     readonly ContentControl page = new();
     readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1.2) };
     readonly Button updateButton = new() { Content = "Actualizar", IsVisible = false };
-    readonly UpdateManager updater = new(new GithubSource("https://github.com/SebastianDeJesusHdz2/Nimbo", null, false));
+    readonly UpdateManager updater = new(new GithubSource("https://github.com/SebastianDeJesusHdz2/Nimbo", null, true));
     UpdateInfo? update;
     readonly Nimbo.Application.ManuscriptSession session;
     Work? current => session.Current;
@@ -70,7 +70,7 @@ public sealed partial class Studio : Window
         try { session.Save(); status.Text = "Guardado"; return true; }
         catch (Exception ex) { status.Text = ex.Message; return false; }
     }
-    void Open(Work work, long rev) { session.Open(work, rev); chapter = WorldModel.Ordered(work).FirstOrDefault(); status.Text = "Guardado"; Editor(); }
+    void Open(Work work, long rev) { session.Open(work, rev); var last=work.LastChapterId;try{if(File.Exists(SectionPath(work)))last=File.ReadAllText(SectionPath(work));}catch(IOException){} chapter=work.Chapters.FirstOrDefault(c=>c.Id==last)??WorldModel.Ordered(work).FirstOrDefault(); status.Text = "Guardado"; Editor(); }
     TextBox Field(StackPanel host, string caption, string value, Action<string> assign, bool multi = false)
     {
         host.Children.Add(Label(caption));
@@ -118,6 +118,7 @@ public sealed partial class Studio : Window
         status.Text = "Componiendo…"; await Task.Run(() => Publisher.Export(snapshot, shelf.Media, path, pdf, glossary, Engine())); status.Text = "Exportado · " + Path.GetFileName(path);
     });
 }
+
 
 
 

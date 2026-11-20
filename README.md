@@ -43,3 +43,5 @@ El avance y las comprobaciones pendientes se registran en [el plan](docs/PLAN.tx
 ## Licencia
 
 El código de Nimbo se distribuye bajo la [GNU General Public License, versión 3](LICENSE) (GPL-3.0-only). Los derechos sobre los manuscritos, ilustraciones y presentaciones que creas siguen correspondiendo a sus respectivos autores. Las bibliotecas de terceros conservan sus propias licencias.
+
+En el manuscrito, **Ctrl+F** busca en la sección abierta. **F3** avanza y **Mayús+F3** retrocede. **Esc** devuelve el foco al texto. Al reabrir una obra, Nimbo recupera la última sección visitada.

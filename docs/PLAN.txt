@@ -78,3 +78,4 @@ AVANCE DE IMPLEMENTACIÓN · 0.5.0-alpha.1
 [x] Licencia GPLv3 exacta elegida por el titular e incluida en el repositorio y en los paquetes de escritorio.
 [x] Biblioteca con acceso por colección, búsqueda por autor o título, reanudación de la última obra y selector visual de formatos para la primera sesión.
 [x] Fondo personal completo con desenfoque, área de lectura centrada y modo de concentración por obra.
+[x] Alfa 2. Búsqueda en la sección con atajos, reanudación del último capítulo y detección de nuevas versiones preliminares.

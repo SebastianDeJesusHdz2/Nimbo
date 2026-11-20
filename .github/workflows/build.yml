@@ -47,7 +47,7 @@ jobs:
       - name: Preparar versión
         shell: bash
         run: |
-          version=0.5.0-alpha.1
+          version=0.5.0-alpha.2
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then version="${GITHUB_REF_NAME#v}"; fi
           printf '%s\n' "Nimbo · GPL-3.0-only" "https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA" > artifacts/app/FUENTES.txt
           test -s artifacts/app/LICENSE
@@ -93,6 +93,7 @@ jobs:
           shopt -s nullglob
           assets=(packages/*/*.exe packages/*/*.AppImage packages/*/*.nupkg packages/*/releases.*.json packages/*/*.sh)
           gh release create "$GITHUB_REF_NAME" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --draft --prerelease --title "Nimbo ${GITHUB_REF_NAME#v}"
+
 
 
 

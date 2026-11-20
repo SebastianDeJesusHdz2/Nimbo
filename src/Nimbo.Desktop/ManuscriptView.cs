@@ -26,10 +26,10 @@ public sealed partial class Studio
         }))); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
         var left = Column(); left.Width = 196; left.Children.Add(Display(work.Title, 25)); left.Children.Add(Label(work.Type));
         var outline = new ListBox { ItemsSource = WorldModel.Ordered(work).ToArray(), SelectedItem = chapter, MaxHeight = 360 };
-        outline.SelectionChanged += (_, _) => { if (outline.SelectedItem is Chapter c && c != chapter) { chapter = c; Editor(); } }; left.Children.Add(outline);
+        outline.SelectionChanged += (_, _) => { if (outline.SelectedItem is Chapter c && c != chapter) { chapter = c; RememberSection(work,c); Editor(); } }; left.Children.Add(outline);
         void Add(string level, string title, string parent)
         {
-            chapter = new() { Title = title, Level = level, ParentId = parent, Order = work.Chapters.Count }; work.Chapters.Add(chapter); Changed(); Editor();
+            chapter = new() { Title = title, Level = level, ParentId = parent, Order = work.Chapters.Count }; work.Chapters.Add(chapter); RememberSection(work,chapter); Changed(); Editor();
         }
         var section = Format.All.FirstOrDefault(f => f.Name == work.Type)?.Section ?? "Capítulo";
         left.Children.Add(Action("+ " + section, () => Add("Chapter", section + " " + (work.Chapters.Count + 1), chapter?.Level == "Arc" ? chapter.Id : "")));
@@ -81,7 +81,7 @@ public sealed partial class Studio
             {
                 var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Imagen PNG o JPEG" })).FirstOrDefault()?.TryGetLocalPath();
                 if (path == null) return; c.Images.Add(shelf.AddImage(path)); if (work.Type != "Presentación") Insert(Environment.NewLine + Illustrations.At(c.Images.Count - 1) + Environment.NewLine); Changed(); Editor();
-            }))); body.Children.Add(bar);body.Children.Add(input);
+            }))); body.Children.Add(bar);AddSearch(root,body,bar,input);body.Children.Add(input);
             if (c.Images.Count > 0 && work.Type != "Presentación") { body.Children.Add(Label("Disposición de las ilustraciones")); var layout = new ComboBox { ItemsSource = ImageLayouts, SelectedItem = ImageLayouts.Contains(c.Layout) ? c.Layout : ImageLayouts[0] }; layout.SelectionChanged += (_, _) => { if (layout.SelectedItem is string choice) { c.Layout = choice; Changed(); } }; body.Children.Add(layout); }
             foreach (var (key, index) in c.Images.Select((key, i) => (key, i)).ToArray())
             {
@@ -127,6 +127,7 @@ public sealed partial class Studio
         page.Content = new ScrollViewer { Content = Card(body) };
     }
 }
+
 
 
 
