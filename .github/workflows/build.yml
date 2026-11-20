@@ -52,6 +52,23 @@ jobs:
           ./tools/vpk pack --packId Nimbo --packTitle Nimbo --packVersion "$version" --runtime ${{ matrix.rid }} --packDir artifacts/app --mainExe ${{ matrix.exe }} --outputDir artifacts/release
       - if: runner.os == 'Linux'
         run: cp packaging/instalar-linux.sh artifacts/release/
+      - name: Instalar y abrir desde el escritorio de Linux
+        if: runner.os == 'Linux'
+        run: |
+          export XDG_DATA_HOME="$RUNNER_TEMP/nimbo-user"
+          sh packaging/instalar-linux.sh artifacts/release/Nimbo.AppImage
+          test -f "$XDG_DATA_HOME/applications/nimbo.desktop"
+          xvfb-run -a "$XDG_DATA_HOME/Nimbo/Nimbo.AppImage" --appimage-extract-and-run --verify-ui
+      - name: Instalar y abrir la edición distribuida de Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup=(Get-ChildItem artifacts/release/*Setup.exe).FullName
+          $install=Start-Process -FilePath $setup -ArgumentList '--silent' -PassThru -Wait -WindowStyle Hidden
+          if($install.ExitCode -ne 0){exit $install.ExitCode}
+          $app=Join-Path $env:LOCALAPPDATA 'Nimbo/current/Nimbo.Desktop.exe'
+          $opened=Start-Process -FilePath $app -ArgumentList '--verify-ui' -PassThru -Wait -WindowStyle Hidden
+          exit $opened.ExitCode
       - uses: actions/upload-artifact@v4
         with:
           name: Nimbo-${{ matrix.rid }}
@@ -74,6 +91,7 @@ jobs:
           shopt -s nullglob
           assets=(packages/*/*.exe packages/*/*.AppImage packages/*/*.nupkg packages/*/releases.*.json packages/*/*.sh)
           gh release create "$GITHUB_REF_NAME" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --draft --title "Nimbo ${GITHUB_REF_NAME#v}"
+
 
 
 

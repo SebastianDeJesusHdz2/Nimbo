@@ -15,7 +15,7 @@ namespace Nimbo.Desktop;
 
 public sealed partial class Studio : Window
 {
-    readonly Shelf shelf = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nimbo"));
+    readonly Shelf shelf = new(UserLibrary.OpenDirectory(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)));
     readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap };
     readonly ContentControl page = new();
     readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1.2) };
@@ -113,6 +113,7 @@ public sealed partial class Studio : Window
         status.Text = "Componiendo…"; await Task.Run(() => Publisher.Export(snapshot, shelf.Media, path, pdf, glossary, Engine())); status.Text = "Exportado · " + Path.GetFileName(path);
     });
 }
+
 
 
 

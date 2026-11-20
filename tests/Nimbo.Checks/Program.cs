@@ -8,6 +8,12 @@ using System.Text;
 var root = Directory.CreateTempSubdirectory("nimbo-check-").FullName;
 try
 {
+    var profile=Path.Combine(root,"perfil");
+    var previousShelf=new Shelf(Path.Combine(profile,"Nimbo"));
+    var proof=Format.All[0].Create("Obra anterior");previousShelf.Save(proof,0);
+    var data=UserLibrary.OpenDirectory(profile);
+    Check(!data.StartsWith(previousShelf.Root+Path.DirectorySeparatorChar),"biblioteca fuera del instalador");
+    Check(new Shelf(data).Open(proof.Id).Work.Title==proof.Title,"migración de biblioteca alfa");
     var shelf = new Shelf(root);
     foreach (var format in Format.All)
     {
@@ -62,6 +68,7 @@ try
 }
 finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(root, true); }
 static void Check(bool result, string check) { if (!result) throw new Exception(check); }
+
 
 
 
