@@ -125,14 +125,14 @@ public sealed partial class Studio : Window
         Resources["SystemAccentColor"]=tint;
         foreach(var key in new[]{"SystemAccentColorLight1","SystemAccentColorLight2","SystemAccentColorLight3","SystemAccentColorDark1","SystemAccentColorDark2","SystemAccentColorDark3"})Resources[key]=tint;
     }
-    async Task Export(bool pdf, bool glossary = false,string? nodeId=null) => await Guard(async () =>
+    async Task Export(bool pdf, bool glossary = false,string? nodeId=null,IReadOnlySet<string>? selection=null) => await Guard(async () =>
     {
         if (!TrySave()) return;
         var snapshot = session.Snapshot();
-        var title=nodeId==null?(glossary?"Glosario - ":"")+snapshot.Title:snapshot.Glossary.Single(n=>n.Id==nodeId).Name;
+        var title=nodeId==null?(selection!=null?"Selección - ":glossary?"Glosario - ":"")+snapshot.Title:snapshot.Glossary.Single(n=>n.Id==nodeId).Name;
         var ext = pdf ? "pdf" : "zip"; var file = await StorageProvider.SaveFilePickerAsync(new() { Title = pdf ? "Exportar PDF" : "Proyecto LaTeX", DefaultExtension = ext, SuggestedFileName = string.Join("_",title.Split(Path.GetInvalidFileNameChars())) + "." + ext });
         if (file?.TryGetLocalPath() is not string path) return;
-        status.Text = "Componiendo…"; await Task.Run(() => Publisher.Export(snapshot, shelf.Media, path, pdf, glossary, Engine(),nodeId)); status.Text = "Exportado · " + Path.GetFileName(path);
+        status.Text = "Componiendo…"; await Task.Run(() => Publisher.Export(snapshot, shelf.Media, path, pdf, glossary, Engine(),nodeId,selection)); status.Text = "Exportado · " + Path.GetFileName(path);
     });
 }
 

@@ -118,6 +118,14 @@ try
         await Publisher.Export(guide,shelf.Media,Path.Combine(output,"Composición ilustrada.pdf"),true,false,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
     }
     var paragraph = new Chapter { Title = "Prueba de estilo", PlainText = "Una palabra", Order = 1 };
+    var subset=Path.Combine(root,"seleccion.zip");
+    await Publisher.Export(guide,shelf.Media,subset,false,true,selection:new HashSet<string>{keeper.Id,dock.Id});
+    using(var zip=ZipFile.OpenRead(subset)){
+        using var reader=new StreamReader(zip.GetEntry("obra.tex")!.Open());var selectionSource=reader.ReadToEnd();
+        Check(selectionSource.Contains(@"\abrirficha{Personaje}{Mara Vélez}") && selectionSource.Contains(@"\abrirficha{Lugar}{Muelle de levante}") && !selectionSource.Contains(@"\abrirficha{Lugar}{Puerto Espejo}"),"selección de fichas");
+        Check(selectionSource.Contains("Marea de referencia (m) · Puerto Espejo"),"la selección conserva la herencia externa");
+    }
+    File.Copy(png,Path.Combine(legacy,"muestra.png"));paragraph.Images=["muestra.png"];
     paragraph.ContentPackage = "LW5:" + Convert.ToBase64String(Encoding.UTF8.GetBytes("<FlowDocument><Paragraph><Run>Una </Run><Bold><Run>palabra</Run></Bold></Paragraph></FlowDocument>"));
     old.Chapters.Add(paragraph);
     var filename = Path.Combine(studio, "library.json");
@@ -127,6 +135,7 @@ try
     File.WriteAllText(previous, "%PDF-reference");
     Check(Legacy.Import(shelf, legacy) == 1 && Legacy.Import(shelf, legacy) == 0, "importación repetible");
     Check(shelf.Open(old.Id).Work.Chapters[1].PlainText == "Una **palabra**", "conversión del énfasis");
+    Check(shelf.Open(old.Id).Work.Chapters[1].Images.Single()==image,"migrar ilustración ya posicionada");
     var savedEdition = shelf.Open(old.Id).Work.Editions.Single(); Check(File.ReadAllBytes(previous).SequenceEqual(File.ReadAllBytes(Path.Combine(shelf.Media, savedEdition.Key))), "edición anterior idéntica");
     Check(WorldModel.Effective(shelf.Open(old.Id).Work, elf).Single().Value == "8 cm", "herencia");
     if (args.Contains("--pdf"))

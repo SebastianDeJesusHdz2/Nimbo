@@ -62,14 +62,16 @@ jobs:
         shell: pwsh
         run: |
           $process = Start-Process artifacts/app/Nimbo.Desktop.exe -ArgumentList '--verify-ui' -PassThru -Wait -WindowStyle Hidden
-          exit $process.ExitCode
+          if($process.ExitCode -ne 0){exit $process.ExitCode}
+          $edit = Start-Process artifacts/app/Nimbo.Desktop.exe -ArgumentList '--verify-editors' -PassThru -Wait -WindowStyle Hidden
+          exit $edit.ExitCode
       - name: Instalar empaquetador
         run: dotnet tool install --tool-path tools vpk --version 1.2.161
       - name: Preparar versión
         shell: bash
         run: |
           version="$(dotnet msbuild src/Nimbo.Desktop/Nimbo.Desktop.csproj -getProperty:Version | tr -d '\r')"
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then version="${GITHUB_REF_NAME#v}"; fi
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then test "$version" = "${GITHUB_REF_NAME#v}"; fi
           printf '%s\n' "Nimbo · GPL-3.0-only" "https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA" > artifacts/app/FUENTES.txt
           test -s artifacts/app/LICENSE
           ./tools/vpk pack --packId Nimbo --packTitle Nimbo --packVersion "$version" --runtime ${{ matrix.rid }} --packDir artifacts/app --mainExe ${{ matrix.exe }} --outputDir artifacts/release
@@ -113,7 +115,9 @@ jobs:
         run: |
           shopt -s nullglob
           assets=(packages/*/*.exe packages/*/*.AppImage packages/*/*.nupkg packages/*/releases.*.json packages/*/*.sh)
-          gh release create "$GITHUB_REF_NAME" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --draft --prerelease --title "Nimbo ${GITHUB_REF_NAME#v}"
+          channel=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then channel+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --draft "${channel[@]}" --title "Nimbo ${GITHUB_REF_NAME#v}"
 
 
 

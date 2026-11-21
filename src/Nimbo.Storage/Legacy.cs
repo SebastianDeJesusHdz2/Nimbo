@@ -56,6 +56,9 @@ public static class Legacy
                 var collection = catalog.Collections.FirstOrDefault(g => g.Id == w.CollectionId); if (collection != null) w.CollectionId = collection.Name;
                 if (w.CoverImage != "") w.CoverImage = Image(w.CoverImage, root);
                 foreach (var node in w.Glossary.Where(n => n.ImagePath != "")) node.ImagePath = Image(node.ImagePath, root);
+                foreach(var chapter in w.Chapters){
+                    for(int index=0;index<chapter.Images.Count;index++)chapter.Images[index]=Image(chapter.Images[index],root);
+                }
                 foreach (var c in w.Chapters.Where(c => c.ContentPackage.StartsWith("LW5:") || c.ContentPackage.StartsWith("LW4:")))
                 {
                     var xml = XDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(c.ContentPackage[4..])));

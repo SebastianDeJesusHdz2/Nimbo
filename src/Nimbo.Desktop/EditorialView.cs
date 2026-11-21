@@ -88,6 +88,7 @@ public sealed partial class Studio
         if(!Visible(botanist.Name))return Fail();
         Preferences(); Layout();if(!Visible("Fondo de la biblioteca"))return Fail();
         File.WriteAllText(Config("tema"),"Oscuro");ApplyTheme();
+        var slides=Format.All.Single(f=>f.Name=="Presentación").Create("El cielo en invierno");slides.CoverImage=illustrated.Images[0];shelf.Save(slides,0);
         foreach(var name in new[]{"Bajo el hielo","Manual de mareas","Cantos del sur","Las manos del reloj","La memoria del muelle","Voces del camino","La carta de Aro","Cuaderno de campo"}){
             var book=Format.All.First(f=>f.Name=="Novela").Create(name);
             book.CoverColor=palette.Swatches[name.Length%palette.Swatches.Length];book.Author="Inés Salgado";
@@ -96,7 +97,8 @@ public sealed partial class Studio
         }
         Library();Layout();Capture("Estantería");
         var books=page.GetVisualDescendants().OfType<BookCover>().ToArray();
-        if(books.Length<10)return Fail();
+        if(books.Length!=10 || !page.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="MiniDocumento"))return Fail();
+        if(!page.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="MiniDiapositiva"))return Fail();
         foreach(var book in books.Take(3))book.ShowJacket(true);
         Layout();Capture("Contraportadas");
         return true;
@@ -139,7 +141,7 @@ public sealed partial class Studio
             var options = EditorialTemplate.For(format);
             Choice(panel, "Estilo de la plantilla", options.Select(t => t.Name).ToArray(), work.Template, v => { work.Template = v; Changed(); });
         }
-        if (work.Type != "Presentación") Choice(panel, "Tamaño de página", ["A4", "Carta", "A5"], work.Publication.Paper, v => { work.Publication.Paper = v; Changed(); });
+        if (work.Type != "Presentación") Choice(panel, "Tamaño de página", work.IsNovel?["A4","Carta","A5","Bolsillo"]:["A4","Carta","A5"], work.Publication.Paper, v => { work.Publication.Paper = v; Changed(); });
         Choice(panel, "Tinta de títulos", Inks, work.PrintAccent == "" ? Inks[0] : work.PrintAccent, v => { work.PrintAccent = v; Changed(); });
         if (work.Type != "Presentación")
         {

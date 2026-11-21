@@ -75,7 +75,7 @@ public sealed partial class Studio
         if(entries.Count>0){
             var latest=entries[0];void Resume()=>Run(()=>{var item=shelf.Open(latest.Id);Open(item.Work,item.Revision);});
             var hero=new Grid{ColumnDefinitions=new ColumnDefinitions("230,*,Auto"),ColumnSpacing=24};
-            var jacket=new Border{Background=EditionPalette.Mix(palette.Wood,palette.Ink,.55),Child=new BookCover(latest,shelf.Media,palette,Resume),CornerRadius=new CornerRadius(4)};
+            var jacket=new Border{Background=EditionPalette.Mix(palette.Wood,palette.Ink,.55),Child=Miniature(latest,Resume),CornerRadius=new CornerRadius(4)};
             hero.Children.Add(jacket);
             var info=Column(8);info.VerticalAlignment=VerticalAlignment.Center;info.Children.Add(Kicker("Última obra guardada"));
             info.Children.Add(Display(latest.Title,34));info.Children.Add(Label(string.Join("  ·  ",new[]{latest.Type,latest.Author,latest.Collection}.Where(t=>t!="")),14));
@@ -101,15 +101,15 @@ public sealed partial class Studio
             }else listings.Content=books;
             groupTitle.Text=selected==""?"Tu estantería":selected;
             foreach(var entry in entries.Where(e=>(selected==""||e.Collection==selected) && (types.SelectedIndex==0||e.Type==types.SelectedItem as string) && (e.Title+" "+e.Author).Contains(search.Text??"",StringComparison.CurrentCultureIgnoreCase))){
-                var book=new BookCover(entry,shelf.Media,palette,()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));
                 if(view.SelectedIndex==0){
+                    var book=Miniature(entry,()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));
                     var slot=Column(0);var miniature=new Viewbox{Child=book,Height=163,Width=Bookcase.Slot,Stretch=Stretch.Uniform};
                     slot.Children.Add(miniature);
                     var caption=Label(entry.Title,11);caption.TextWrapping=TextWrapping.NoWrap;caption.TextTrimming=TextTrimming.CharacterEllipsis;
                     var tag=Action(entry.Title,()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));
                     tag.Content=caption;tag.HorizontalAlignment=HorizontalAlignment.Center;tag.MaxWidth=Bookcase.Slot-8;tag.Padding=new Thickness(5,1);tag.MinHeight=18;
                     tag.Background=Brush.Parse("#E6D8BC");tag.Foreground=Brush.Parse("#352A24");slot.Children.Add(tag);
-                    book.ContextMenu=new ContextMenu{ItemsSource=new[]{MenuAction("Ver portada",()=>book.ShowJacket(false)),MenuAction("Ver contraportada",()=>book.ShowJacket(true)),MenuAction("Leer sinopsis completa",()=>InspectBook(entry))}};
+                    if(book is BookCover volume)volume.ContextMenu=new ContextMenu{ItemsSource=new[]{MenuAction("Ver portada",()=>volume.ShowJacket(false)),MenuAction("Ver contraportada",()=>volume.ShowJacket(true)),MenuAction("Leer sinopsis completa",()=>InspectBook(entry))}};
                     books.Children.Add(slot);
                 }else{var record=Column(4);record.Width=215;record.Children.Add(Label(entry.Type));record.Children.Add(Display(entry.Title,20));if(entry.Author!="")record.Children.Add(Label(entry.Author));var open=Action("",()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));open.Content=record;open.Margin=new Thickness(0,0,8,8);books.Children.Add(open);}
             }

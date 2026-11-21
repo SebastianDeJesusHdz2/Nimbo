@@ -24,6 +24,17 @@ public sealed partial class Studio
         menu.Items.Add(MenuAction("Vista previa de impresión",async()=>await Preview()));
         menu.Items.Add(MenuAction("Exportar PDF…",async()=>await Export(true)));
         menu.Items.Add(MenuAction("Proyecto LaTeX…",async()=>await Export(false)));
+        if(work.IsNovel)menu.Items.Add(MenuAction("Edición completa y fichas…",async()=>await Guard(async()=>{
+            if(!TrySave())return;
+            var snapshot=session.Snapshot();
+            var parent=(await StorageProvider.OpenFolderPickerAsync(new(){Title="Dónde guardar la edición completa"})).FirstOrDefault()?.TryGetLocalPath();
+            if(parent==null)return;
+            var stem="Edición - "+string.Join("_",snapshot.Title.Split(Path.GetInvalidFileNameChars()));
+            var path=Path.Combine(parent,stem);int copy=1;
+            while(Directory.Exists(path)||File.Exists(path))path=Path.Combine(parent,stem+" ("+(++copy)+")");
+            status.Text="Componiendo el manuscrito y las fichas…";var engine=Engine();
+            await Task.Run(()=>ReadingEdition.Write(snapshot,shelf.Media,path,engine));status.Text="Edición guardada en "+path;
+        })));
         menu.Items.Add(MenuAction("Guardar copia",()=>Run(()=>{var clone=session.SaveCopy();Open(clone,session.Revision);})));
         var publish=new Button{Content="Publicar  ▾",Flyout=menu};Emphasize(publish);
         DockPanel.SetDock(publish,Dock.Right);header.Children.Add(publish);header.Children.Add(top);
@@ -170,9 +181,11 @@ public sealed partial class Studio
                 c.CaretOffset=position;
                 Changed();Editor();
             }
-            insert.Items.Add(MenuAction("Imágenes en el cursor…",async()=>await Guard(()=>InsertPictures(false))));
-            if(work.Type!="Presentación")insert.Items.Add(MenuAction("Galería en filas de tres…",async()=>await Guard(()=>InsertPictures(true))));
             bar.Children.Add(new Button{Content="Insertar  ▾",Flyout=insert,Background=Brushes.Transparent,BorderThickness=new Thickness(0)});
+            var pictures=new MenuFlyout();
+            pictures.Items.Add(MenuAction(work.Type=="Presentación"?"Añadir a la diapositiva…":"Insertar donde escribo…",async()=>await Guard(()=>InsertPictures(false))));
+            if(work.Type!="Presentación")pictures.Items.Add(MenuAction("Insertar varias en una fila…",async()=>await Guard(()=>InsertPictures(true))));
+            var imageTool=new Button{Content="Imágenes  ▾",Flyout=pictures};bar.Children.Add(imageTool);
             if(c.Images.Count!=0 && work.Type!="Presentación"){
                 bar.Children.Add(QuietAction(illustrated?"Texto continuo":"Mostrar imágenes",()=>{continuousDraft=illustrated;Editor();}));
                 bar.Children.Add(QuietAction("Lectura",()=>ReadSection(c)));
@@ -211,10 +224,10 @@ public sealed partial class Studio
         var proof=new ContentControl{Width=160,Height=222,Margin=new Thickness(0,0,22,0)};
         void RefreshJacket(){
             var entry=new Entry(work.Id,work.Title,work.Type,0,work.CoverImage,work.CoverColor,work.Author,work.Description,work.CollectionId);
-            proof.Content=new BookCover(entry,shelf.Media,palette,()=>InspectBook(entry));
+            proof.Content=Miniature(entry,()=>{if(work.IsNovel)InspectBook(entry);else ReadSection(chapter);});
         }
         RefreshJacket();DockPanel.SetDock(proof,Dock.Left);jacket.Children.Add(proof);
-        coverOptions.VerticalAlignment=VerticalAlignment.Center;coverOptions.Children.Add(Kicker("Encuadernación"));
+        coverOptions.VerticalAlignment=VerticalAlignment.Center;coverOptions.Children.Add(Kicker(work.IsNovel?"Encuadernación":"Miniatura"));
         var inks=new WrapPanel();
         foreach(var hex in palette.Swatches.Prepend(work.CoverColor).Where(s=>Color.TryParse(s,out _)).Distinct(StringComparer.OrdinalIgnoreCase)){
             var swatch=new Button{Width=30,Height=30,MinWidth=0,Padding=new Thickness(0),Margin=new Thickness(0,0,5,4),Background=Brush.Parse(hex),CornerRadius=new CornerRadius(15),

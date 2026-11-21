@@ -60,6 +60,7 @@ public sealed partial class Studio
             option.Click+=(_,_)=>{work.GlossaryPaper=paper;Changed();Archive(work,archiveQuery);};pdf.Items.Add(option);
         }
         pdf.Items.Add(new Separator());pdf.Items.Add(MenuAction("Vista previa",async()=>await Preview(true)));pdf.Items.Add(MenuAction("Exportar cuadernillo…",async()=>await Export(true,true)));
+        pdf.Items.Add(MenuAction("Elegir fichas para un PDF…",async()=>await Guard(()=>ChooseCards(work))));
         foreach(var control in new Control[]{NewEntry(work,null),search,filters,stars,browseTree,new Button{Content="Cuadernillo  ▾",Flyout=pdf}}){
             control.Margin=new Thickness(0,0,10,5);control.VerticalAlignment=VerticalAlignment.Center;tools.Children.Add(control);
         }
@@ -77,7 +78,7 @@ public sealed partial class Studio
                 foreach(var entry in ordered.Skip(archivePage*PageLength).Take(PageLength)){
                     var card=Column(8);card.Width=262;
                     Control plate=ClassEmblem(entry.NodeKind);
-                    if(entry.ImagePath!="" && Thumbnail(Path.Combine(shelf.Media,Path.GetFileName(entry.ImagePath)),420,168) is {} img){img.Stretch=Stretch.UniformToFill;img.HorizontalAlignment=HorizontalAlignment.Stretch;plate=img;}
+                    if(entry.ImagePath!="" && Thumbnail(Path.Combine(shelf.Media,Path.GetFileName(entry.ImagePath)),420,168) is {} img){img.Stretch=Stretch.Uniform;img.HorizontalAlignment=HorizontalAlignment.Stretch;plate=img;}
                     card.Children.Add(plate);card.Children.Add(Kicker(entry.NodeKind));
                     var name=Display((entry.Pinned?"★  ":"")+entry.Name,22);name.MaxLines=2;name.TextTrimming=TextTrimming.CharacterEllipsis;card.Children.Add(name);
                     var caption=new[]{entry.Role,entry.Background,entry.Aliases,work.Glossary.FirstOrDefault(p=>p.Id==entry.ParentId)?.Name}.FirstOrDefault(t=>!string.IsNullOrWhiteSpace(t));
@@ -96,6 +97,27 @@ public sealed partial class Studio
         void FilterChanged(){archivePage=0;Refresh();}
         search.TextChanged+=(_,_)=>FilterChanged();filters.SelectionChanged+=(_,_)=>FilterChanged();stars.IsCheckedChanged+=(_,_)=>FilterChanged();Refresh();
         page.Content=new ScrollViewer{Content=content};
+    }
+
+    async Task ChooseCards(Work work)
+    {
+        var window=new Window{Title="Elegir fichas",Width=460,Height=540,MinWidth=320,MinHeight=300,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=Sheet};
+        var root=new DockPanel{Margin=new Thickness(20)};var choices=Column(5);
+        var checks=work.Glossary.OrderBy(n=>n.Name).Select(n=>(Entry:n,Box:new CheckBox{Content=n.Name+" · "+n.NodeKind})).ToArray();
+        var footer=Row();DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
+        var save=Action("Exportar PDF…",()=>window.Close(true));Emphasize(save);footer.Children.Add(save);footer.Children.Add(QuietAction("Cancelar",()=>window.Close(false)));
+        var head=Column(8);DockPanel.SetDock(head,Dock.Top);root.Children.Add(head);head.Children.Add(Display("Elegir fichas",26));
+        var query=new TextBox{Watermark="Buscar por nombre o clase"};head.Children.Add(query);
+        var group=new WrapPanel();
+        foreach(var on in new[]{true,false})group.Children.Add(QuietAction(on?"Marcar visibles":"Desmarcar visibles",()=>{
+            foreach(var (_,box) in checks.Where(p=>p.Box.IsVisible))box.IsChecked=on;
+        }));
+        head.Children.Add(group);
+        void Count(){var n=checks.Count(p=>p.Box.IsChecked==true);save.IsEnabled=n>0;save.Content=$"Exportar PDF ({n})…";}
+        foreach(var (_,box) in checks){box.IsCheckedChanged+=(_,_)=>Count();choices.Children.Add(box);}Count();
+        query.TextChanged+=(_,_)=>{foreach(var (entry,box) in checks)box.IsVisible=(entry.Name+" "+entry.NodeKind).Contains(query.Text?.Trim()??"",StringComparison.CurrentCultureIgnoreCase);};
+        root.Children.Add(new ScrollViewer{Content=choices});window.Content=root;
+        if(await window.ShowDialog<bool>(this))await Export(true,true,selection:checks.Where(p=>p.Box.IsChecked==true).Select(p=>p.Entry.Id).ToHashSet());
     }
 
     void Dossier(Work work,Node node,string query)

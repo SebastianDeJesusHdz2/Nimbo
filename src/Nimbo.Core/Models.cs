@@ -85,7 +85,7 @@ public class Publication : Extensible
     public string RunningHead { get; set; } = "Sin encabezado"; public bool BackCover { get; set; } = true; public bool TitlePage { get; set; } = true; public bool Contents { get; set; } = true; public bool Glossary { get; set; }
     public bool PageNumbers { get; set; } = true;
     public bool RomanPrelims { get; set; } = true; public string Header { get; set; } = "";
-    public (double W, double H) Size() => Paper switch { "A4" => (210, 297), "Carta" => (215.9, 279.4), "A5" => (148, 210), _ => (WidthMm, HeightMm) };
+    public (double W, double H) Size() => Paper switch { "A4" => (210, 297), "Carta" => (215.9, 279.4), "A5" => (148, 210), "Bolsillo" => (110,175), _ => (WidthMm, HeightMm) };
 }
 public static class WorldModel
 {

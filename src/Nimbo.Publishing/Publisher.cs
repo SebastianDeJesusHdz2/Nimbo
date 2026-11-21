@@ -53,7 +53,7 @@ public static class Publisher
         }
         return output.ToString();
     }
-    public static async Task Export(Work work, string media, string output, bool pdf, bool glossary = false, string? engine = null,string? nodeId=null)
+    public static async Task Export(Work work, string media, string output, bool pdf, bool glossary = false, string? engine = null,string? nodeId=null,IReadOnlySet<string>? selection=null)
     {
         var temp = Directory.CreateTempSubdirectory("nimbo-").FullName;
         var pending = Path.GetFullPath(output) + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -62,10 +62,11 @@ public static class Publisher
             var slide = work.Type == "Presentación" && !glossary;
             var novel = work.IsNovel && !glossary;
             if(nodeId!=null && (!glossary || !work.Glossary.Any(n=>n.Id==nodeId)))throw new ArgumentException("Ficha de glosario desconocida.");
+            if(selection!=null && (!glossary || nodeId!=null || selection.Count==0 || !selection.IsSubsetOf(work.Glossary.Select(n=>n.Id))))throw new ArgumentException("Selecciona fichas existentes de esta obra.");
             var tex = new StringBuilder();
             var format=Format.All.FirstOrDefault(f=>f.Name==work.Type);
             var style=format==null?"Clásica":EditorialTemplate.For(format).FirstOrDefault(t=>t.Name==work.Template)?.Style??"Clásica";
-            var paper=work.Publication.Paper switch {"A5"=>"a5paper","Carta"=>"letterpaper","A4"=>"a4paper",_=>novel?"a5paper":"a4paper"};
+            var paper=work.Publication.Paper switch {"Bolsillo" when novel=>"paperwidth=110mm,paperheight=175mm","A5"=>"a5paper","Carta"=>"letterpaper","A4"=>"a4paper",_=>novel?"a5paper":"a4paper"};
             tex.AppendLine(slide ? @"\documentclass[aspectratio=169]{beamer}" :
                 novel ? @"\documentclass[11pt,a5paper,openany]{book}" : glossary ? @"\documentclass[11pt,twoside]{article}" : @"\documentclass[11pt]{article}");
             tex.AppendLine(@"\usepackage{fontspec,graphicx,xcolor,tabularx}");
@@ -165,7 +166,7 @@ public static class Publisher
             if (novel && work.Publication.Contents && work.Chapters.Count > 1) tex.AppendLine(@"\tableofcontents");
             if (glossary)
             {
-                foreach (var node in work.Glossary.Where(n=>nodeId==null || n.Id==nodeId).OrderBy(n=>n.Name,StringComparer.CurrentCultureIgnoreCase))
+                foreach (var node in work.Glossary.Where(n=>(nodeId==null || n.Id==nodeId) && (selection==null || selection.Contains(n.Id))).OrderBy(n=>n.Name,StringComparer.CurrentCultureIgnoreCase))
                 {
                     tex.AppendLine(@"\abrirficha{"+Escape(node.NodeKind)+"}{"+Escape(node.Name)+"}");
                     if(node.ImagePath!=""){

@@ -1,6 +1,6 @@
 # Nimbo
 
-Estudio de escritura de escritorio para Windows y Linux. Esta primera alfa usa C# y .NET 10, Avalonia, SQLite y XeLaTeX.
+Estudio de escritura de escritorio para Windows y Linux. Nimbo 0.5.1 usa C# y .NET 10, Avalonia, SQLite y XeLaTeX.
 
 ## Primera sesión
 
@@ -9,6 +9,12 @@ Elige un formato en la biblioteca, escribe un título y pulsa **Crear obra**. A 
 **LaTeX** entrega un ZIP con el archivo fuente y las ilustraciones. **PDF** requiere una instalación local de XeLaTeX con sus paquetes, por ejemplo TeX Live en Linux o MiKTeX en Windows. En **Preferencias** puedes seleccionar el ejecutable de una instalación existente. En un equipo que ya utilizaba LumenWriter puedes elegir el archivo `Tools/MiKTeX/miktex/bin/x64/xelatex.exe` de ese proyecto. En Ubuntu, los paquetes de la prueba de impresión son `texlive-xetex`, `texlive-latex-extra` y `texlive-fonts-recommended`. Este último aporta las métricas de letra que utiliza Beamer. El runtime de .NET se incluye en los paquetes de distribución.
 
 ## Biblioteca anterior
+
+Las novelas aparecen como libros giratorios, los documentos como hojas y las presentaciones como diapositivas. En el editor, sitúa el cursor donde quieres una ilustración y abre **Imágenes**. Puedes escoger una imagen o varias, escribir un pie y elegir la composición de cada una. **Publicar → Vista previa de impresión** permite comprobar el ajuste del texto alrededor de una imagen antes de imprimir.
+
+En **Glosario → Cuadernillo** puedes elegir el tamaño de papel y exportar todas las fichas o una selección. Cada ficha tiene también su propio botón de PDF. **Publicar → Edición completa y fichas** prepara el manuscrito, el proyecto LaTeX, el glosario y los retratos de personaje con sus datos en PDF.
+
+### Importación
 
 Usa **Importar biblioteca…** y selecciona la carpeta de LumenWriter que contiene `Data`. Nimbo copia las obras a su propia base local e identifica las obras ya importadas por su ID. Cada obra se confirma por separado y una importación interrumpida se puede repetir. Cuando la biblioteca contiene una edición de lectura en su taller, **Obra → Edición anterior** permite recuperar los PDF y el ZIP originales. El PDF generado desde el manuscrito usa la maquetación de Nimbo. El importador convierte el énfasis, las listas, las tablas sencillas y las figuras que puede cotejar con el texto original. La fidelidad de diseños anteriores, estilos de párrafo, tablas WPF y posiciones de figuras requiere cotejo antes de sustituir el editor anterior.
 
