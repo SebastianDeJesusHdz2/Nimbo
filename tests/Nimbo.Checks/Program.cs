@@ -8,6 +8,17 @@ using System.Text;
 var root = Directory.CreateTempSubdirectory("nimbo-check-").FullName;
 try
 {
+    if(args is ["--importar-libro",var biblioteca,var origen]){
+        Console.WriteLine($"Obras añadidas: {Legacy.Import(new Shelf(biblioteca),origen)}");
+        return;
+    }
+    if(args is ["--libro",var carpeta,var destino,var motor]){
+        var prueba=new Shelf(root);
+        if(Legacy.Import(prueba,carpeta)!=1)throw new Exception("Se esperaba una obra.");
+        var obra=prueba.Open(prueba.List().Single().Id).Work;
+        await Publisher.Export(obra,prueba.Media,destino,true,false,motor);
+        return;
+    }
     var profile=Path.Combine(root,"perfil");
     var previousShelf=new Shelf(Path.Combine(profile,"Nimbo"));
     var proof=Format.All[0].Create("Obra anterior");previousShelf.Save(proof,0);
@@ -56,6 +67,17 @@ try
             }
         }
     }
+    var figures=new Chapter{Images=["a","b"],PlainText="uno[[Imagen 1]] dos[[Imagen 2]] fin",ImageLayouts=new(){[1]="Página completa"}};
+    Illustrations.Move(figures,0,3,figures.PlainText.Length);
+    Check(figures.PlainText=="uno dos[[Imagen 2]] fin[[Imagen 1]]","trasladar imagen preserva el texto");
+    Illustrations.Remove(figures,0);
+    Check(figures.PlainText=="uno dos[[Imagen 1]] fin" && Illustrations.Layout(figures,0)=="Página completa","renumerar imágenes y su composición");
+    var spread=new Chapter{Images=["a","b","c","d","e","f"],Layout=Illustrations.Gallery,
+        PlainText="[[Imagen 1]][[Imagen 2]] [[Imagen 3]][[Imagen 4]] pie [[Imagen 5]][[Imagen 6]]",ImageLayouts=new(){[5]="Centrada"},
+        ImageCaptions=new(){[2]="Fotografía", [3]="Grabado"}};
+    Check(Illustrations.Rows(spread).Select(r=>r.Count).SequenceEqual([3,1,1,1]),"galerías respetan prosa y composiciones distintas");
+    Illustrations.Remove(spread,2);
+    Check(spread.ImageCaptions.Count==1 && spread.ImageCaptions[2]=="Grabado","los pies siguen a la imagen");
     var legacy = Path.Combine(root, "anterior"); var studio = Directory.CreateDirectory(Path.Combine(legacy, "Data", "Studio")).FullName;
     var old = Format.All[0].Create("Prueba migrada");
     var race = new Node { Name = "Elfos", AttributeDefinitions = [new() { Name = "Orejas", DefaultValue = "8 cm" }] };
@@ -64,6 +86,36 @@ try
     var png = Path.Combine(root, "figura.png");
     File.WriteAllBytes(png, Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAzSURBVEhLY4ift+A/LTEDugC18agFBPGoBQTxqAUE8agFBPGoBQTxqAUE8agFBDHNLQAAbzffTAnMZXYAAAAASUVORK5CYII="));
     var image = shelf.AddImage(png);
+    var guide=Format.All.Single(f=>f.Name=="Novela").Create("El archivo de la sal");
+    guide.Author="Nimbo";guide.GlossaryPaper="Bolsillo";
+    var port=new Node{Name="Puerto Espejo",NodeKind="Lugar",Role="Puerto de invierno de las barcas de sal",Sections=new(){["Paisaje y clima"]="El canal se vacía con la marea. Una hilera de faroles marca el paso entre los bajos."},
+        AttributeDefinitions=[new(){Name="Marea de referencia",Unit="m",DefaultValue="2,4"}]};
+    var dock=new Node{Name="Muelle de levante",NodeKind="Lugar",ParentId=port.Id,Sections=new(){["Historia local"]="Las tablillas conservan la fecha de cada crecida."}};
+    var keeper=new Node{Name="Mara Vélez",NodeKind="Personaje",Type="Práctica de puerto",Age="29 años",Tags="Navegación, mareas",
+        Role="Guía los barcos hasta la bocana.",Notes="Busca su nombre en el registro de 1912.",RelatedIds=[dock.Id],
+        RelationRoles=new(){[dock.Id]="Lugar de guardia"},Sections=new(){["Deseo y motivación"]="Conservar el farol del muelle.",["Voz y gestos"]="Cuenta las brazas en voz baja."}};
+    guide.Glossary.AddRange([port,dock,keeper]);
+    var page=guide.Chapters[0];page.Title="El paso de levante";page.Images=[image,image,image];
+    if(Environment.GetEnvironmentVariable("NIMBO_SAMPLE_ART") is string artwork){
+        var observatory=shelf.AddImage(Path.Combine(artwork,"observatorio.jpg"));
+        var engravings=shelf.AddImage(Path.Combine(artwork,"coleccion.jpg"));
+        page.Images=[observatory,engravings,observatory];port.ImagePath=observatory;
+    }
+    page.ImageLayouts=new(){[0]=Illustrations.Gallery,[1]=Illustrations.Gallery,[2]="Página completa"};
+    page.ImageCaptions=new(){[0]="Orilla & marea",[1]="El espigón",[2]="El faro"};
+    page.PlainText="Mara sabía que el puerto estaba despierto por el roce del cabo contra la madera.\n[[Imagen 1]][[Imagen 2]]\n> Cuenta las brazas antes de entrar.\n[[Imagen 3]]\nAl otro lado del canal ya amanecía.";
+    shelf.Save(guide,0);guide=shelf.Open(guide.Id).Work;
+    async Task<string> Source(bool glossary){
+        var output=Path.Combine(root,"prueba-maqueta.zip");await Publisher.Export(guide,shelf.Media,output,false,glossary);
+        using var zip=ZipFile.OpenRead(output);using var reader=new StreamReader(zip.GetEntry("obra.tex")!.Open());return reader.ReadToEnd();
+    }
+    var pages=await Source(false);Check(pages.Contains(@"\begin{minipage}[t]{.475\linewidth}") && pages.Contains(@"Orilla \& marea") && pages.Contains(@"\begin{quote}") && pages.Contains("El faro"),"disposiciones y citas imprimibles");
+    var pocket=await Source(true);Check(pocket.Contains("paperwidth=90mm,paperheight=140mm") && pocket.Contains("Lugar de guardia") && pocket.Contains("Marea de referencia (m) · Puerto Espejo") && pocket.Contains("Cuenta las brazas en voz baja."),"cuadernillo conserva campos heredados y vínculos");
+    if(args.Contains("--pdf")){
+        var output=Environment.GetEnvironmentVariable("NIMBO_SAMPLE_DIR")??root;
+        await Publisher.Export(guide,shelf.Media,Path.Combine(output,"Cuadernillo de bolsillo.pdf"),true,true,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
+        await Publisher.Export(guide,shelf.Media,Path.Combine(output,"Composición ilustrada.pdf"),true,false,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
+    }
     var paragraph = new Chapter { Title = "Prueba de estilo", PlainText = "Una palabra", Order = 1 };
     paragraph.ContentPackage = "LW5:" + Convert.ToBase64String(Encoding.UTF8.GetBytes("<FlowDocument><Paragraph><Run>Una </Run><Bold><Run>palabra</Run></Bold></Paragraph></FlowDocument>"));
     old.Chapters.Add(paragraph);
@@ -79,6 +131,7 @@ try
     if (args.Contains("--pdf"))
     {
         old.Chapters[0].Images.Add(image); old.Chapters[0].Layout = "Centrada"; old.Chapters[0].PlainText += "\nInicio de figura\n" + Illustrations.At(0) + "\nFin de figura";
+        old.Chapters[0].ImageLayouts[0]="Ajustar a la derecha";
         var book = Path.Combine(root, "book.pdf"); var glossary = Path.Combine(root, "glossary.pdf");
         await Publisher.Export(old, shelf.Media, book, true, false, Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
         await Publisher.Export(old, shelf.Media, glossary, true, true, Environment.GetEnvironmentVariable("NIMBO_XELATEX"));

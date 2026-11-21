@@ -80,3 +80,11 @@ AVANCE DE IMPLEMENTACIÓN · 0.5.0-alpha.1
 [x] Fondo personal completo con desenfoque, área de lectura centrada y modo de concentración por obra.
 [x] Alfa 2. Búsqueda en la sección con atajos, reanudación del último capítulo y detección de nuevas versiones preliminares.
 [x] Alfa 3. Plantillas editoriales, CV con entradas estructuradas, campos por formato, preferencias de escritura, búsqueda en el glosario, vista de catálogo y vista previa con XeLaTeX.
+
+ALFA 8 · TALLER EDITORIAL
+[x] Estantería continua con volúmenes en miniatura, encuadernación configurable, sinopsis ajustada y lectura ampliada de la contraportada.
+[x] Cuatro paletas de Adobe Color integradas en la biblioteca, el manuscrito y los controles de apariencia.
+[x] Selección múltiple de imágenes, disposición individual, pies y galerías de hasta tres por fila. Citas en bloque y búsqueda con reemplazo.
+[x] Fichas con apartados por clase, apartados propios, relaciones con nombre y atributos heredables con unidades.
+[x] Plantilla de cuadernillo con portada, índice, fichas individuales y tres tamaños de impresión. Muestra de bolsillo comprobada a 90 × 140 mm en seis páginas.
+[ ] Validar el arranque de esta alfa en el equipo del autor con la política de confianza de Windows activa.

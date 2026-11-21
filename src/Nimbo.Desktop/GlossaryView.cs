@@ -15,83 +15,92 @@ namespace Nimbo.Desktop;
 
 public sealed partial class Studio
 {
-    void Glossary(Node? node)
+    void Glossary(Node? node,int tab=-1,string query="")
     {
-        var work = current!; var body = Column(); var bar = Row(); bar.Children.Add(Action("‹ Manuscrito", Editor));
-        bar.Children.Add(Action("Nueva ficha", () => { var n = new Node { ParentId = node?.Id ?? "" }; work.Glossary.Add(n); Changed(); Glossary(n); }));
-        bar.Children.Add(Action("Vista previa A6",async()=>await Preview(true)));bar.Children.Add(Action("Cuadernillo PDF", async () => await Export(true, true))); body.Children.Add(bar); body.Children.Add(Label("Glosario", 28));
-        var tree = new TreeView();
-        var branches = work.Glossary.ToDictionary(n => n.Id, n => new TreeViewItem { Header = n.Name, Tag = n, IsExpanded = true });
-        foreach (var item in work.Glossary)
+        Navigate("Glosario");var work=current!;
+        if(node==null){Archive(work,query);return;}
+        if(tab<0){Dossier(work,node,query);return;}
+        var body=Column(10);
+        var header=Column(14);header.MaxWidth=1050;header.Margin=new Thickness(18,10);var close=QuietAction("‹ Volver a la ficha",()=>{if(TrySave())Glossary(node,-1,query);});header.Children.Add(close);
+        header.Children.Add(Kicker("Edición · "+node.NodeKind));var heading=Display(node.Name,34);header.Children.Add(heading);
         {
-            var branch = branches[item.Id];
-            if (item.ParentId != "" && branches.TryGetValue(item.ParentId, out var parent) && !WorldModel.WouldCycle(work, item.Id, item.ParentId, ""))
-                parent.Items.Add(branch);
-            else tree.Items.Add(branch);
-        }
-        if (node != null) tree.SelectedItem = branches[node.Id];
-        tree.SelectionChanged += (_, _) => { if (tree.SelectedItem is TreeViewItem { Tag: Node chosen } && chosen != node) Glossary(chosen); };
-        var sidebar = Column(); sidebar.Width = 205; sidebar.Children.Add(Label("Índice", 20));
-        var search=new TextBox{Watermark="Buscar nombre, clase o alias"};sidebar.Children.Add(search);
-        var matches=new ListBox{IsVisible=false,MaxHeight=350};sidebar.Children.Add(matches);
-        matches.SelectionChanged+=(_,_)=>{if(matches.SelectedItem is Node hit)Glossary(hit);};
-        search.TextChanged+=(_,_)=>{
-            var term=search.Text?.Trim()??"";tree.IsVisible=term.Length==0;matches.IsVisible=!tree.IsVisible;
-            matches.ItemsSource=term.Length==0?Array.Empty<Node>():work.Glossary.Where(n=>(n.Name+" "+n.NodeKind+" "+n.Aliases).Contains(term,StringComparison.CurrentCultureIgnoreCase)).ToArray();
-        };
-        if(node==null){
-            body.Children.Add(Display("Fichas por clase",24));
-            foreach(var group in work.Glossary.GroupBy(n=>n.NodeKind).OrderBy(g=>g.Key)){
-                var section=Column(5);section.Children.Add(Label(group.Key+" · "+group.Count(),17));
-                foreach(var item in group.OrderBy(n=>n.Name))section.Children.Add(Action(item.Name,()=>Glossary(item)));body.Children.Add(Card(section));
+            var identity=body;var story=Column();var model=Column();var links=Column();
+            var plate=Column(8);plate.VerticalAlignment=VerticalAlignment.Top;
+            var profile=new Grid{ColumnDefinitions=new ColumnDefinitions("*,200"),ColumnSpacing=22,Margin=new Thickness(0,12)};
+            profile.Children.Add(identity);Grid.SetColumn(plate,1);profile.Children.Add(plate);
+            var tabs=new TabControl{ItemsSource=new[]{new TabItem{Header="Identidad",Content=profile},new TabItem{Header="Historia",Content=story},new TabItem{Header="Vínculos",Content=links},new TabItem{Header="Modelo y campos",Content=model}},SelectedIndex=tab};
+            tabs.SelectionChanged+=(_,_)=>tab=tabs.SelectedIndex;header.Children.Add(tabs);
+            Field(identity,"Nombre",node.Name,v=>{node.Name=v;heading.Text=v;});
+            var kinds=new[]{"Personaje","Lugar","Mundo","Raza","Organización","Objeto","Categoría","Concepto",node.NodeKind}.Distinct().ToArray();
+            Choice(identity,"Clase de ficha",kinds,node.NodeKind,v=>{if(v==node.NodeKind)return;node.NodeKind=v;Changed();Glossary(node,tab,query);});
+            Field(identity,"Alias",node.Aliases,v=>node.Aliases=v);
+            Field(identity,"Clasificación",node.Type,v=>node.Type=v);
+            Field(identity,"Etiquetas",node.Tags,v=>node.Tags=v);
+            Field(identity,"Estado",node.Status,v=>node.Status=v);
+            var pin=new CheckBox{Content="Destacar en el glosario",IsChecked=node.Pinned};pin.IsCheckedChanged+=(_,_)=>{node.Pinned=pin.IsChecked==true;Changed();};identity.Children.Add(pin);
+            Field(story,"Función narrativa",node.Role,v=>node.Role=v);
+            Field(story,"Trasfondo",node.Background,v=>node.Background=v,true);
+            foreach(var prompt in Dossiers.Prompts(node).ToArray()){
+                Field(story,prompt,node.Sections.GetValueOrDefault(prompt,""),v=>{
+                    if(string.IsNullOrWhiteSpace(v))node.Sections.Remove(prompt);else node.Sections[prompt]=v;
+                },true);
             }
-        }
-        sidebar.Children.Add(Action("+ Categoría", () => { var n = new Node { Name = "Nueva categoría", NodeKind = "Categoría", ParentId = node?.Id ?? "" }; work.Glossary.Add(n); Changed(); Glossary(n); }));
-        sidebar.Children.Add(Action("Ir a raíz", () => Glossary(null))); sidebar.Children.Add(tree);
-        if (node != null)
-        {
-            Field(body, "Nombre", node.Name, v => node.Name = v); Field(body, "Clase", node.NodeKind, v => node.NodeKind = v);
-            Field(body, "Trasfondo", node.Background, v => node.Background = v, true); Field(body, "Relaciones", node.Relations, v => node.Relations = v);
-            Field(body, "Alias", node.Aliases, v => node.Aliases = v); Field(body, "Edad o época", node.Age, v => node.Age = v); Field(body, "Medidas o extensión", node.Measures, v => node.Measures = v);
-            Field(body, "Función narrativa", node.Role, v => node.Role = v);
-            body.Children.Add(Action("Elegir ilustración…", async () => await Guard(async () =>
+            var extra=new WrapPanel();var sectionName=new TextBox{Watermark="Nombre del apartado propio",MinWidth=200};
+            extra.Children.Add(sectionName);extra.Children.Add(QuietAction("Añadir apartado",()=>{
+                var name=sectionName.Text?.Trim();if(string.IsNullOrEmpty(name)){sectionName.Focus();return;}
+                if(Dossiers.Prompts(node).Contains(name,StringComparer.CurrentCultureIgnoreCase)){status.Text="Ya existe un apartado con ese nombre.";return;}
+                node.Sections.Add(name,"");Changed();Glossary(node,1,query);
+            }));story.Children.Add(extra);
+            Field(story,"Notas de autor",node.Notes,v=>node.Notes=v,true);
+            Field(identity,"Edad o época",node.Age,v=>node.Age=v);Field(identity,"Medidas o extensión",node.Measures,v=>node.Measures=v);
+            Field(links,"Relaciones",node.Relations,v=>node.Relations=v,true);
+            var options=work.Glossary.Where(n=>n!=node && !node.RelatedIds.Contains(n.Id)).OrderBy(n=>n.Name).ToArray();
+            var target=new ComboBox{ItemsSource=options,PlaceholderText="Elegir una ficha",HorizontalAlignment=HorizontalAlignment.Stretch};
+            links.Children.Add(target);links.Children.Add(Action("Vincular",()=>{if(target.SelectedItem is Node other){node.RelatedIds.Add(other.Id);Changed();Glossary(node,2,query);}}));
+            foreach(var other in work.Glossary.Where(n=>node.RelatedIds.Contains(n.Id))){
+                var row=new WrapPanel();row.Children.Add(Action(other.Name,()=>Glossary(other)));row.Children.Add(Action("Desvincular",()=>{node.RelatedIds.Remove(other.Id);node.RelationRoles.Remove(other.Id);Changed();Glossary(node,2,query);}));links.Children.Add(row);
+                Field(links,"Relación con "+other.Name,node.RelationRoles.GetValueOrDefault(other.Id,""),v=>{if(v=="")node.RelationRoles.Remove(other.Id);else node.RelationRoles[other.Id]=v;});
+            }
+            foreach(var incoming in work.Glossary.Where(n=>n.RelatedIds.Contains(node.Id)))links.Children.Add(Action("Mencionada en "+incoming.Name,()=>Glossary(incoming,2,query)));
+            var portrait=node.ImagePath==""?null:Thumbnail(Path.Combine(shelf.Media,Path.GetFileName(node.ImagePath)),440,170);
+            plate.Children.Add((Control?)portrait??ClassEmblem(node.NodeKind));
+            plate.Children.Add(Action("Elegir ilustración…", async () => await Guard(async () =>
             {
                 var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Imagen de la ficha" })).FirstOrDefault()?.TryGetLocalPath();
-                if (path != null) { node.ImagePath = shelf.AddImage(path); Changed(); Glossary(node); }
+                if (path != null) { node.ImagePath = shelf.AddImage(path); Changed(); Glossary(node,tab,query); }
             })));
-            if (node.ImagePath != "")
-            {
-                using var source = File.OpenRead(Path.Combine(shelf.Media, Path.GetFileName(node.ImagePath)));
-                var bmp = Avalonia.Media.Imaging.Bitmap.DecodeToWidth(source, 200); var img = new Image { Source = bmp, Height = 140, HorizontalAlignment = HorizontalAlignment.Left };
-                img.DetachedFromVisualTree += (_, _) => bmp.Dispose(); body.Children.Add(img);
-            }
+            if(node.ImagePath!="")plate.Children.Add(QuietAction("Quitar ilustración",()=>{node.ImagePath="";Changed();Glossary(node,tab,query);}));
+            body=model;
             body.Children.Add(Label("Ubicación en el índice"));
             var locations = work.Glossary.Where(n => !WorldModel.WouldCycle(work, node.Id, n.Id, node.BaseId)).ToArray();
             var location = new ComboBox { ItemsSource = locations, SelectedItem = locations.FirstOrDefault(n => n.Id == node.ParentId), PlaceholderText = "Raíz" };
-            location.SelectionChanged += (_, _) => { if (location.SelectedItem is Node parent) { node.ParentId = parent.Id; Changed(); Glossary(node); } };
+            location.SelectionChanged += (_, _) => { if (location.SelectedItem is Node parent) { node.ParentId = parent.Id; Changed(); Glossary(node,tab,query); } };
             body.Children.Add(location);
-            if (node.ParentId != "") body.Children.Add(Action("Mover a raíz", () => { node.ParentId = ""; Changed(); Glossary(node); }));
+            if (node.ParentId != "") body.Children.Add(Action("Mover a raíz", () => { node.ParentId = ""; Changed(); Glossary(node,tab,query); }));
             var baseOptions = work.Glossary.Where(n => !WorldModel.WouldCycle(work, node.Id, node.ParentId, n.Id)).ToArray();
             body.Children.Add(Label("Modelo del que recibe campos"));
             var bases = new ComboBox { ItemsSource = baseOptions, SelectedItem = baseOptions.FirstOrDefault(n => n.Id == node.BaseId), PlaceholderText = "Elegir ficha base" };
-            bases.SelectionChanged += (_, _) => { if (bases.SelectedItem is Node parent) { node.BaseId = parent.Id; Changed(); Glossary(node); } }; body.Children.Add(bases);
-            if (node.BaseId != "") body.Children.Add(Action("Quitar ficha base", () => { node.BaseId = ""; Changed(); Glossary(node); }));
-            var fields = Row(); var key = new TextBox { Watermark = "Campo heredable", MinWidth = 165 }; var initial = new TextBox { Watermark = "Valor inicial", MinWidth = 140 }; fields.Children.Add(key); fields.Children.Add(initial);
-            fields.Children.Add(Action("Añadir campo", () => { if (string.IsNullOrWhiteSpace(key.Text)) return; node.AttributeDefinitions.Add(new() { Name = key.Text.Trim(), DefaultValue = initial.Text ?? "" }); Changed(); Glossary(node); })); body.Children.Add(fields);
-            Field(body, "Notas", node.Notes, v => node.Notes = v, true);
+            bases.SelectionChanged += (_, _) => { if (bases.SelectedItem is Node parent) { node.BaseId = parent.Id; Changed(); Glossary(node,tab,query); } }; body.Children.Add(bases);
+            if (node.BaseId != "") body.Children.Add(Action("Quitar ficha base", () => { node.BaseId = ""; Changed(); Glossary(node,tab,query); }));
+            body.Children.Add(Display("Campos que transmite esta ficha",20));
+            var fields = new WrapPanel(); var key = new TextBox { Watermark = "Campo heredable", MinWidth = 165 }; var initial = new TextBox { Watermark = "Valor inicial", MinWidth = 140 }; fields.Children.Add(key); fields.Children.Add(initial);
+            var unit=new TextBox{Watermark="Unidad",Width=100};fields.Children.Add(unit);
+            fields.Children.Add(Action("Añadir campo", () => { if (string.IsNullOrWhiteSpace(key.Text)) return; if(node.AttributeDefinitions.Any(f=>string.Equals(f.Name.Trim(),key.Text.Trim(),StringComparison.CurrentCultureIgnoreCase))){status.Text="Ya existe un campo con ese nombre.";return;} node.AttributeDefinitions.Add(new() { Name = key.Text.Trim(), DefaultValue = initial.Text ?? "", Unit=unit.Text?.Trim()??"" }); Changed(); Glossary(node,tab,query); })); body.Children.Add(fields);
+
             foreach (var field in WorldModel.Effective(work, node))
             {
-                Field(body, field.Definition.Name, field.Value, v =>
+                Field(body, field.Definition.Name+(field.Definition.Unit==""?"":" ("+field.Definition.Unit+")")+(field.Inherited?" · "+field.Origin.Name:""), field.Value, v =>
                 {
-                    var val = node.Attributes.FirstOrDefault(a => a.DefinitionId == field.Definition.Id);
+                    var val = node.Attributes.FirstOrDefault(a => a.DefinitionId == field.Definition.Id || (a.DefinitionId=="" && string.Equals(a.Key,field.Definition.Name,StringComparison.CurrentCultureIgnoreCase)));
                     if (val == null) { val = new() { DefinitionId = field.Definition.Id }; node.Attributes.Add(val); }
                     val.Value = v;
                 });
+                if(field.Inherited && field.Overridden)body.Children.Add(Action("Recuperar valor heredado",()=>{
+                    node.Attributes.RemoveAll(a=>a.DefinitionId==field.Definition.Id || (a.DefinitionId=="" && string.Equals(a.Key,field.Definition.Name,StringComparison.CurrentCultureIgnoreCase)));Changed();Glossary(node,3,query);
+                }));
             }
         }
-        var panel = new DockPanel(); var index = Card(new ScrollViewer { Content = sidebar }); index.Margin = new Thickness(0, 0, 12, 0);
-        DockPanel.SetDock(index, Dock.Left); panel.Children.Add(index); panel.Children.Add(new ScrollViewer { Content = Card(body) }); page.Content = panel;
+
+        page.Content=new ScrollViewer{Content=header};
     }
 }
-
-

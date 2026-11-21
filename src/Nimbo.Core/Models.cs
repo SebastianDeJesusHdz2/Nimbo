@@ -30,6 +30,7 @@ public class Work : Extensible
     public bool CheckSpelling { get; set; }
     public double WritingPadding { get; set; } = 40; public int WritingZoom { get; set; } = 100; public string DeskTone { get; set; } = "Niebla"; public bool ShowReadingTime { get; set; } = true;
     public string GlossaryLayout { get; set; } = "Índice"; public string GlossaryOrder { get; set; } = "Nombre"; public bool OnlyPinned { get; set; }
+    public string GlossaryPaper { get; set; } = "A6";
     public int WordGoal { get; set; } = 50000; public string CreatedAt { get; set; } = DateTime.Now.ToString("o"); public string? ModifiedAt { get; set; }
     public string Template {get;set;}="";
     public Dictionary<string,string> Contact {get;set;}=[];
@@ -51,14 +52,16 @@ public class Chapter : Extensible
     public int Order { get; set; }
     public string Summary { get; set; } = ""; public string ContentPackage { get; set; } = ""; public string PlainText { get; set; } = ""; public string LatexContent { get; set; } = "";
     public string RevisionState { get; set; } = "Borrador"; public string AuthorMemo { get; set; } = ""; public int SectionGoal { get; set; }
-    public string Detail { get; set; } = ""; public string Layout { get; set; } = "Texto"; public List<string> Images { get; set; } = []; public string BodyStyle { get; set; } = "Normal";
+    public string Detail { get; set; } = ""; public string Layout { get; set; } = "Texto"; public List<string> Images { get; set; } = []; public Dictionary<int,string> ImageLayouts { get; set; } = []; public string BodyStyle { get; set; } = "Normal";
     public List<ResumeEntry> Entries {get;set;}=[];
     public int CaretOffset { get; set; }
+    public Dictionary<int,string> ImageCaptions { get; set; } = [];
 }
 public class TextStyleSpec { public string Id { get; set; } = Guid.NewGuid().ToString(); public string Name { get; set; } = "Estilo propio"; public string Font { get; set; } = "Georgia"; public double SizePt { get; set; } = 12; public double LineSpacing { get; set; } = 1.5; public double IndentMm { get; set; } = 0; public double BeforePt { get; set; } = 0; public double AfterPt { get; set; } = 8; public bool Bold { get; set; } public bool Italic { get; set; } public string Alignment { get; set; } = "Justificar"; public override string ToString() => Name; }
 public class Node : Extensible
 {
     public bool Pinned { get; set; }
+    public Dictionary<string,string> Sections { get; set; } = [];
     public override string ToString() => Name;
     public string Id { get; set; } = Guid.NewGuid().ToString(); public string Name { get; set; } = "Nueva ficha"; public string NodeKind { get; set; } = "Concepto";
     public string ParentId { get; set; } = ""; public string BaseId { get; set; } = ""; public string ImagePath { get; set; } = "";

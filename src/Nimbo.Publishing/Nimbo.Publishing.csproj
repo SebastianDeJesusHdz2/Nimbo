@@ -1,1 +1,6 @@
-<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="../Nimbo.Core/Nimbo.Core.csproj"/></ItemGroup></Project>
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Nimbo.Core/Nimbo.Core.csproj"/>
+    <EmbeddedResource Include="fichas.tex" LogicalName="Nimbo.Publishing.fichas.tex"/>
+  </ItemGroup>
+</Project>

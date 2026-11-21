@@ -18,10 +18,69 @@ public sealed partial class Studio
         Open(test, shelf.Save(test, 0));
         bool Visible(string text) => page.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == text);
         void Layout() { UpdateLayout(); }
+        void Capture(string name){
+            if(Environment.GetEnvironmentVariable("NIMBO_VIEW_SAMPLES") is not string folder || Content is not Control view)return;
+            using var bitmap=new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize((int)Math.Ceiling(view.Bounds.Width),(int)Math.Ceiling(view.Bounds.Height)));
+            bitmap.Render(view);bitmap.Save(Path.Combine(folder,name+".png"));
+        }
         Layout(); Details(); Layout(); if (!Visible("Datos profesionales")) return false;
         ReadSection(chapter); Layout(); if (!Visible("CV de prueba")) return false;
-        Glossary(test.Glossary[0]); Layout();
-        Preferences(); Layout(); return Visible("Fondo de la biblioteca");
+        var novel=Format.All.First(f=>f.Name=="Novela").Create("Los jardines de invierno");
+        novel.Chapters[0].Title="La casa de cristal";
+        novel.Chapters[0].PlainText="A las seis, la escarcha había borrado el nombre de todas las calles. Inés reconoció la suya por el único balcón donde aún quedaban geranios.";
+        var town=new Node{Name="Puerto de Lumbre",NodeKind="Lugar"};
+        var botanist=new Node{Name="Inés Salgado",NodeKind="Personaje",Role="Botánica municipal",Background="Custodia el último invernadero de la ciudad.",RelatedIds=[town.Id]};
+        novel.Chapters[0].AuthorMemo="Volver al sonido del cristal cuando Inés abra el herbario.";
+        novel.Chapters[0].PlainText+="\n\nHabía prometido dejar la llave en portería. Ahora la llevaba escondida en el puño, tan fría que le había dibujado cuatro dientes en la palma. Desde la acera de enfrente, la casa parecía una lámpara apagada.\n\nEmpujó la verja. Al otro lado del cristal alguien había regado las plantas. Bajo cada maceta quedaba un círculo de agua todavía temblando.\n\n—Has tardado —dijo una voz desde el fondo.";
+        novel.Chapters.Add(new(){Title="El herbario",Order=1});novel.Chapters.Add(new(){Title="Cartas desde el puerto",Order=2});
+        town.Background="Puerto de canales estrechos al pie de los invernaderos.";botanist.Age="32 años";botanist.Pinned=true;
+        novel.Glossary.AddRange([town,botanist,new Node{Name="Casa de cristal",NodeKind="Lugar",ParentId=town.Id,Background="Invernadero orientado al este."}]);Open(novel,shelf.Save(novel,0));Layout();
+        if(!Visible("Índice del manuscrito"))return false;Capture("Manuscrito");
+        var note=page.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(b=>Avalonia.Automation.AutomationProperties.GetName(b)=="Notas de la sección");
+        if(note==null)return false;note.Text="Nota de revisión guardada";Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if(!TrySave()||shelf.Open(novel.Id).Work.Chapters[0].AuthorMemo!="Nota de revisión guardada")return false;
+        var sample=Path.Combine(shelf.Root,"Muestra.jpg");
+        using(var image=Avalonia.Platform.AssetLoader.Open(new Uri("avares://Nimbo.Desktop/Art/observatorio.jpg")))
+        using(var file=File.Create(sample))image.CopyTo(file);
+        var illustrated=novel.Chapters[1];illustrated.Images.Add(shelf.AddImage(sample));illustrated.Title="El observatorio";
+        illustrated.PlainText="Desde el puente, Inés distinguió la cúpula entre los cipreses.\n"+Illustrations.At(0)+"\nLas ventanas reflejaban la última luz del puerto.";
+        chapter=illustrated;Changed();Editor();Layout();
+        var blocks=page.GetVisualDescendants().OfType<TextBox>().Where(b=>Avalonia.Automation.AutomationProperties.GetName(b)=="Texto del manuscrito").ToArray();
+        if(blocks.Length!=2)return false;
+        blocks[1].Text+=" En la terraza aguardaba una carta.";
+        var placement=page.GetVisualDescendants().OfType<ComboBox>().Single(b=>b.Items.Contains("De la sección"));
+        placement.SelectedItem="Lámina ilustrada";Layout();Capture("Escritura-ilustrada");
+        if(!TrySave())return false;
+        var restored=shelf.Open(novel.Id).Work.Chapters[1];
+        if(!restored.PlainText.Contains(Illustrations.At(0))||!restored.PlainText.EndsWith("una carta.")||Illustrations.Layout(restored,0)!="Lámina ilustrada")return false;
+        illustrated.Images.Add(illustrated.Images[0]);illustrated.ImageLayouts[0]=Illustrations.Gallery;illustrated.ImageLayouts[1]=Illustrations.Gallery;
+        illustrated.PlainText=illustrated.PlainText.Replace(Illustrations.At(0),Illustrations.At(0)+Illustrations.At(1));
+        illustrated.ImageCaptions[1]="El puerto";Changed();Editor();Layout();
+        if(Illustrations.Rows(illustrated).Single().Count!=2 || !page.GetVisualDescendants().OfType<TextBox>().Any(t=>t.Text=="El puerto"))return false;
+        Capture("Galería");ReadSection(illustrated);Layout();if(!Visible("El puerto"))return false;
+        chapter=novel.Chapters[0];
+        Glossary(botanist,2);Layout();if(!Visible("Relaciones"))return false;
+        Glossary(botanist);Layout();Capture("Ficha");
+        Glossary(null);Layout();Capture("Glosario");
+        var search=page.GetVisualDescendants().OfType<TextBox>().Single(b=>b.Watermark=="Buscar nombre, alias o clase");
+        search.Text="Salgado";Avalonia.Threading.Dispatcher.UIThread.RunJobs();Layout();
+        if(page.GetVisualDescendants().OfType<TextBlock>().Any(t=>t.Text=="Puerto de Lumbre"))return false;
+        search.Text="";Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        page.Width=680;Editor();Layout();
+        if(!page.GetVisualDescendants().OfType<Button>().Any(b=>b.IsEffectivelyVisible && Equals(b.Content,"Cuaderno")))return false;
+        page.Width=double.NaN;
+        if(!TrySave() || shelf.Open(novel.Id).Work.Glossary[1].RelatedIds.Single()!=town.Id)return false;
+        File.WriteAllText(Config("tema"),"Claro");ApplyTheme();Glossary(botanist);Layout();Capture("Ficha-clara");
+        if(!Visible(botanist.Name))return false;
+        Preferences(); Layout();if(!Visible("Fondo de la biblioteca"))return false;
+        File.WriteAllText(Config("tema"),"Oscuro");ApplyTheme();
+        foreach(var name in new[]{"Bajo el hielo","Manual de mareas","Cantos del sur","Las manos del reloj","La memoria del muelle","Voces del camino","La carta de Aro","Cuaderno de campo"}){
+            var book=Format.All.First(f=>f.Name=="Novela").Create(name);
+            book.CoverColor=palette.Swatches[name.Length%palette.Swatches.Length];book.Author="Inés Salgado";
+            shelf.Save(book,0);
+        }
+        Library();Layout();Capture("Estantería");
+        return page.GetVisualDescendants().OfType<BookCover>().Count()>=10;
     }
     double WritingSize=>int.TryParse(ReadPref("cuerpo","18"),out var size)?Math.Clamp(size,14,28):18;
     FontFamily WritingFamily=>new(ReadPref("letra","Literaria") switch{
@@ -42,6 +101,12 @@ public sealed partial class Studio
     void WritingPreferences(StackPanel panel)
     {
         Choice(panel, "Paleta de la interfaz", Tones, ReadPref("paleta", "Océano"), v => Run(() => { File.WriteAllText(Config("paleta"), v); ApplyTheme(); Preferences(); }));
+        var strip=new WrapPanel();
+        foreach(var hex in palette.Swatches){
+            var sample=new Border{Width=42,Height=23,Background=Brush.Parse(hex),CornerRadius=new CornerRadius(2),Margin=new Thickness(0,0,3,0)};
+            ToolTip.SetTip(sample,hex);strip.Children.Add(sample);
+        }
+        panel.Children.Add(strip);panel.Children.Add(Label("Adobe Color · "+palette.Source,12));
         Choice(panel, "Tipografía de escritura", ["Literaria", "Sin serifas", "Monoespaciada"], ReadPref("letra", "Literaria"), v => Run(() => File.WriteAllText(Config("letra"), v)));
         Choice(panel, "Tamaño del texto", ["16", "18", "20", "22", "24"], ReadPref("cuerpo", "18"), v => Run(() => File.WriteAllText(Config("cuerpo"), v)));
         Choice(panel, "Ancho de escritura", ["Estrecho", "Medio", "Amplio"], ReadPref("ancho", "Medio"), v => Run(() => File.WriteAllText(Config("ancho"), v)));

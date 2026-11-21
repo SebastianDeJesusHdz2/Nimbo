@@ -14,17 +14,19 @@ internal sealed class BookCover : Control
     readonly Action open;
     readonly string media;
     Bitmap? art;
-    double angle = -.16, initialAngle;
+    readonly EditionPalette palette;
+    const double Rest = .21;
+    double angle = Rest, initialAngle;
     Point? down;
     bool dragged;
-    public BookCover(Entry entry, string media, Action open)
+    public BookCover(Entry entry, string media, EditionPalette palette, Action open)
     {
-        this.entry = entry; this.media = media; this.open = open;
-        Width = 162; Height = 198; Focusable = true; Cursor = new Cursor(StandardCursorType.Hand);
+        this.entry = entry; this.media = media; this.open = open;this.palette=palette;
+        Width = 151; Height = 222; Focusable = true; Cursor = new Cursor(StandardCursorType.Hand);
         AttachedToVisualTree += (_, _) =>
         {
             if (entry.Cover.Length == 0) return;
-            try { using var f = File.OpenRead(Path.Combine(media, Path.GetFileName(entry.Cover))); art = Bitmap.DecodeToWidth(f, 260); }
+            try { using var f = File.OpenRead(Path.Combine(media, Path.GetFileName(entry.Cover))); art = Bitmap.DecodeToWidth(f, 360); }
             catch (IOException) { }
             catch (ArgumentException) { }
             InvalidateVisual();
@@ -41,8 +43,8 @@ internal sealed class BookCover : Control
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         if (down is not Point p) return; var dx = e.GetPosition(this).X - p.X;
-        if (Math.Abs(dx) > 4) dragged = true;
-        if (dragged) { angle = (initialAngle + dx * .025) % (Math.PI * 2); InvalidateVisual(); }
+        if (Math.Abs(dx)>5 || Math.Abs(e.GetPosition(this).Y-p.Y)>5) dragged = true;
+        if (dragged) { angle = (initialAngle + dx * .018) % (Math.PI * 2); InvalidateVisual(); }
     }
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
@@ -50,14 +52,54 @@ internal sealed class BookCover : Control
         e.Handled = true; if (click) open();
     }
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e) { down = null; base.OnPointerCaptureLost(e); }
-    protected override void OnKeyDown(KeyEventArgs e) { if (e.Key is Key.Enter or Key.Space) { open(); e.Handled = true; } else base.OnKeyDown(e); }
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        switch(e.Key){
+            case Key.Left: angle-=Math.PI/8;break;
+            case Key.Right: angle+=Math.PI/8;break;
+            case Key.Home: angle=Rest;break;
+            case Key.Enter: case Key.Space:open();e.Handled=true;return;
+            default:base.OnKeyDown(e);return;
+        }
+        InvalidateVisual();e.Handled=true;
+    }
+    static LinearGradientBrush Wash(bool vertical,params (double Position,string Ink)[] stops)
+    {
+        var brush=new LinearGradientBrush{StartPoint=new RelativePoint(0,0,RelativeUnit.Relative),EndPoint=new RelativePoint(vertical?0:1,vertical?1:0,RelativeUnit.Relative)};
+        foreach(var stop in stops)brush.GradientStops.Add(new GradientStop(Color.Parse(stop.Ink),stop.Position));
+        return brush;
+    }
+    static readonly IBrush jacketShade=Wash(true,(0,"#00162026"),(.4,"#00162026"),(.68,"#B01B2325"),(1,"#F5151B20"));
+    static readonly IBrush clothLight=Wash(false,(0,"#55111618"),(.035,"#44FFEBBB"),(.073,"#780C1618"),(.095,"#33FFF2D3"),(.22,"#08FFFFFF"),(1,"#420B1518"));
+    static readonly IBrush leaves=Wash(false,(0,"#B7A685"),(.35,"#E9DEC4"),(.8,"#F7EAD6"),(1,"#BCAA8E"));
+    FormattedText? blurb;
+    void DrawSynopsis(DrawingContext dc,Rect box,IBrush ink)
+    {
+        if(blurb==null){
+            var text=string.Join(" ",entry.Description.Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries));
+            if(text.Length==0)text=entry.Title;
+            FormattedText Set(string value,double size)=>new(value,CultureInfo.CurrentCulture,FlowDirection.LeftToRight,new Typeface("Georgia"),size,ink){MaxTextWidth=box.Width,TextAlignment=TextAlignment.Left};
+            // Measure the untrimmed paragraph; reduce within book proportions, then end on a word.
+            int limit=Math.Min(560,text.Length);string sample=text[..limit];
+            for(double size=9;size>=7;size-=.5){
+                var paragraph=Set(sample,size);
+                if(limit==text.Length && paragraph.Height<=box.Height){blurb=paragraph;break;}
+            }
+            if(blurb==null){
+                var words=sample.Split(' ');var excerpt="";
+                foreach(var word in words){
+                    var next=excerpt.Length==0?word:excerpt+" "+word;
+                    if(Set(next+"…",7).Height>box.Height)break;
+                    excerpt=next;
+                }
+                blurb=Set(excerpt+"…",7);
+            }
+        }
+        using(dc.PushClip(box))dc.DrawText(blurb,box.TopLeft);
+    }
     public override void Render(DrawingContext dc)
     {
         var cos = Math.Cos(angle); var sin = Math.Sin(angle);
-        var width = Math.Abs(cos) * 113; var depth = Math.Abs(sin) * 20;
-        var x = (Bounds.Width - width - depth) / 2; var y = 11d; const double h = 160;
-        var front = new Rect(x + (sin < 0 ? depth : 0), y, width, h);
-        var side = new Rect(x + (sin < 0 ? 0 : width), y, depth, h);
         var color = Color.TryParse(entry.Color, out var parsed) ? parsed : Color.Parse("#43676B");
         var cloth = new SolidColorBrush(color); var ink = Brushes.WhiteSmoke;
         void Words(string text, Rect bounds, double size, IBrush brush)
@@ -72,23 +114,92 @@ internal sealed class BookCover : Control
             };
             using (dc.PushClip(bounds)) dc.DrawText(fmt, bounds.TopLeft);
         }
-        dc.DrawRectangle(Brush.Parse("#80674C"), null, new Rect(0, 172, Bounds.Width, 5));
-        if (depth > 0)
+        const double w=131,h=176,d=21;
+        double depth(double x,double z)=>z*cos-x*sin;
+        Point Project(double x,double y,double z)=>new(Bounds.Width/2+x*cos+z*sin,21+y+depth(x,z)*.17);
+        void Face(double x1,double z1,double x2,double z2,double length,Action draw)
         {
-            dc.DrawRectangle(sin < 0 ? cloth : Brushes.Bisque, null, side);
-            if (sin < 0 && depth > 6)
-            {
-                using (dc.PushTransform(Matrix.CreateRotation(-Math.PI / 2) * Matrix.CreateTranslation(side.X, side.Bottom)))
-                    Words(entry.Title, new Rect(6, 1, h - 12, depth), Math.Min(12, depth * .75), ink);
+            var a=Project(x1,0,z1);var b=Project(x2,0,z2);
+            if(b.X-a.X<.015)return;
+            using(dc.PushTransform(new Matrix((b.X-a.X)/length,(b.Y-a.Y)/length,0,1,a.X,a.Y)))draw();
+        }
+        var gold=EditionPalette.Mix(palette.Foil,"#F4D99F",.48);var paper=EditionPalette.Mix(palette.Paper,"#F1DDC4",.62);
+        for(int i=0;i<5;i++)dc.DrawEllipse(Brush.Parse("#14000000"),null,new Point(Bounds.Width/2+4,201),Math.Abs(cos)*44+16-i*2,7-i);
+        // Top outline follows the rounded binding and the recessed fore edge.
+        var outline=new List<(double X,double Z)>{(-w/2,d/2),(w/2,d/2),(w/2,d/2-2),(w/2-3,d/2-2),(w/2-3,2-d/2),(w/2,2-d/2),(w/2,-d/2),(-w/2,-d/2)};
+        for(int i=1;i<=16;i++){var t=Math.PI*i/16;outline.Add((-w/2-4*Math.Sin(t),-d/2*Math.Cos(t)));}
+        var cap=new StreamGeometry();
+        using(var ctx=cap.Open()){
+            ctx.BeginFigure(Project(outline[0].X,0,outline[0].Z),true);
+            foreach(var v in outline.Skip(1))ctx.LineTo(Project(v.X,0,v.Z));ctx.EndFigure(true);
+        }
+        dc.DrawGeometry(cloth,null,cap);
+        for(int i=2;i<d-2;i++){
+            double z=i-d/2;dc.DrawLine(new Pen(i%3==0?Brush.Parse("#BFAC91"):paper,1.1),Project(-w/2+1,0,z),Project(w/2-3,0,z));
+        }
+        var faces=new List<(double Z,Action Draw)>();
+        void Edge(double x1,double z1,double x2,double z2,double width,Action paint)
+            =>faces.Add(((depth(x1,z1)+depth(x2,z2))/2,()=>Face(x1,z1,x2,z2,width,paint)));
+        void Jacket(bool front){
+            dc.DrawRectangle(cloth,null,new Rect(0,0,w,h));
+            if(front && art!=null){
+                double scale=Math.Max(w/art.Size.Width,h/art.Size.Height);var size=new Size(w/scale,h/scale);
+                dc.DrawImage(art,new Rect((art.Size.Width-size.Width)/2,(art.Size.Height-size.Height)/2,size.Width,size.Height),new Rect(0,0,w,h));
+                dc.DrawRectangle(jacketShade,null,new Rect(0,0,w,h));
+            }else{
+                dc.DrawRectangle(jacketShade,null,new Rect(0,0,w,h));
+                if(front){
+                    var binding=new Pen(gold,.7);
+                    var stamp=Studio.JacketStamp(entry.Id);
+                    var frame=new Rect(38,14,64,64);
+                    dc.DrawImage(stamp,new Rect(stamp.Size),frame);
+                    dc.DrawRectangle(null,binding,frame.Inflate(2));
+                    dc.DrawRectangle(null,binding,new Rect(11,5,w-16,h-10));
+                    dc.DrawLine(binding,new Point(16,10),new Point(29,10));
+                    dc.DrawLine(binding,new Point(w-9,10),new Point(w-22,10));
+                }
+            }
+            dc.DrawRectangle(clothLight,null,new Rect(0,0,w,h));
+            var foil=new Pen(gold,.65);
+            if(front){
+                dc.DrawLine(foil,new Point(15,88),new Point(w-10,88));
+                Words(entry.Type.ToUpperInvariant(),new Rect(15,93,w-26,13),8,gold);
+                Words(entry.Title,new Rect(13,110,w-22,41),16,ink);
+                Words(entry.Author,new Rect(13,154,w-22,15),10,ink);
+            }else{
+                dc.DrawRectangle(Brush.Parse("#7F12181B"),null,new Rect(0,0,w,h));
+                dc.DrawRectangle(null,foil,new Rect(7,6,w-14,h-12));
+                dc.DrawLine(foil,new Point(46,21),new Point(w-46,21));
+                DrawSynopsis(dc,new Rect(16,30,w-32,111),ink);
+                Words(entry.Author,new Rect(11,152,w-22,15),10,gold);
             }
         }
-        if (width < 1) return;
-        using (dc.PushTransform(Matrix.CreateScale(width / 113, 1) * Matrix.CreateTranslation(front.X, y)))
-        {
-            dc.DrawRectangle(cloth, null, new Rect(0, 0, 113, h));
-            if (cos > 0 && art != null) dc.DrawImage(art, new Rect(art.Size), new Rect(0, 0, 113, h));
-            if (cos > 0) { dc.DrawRectangle(Brush.Parse("#D5232930"), null, new Rect(0, 92, 113, 68)); Words(entry.Title, new Rect(5, 99, 103, 39), 14, ink); Words(entry.Author, new Rect(5, 139, 103, 16), 10, ink); }
-            else { Words(entry.Description, new Rect(9, 26, 95, 106), 11, ink); Words(entry.Type, new Rect(6, 139, 101, 18), 10, ink); }
+        Edge(-w/2,d/2,w/2,d/2,w,()=>Jacket(true));
+        Edge(w/2,-d/2,-w/2,-d/2,w,()=>Jacket(false));
+        for(int i=1;i<6;i++){
+            var a=outline[i];var b=outline[i+1];
+            bool pageEdge=i==3;
+            Edge(a.X,a.Z,b.X,b.Z,d,()=>{
+                dc.DrawRectangle(cloth,null,new Rect(0,0,d,h));
+                if(pageEdge){
+                    dc.DrawRectangle(leaves,null,new Rect(0,2,d,h-4));
+                    for(int n=2;n<d;n+=2)dc.DrawLine(new Pen(Brush.Parse("#9B8B71"),.45),new Point(n,2),new Point(n,h-2));
+                }
+            });
         }
+        for(int i=7;i<outline.Count-1;i++){
+            var a=outline[i];var b=outline[i+1];double t=(i-7+.5)*Math.PI/16;
+            double intensity=.64+.36*Math.Sin(t+.45);
+            var lit=new SolidColorBrush(Color.FromRgb((byte)(color.R*intensity),(byte)(color.G*intensity),(byte)(color.B*intensity)));
+            Edge(a.X,a.Z,b.X,b.Z,1,()=>{
+                dc.DrawRectangle(lit,null,new Rect(0,0,1,h));
+                foreach(int band in new[]{11,14,160,163})dc.DrawRectangle(gold,null,new Rect(0,band,1,.9));
+            });
+        }
+        foreach(var face in faces.OrderBy(f=>f.Z))face.Draw();
+        if(sin>.42)Face(-w/2-4,-d*.37,-w/2-4,d*.37,d*.74,()=>{
+            using(dc.PushTransform(Matrix.CreateRotation(-Math.PI/2)*Matrix.CreateTranslation(1,h-18)))
+                Words(entry.Title,new Rect(0,0,h-36,d*.72),11,ink);
+        });
     }
 }

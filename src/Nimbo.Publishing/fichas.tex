@@ -1,0 +1,20 @@
+% Tipografía de los cuadernillos de Nimbo. La obra elige el papel y la tinta.
+\setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{2em}
+\raggedbottom
+\renewcommand{\contentsname}{Índice de fichas}
+\newcommand{\portadaglosario}[2]{%
+  \thispagestyle{empty}\vspace*{.16\textheight}
+  {\small\sffamily\color{accent}GLOSARIO\par}\medskip
+  {\LARGE\bfseries\raggedright #1\par}\bigskip
+  {\color{accent}\rule{22mm}{1pt}}\par\vfill
+  #2\par\clearpage}
+\newcommand{\abrirficha}[2]{%
+  \clearpage{\small\sffamily\color{accent}#1\par}\smallskip
+  {\LARGE\bfseries\raggedright #2\par}
+  \addcontentsline{toc}{section}{#2}%
+  \smallskip{\color{accent}\rule{\linewidth}{.5pt}}\par\medskip}
+\newcommand{\campoficha}[2]{%
+  \par\addvspace{5pt}%
+  {\small\sffamily\bfseries\color{accent}#1\par}\nopagebreak[4]%
+  {\raggedright #2\par}}

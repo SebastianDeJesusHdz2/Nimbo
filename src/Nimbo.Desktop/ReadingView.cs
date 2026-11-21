@@ -13,7 +13,7 @@ public sealed partial class Studio
 {
     void ReadSection(Chapter? selected)
     {
-        var work = current!;
+        Navigate("Lectura");var work = current!;
         var sections = WorldModel.Ordered(work).ToList();
         var section = selected ?? sections.FirstOrDefault();
         var root = new DockPanel(); var top = new WrapPanel { Margin = new Thickness(0, 0, 0, 16) };
@@ -22,27 +22,31 @@ public sealed partial class Studio
         var picker = new ComboBox { ItemsSource = sections, SelectedItem = section, MaxWidth = 350 };
         picker.SelectionChanged += (_, _) => { if (picker.SelectedItem is Chapter next) ReadSection(next); };
         top.Children.Add(picker); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
-        var paper = Column(12); paper.MaxWidth = 780; paper.Margin = new Thickness(28, 16);
+        var paper = Column(18); paper.MaxWidth=780;paper.Margin=new Thickness(34,32);
         paper.Children.Add(Label(work.Title, 15)); if (section != null)
         {
-            paper.Children.Add(Display(section.Title, 32));
+            paper.Children.Add(Display(section.Title,42));paper.Children.Add(Rule(Edge));
             if (section.Detail != "") paper.Children.Add(Label(section.Detail));
-            void Illustration(string key)
+            void Illustration(int index,Panel destination,bool small=false)
             {
-                var path = Path.Combine(shelf.Media, Path.GetFileName(key));
+                var path = Path.Combine(shelf.Media, Path.GetFileName(section.Images[index]));
                 try
                 {
                     using var file = File.OpenRead(path); var bitmap = Bitmap.DecodeToWidth(file, 780);
-                    var img = new Image { Source = bitmap, Stretch = Stretch.Uniform, MaxHeight = 460 };
-                    img.DetachedFromVisualTree += (_, _) => bitmap.Dispose(); paper.Children.Add(img);
+                    var layout=Illustrations.Layout(section,index);
+                    var img=new Image{Source=bitmap,Stretch=Stretch.Uniform,MaxHeight=layout=="Página completa"?680:layout.StartsWith("Ajustar")?240:460,
+                        HorizontalAlignment=layout.EndsWith("izquierda")?HorizontalAlignment.Left:layout.EndsWith("derecha")?HorizontalAlignment.Right:HorizontalAlignment.Center};
+                    if(small)img.MaxHeight=170;
+                    img.DetachedFromVisualTree += (_, _) => bitmap.Dispose(); destination.Children.Add(img);
                 }
-                catch (Exception e) when (e is IOException or ArgumentException) { paper.Children.Add(Label("Ilustración no disponible")); }
+                catch (Exception e) when (e is IOException or ArgumentException) { destination.Children.Add(Label("Ilustración no disponible")); }
+                if(section.ImageCaptions.TryGetValue(index,out var caption) && caption!="")destination.Children.Add(Label(caption,13));
             }
             void Prose(string text)
             {
                 foreach (var line in text.ReplaceLineEndings("\n").Split('\n').Where(l => l.Trim().Length > 0))
                 {
-                    if (line.StartsWith("## ")) { paper.Children.Add(Display(line[3..], 24)); continue; }
+                    if(work.IsNovel && line=="[[Página]]"){paper.Children.Add(new Separator());continue;} if (line.StartsWith("## ")) { paper.Children.Add(Display(line[3..], 24)); continue; }
                     if(line.Trim().StartsWith('|') && line.Trim().EndsWith('|') && line.Trim().Length>2){
                         var cells=line.Trim().Trim('|').Split('|');
                         var row=new Grid{ColumnDefinitions=new ColumnDefinitions(string.Join(",",cells.Select(_=>"*")))};
@@ -53,23 +57,29 @@ public sealed partial class Studio
                         paper.Children.Add(row);continue;
                     }
                     var p = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = WritingSize, LineHeight = WritingSize*1.6, FontFamily=WritingFamily };
-                    foreach (var piece in Regex.Split(line.StartsWith("- ") ? "•  " + line[2..] : line, @"(\*\*[^*]+\*\*|\*[^*]+\*)"))
+                    var quote=line.StartsWith("> ");
+                    if(quote){p.Margin=new Thickness(20,2,14,2);p.FontStyle=FontStyle.Italic;}
+                    foreach (var piece in Regex.Split(line.StartsWith("- ") ? "•  " + line[2..] : quote?line[2..]:line, @"(\*\*[^*]+\*\*|\*[^*]+\*)"))
                     {
                         if (piece.Length > 4 && piece.StartsWith("**") && piece.EndsWith("**")) p.Inlines!.Add(new Run(piece[2..^2]) { FontWeight = FontWeight.Bold });
                         else if (piece.Length > 2 && piece.StartsWith('*') && piece.EndsWith('*')) p.Inlines!.Add(new Run(piece[1..^1]) { FontStyle = FontStyle.Italic });
                         else p.Inlines!.Add(new Run(piece));
                     }
-                    paper.Children.Add(p);
+                    if(quote)paper.Children.Add(new Border{Child=p,BorderBrush=Accent,BorderThickness=new Thickness(2,0,0,0)});else paper.Children.Add(p);
                 }
             }
             int pos = 0; var shown = new HashSet<int>();
-            foreach (Match m in Illustrations.Marker().Matches(section.PlainText))
+            foreach (var row in Illustrations.Rows(section))
             {
-                if (!int.TryParse(m.Groups[1].Value, out var index) || index < 1 || index > section.Images.Count) continue;
-                Prose(section.PlainText[pos..m.Index]); Illustration(section.Images[index - 1]); shown.Add(index - 1); pos = m.Index + m.Length;
+                Prose(section.PlainText[pos..row[0].Start]);var strip=ImageRow(row.Count);paper.Children.Add(strip);
+                for(int col=0;col<row.Count;col++){
+                    var cell=Column(4);Grid.SetColumn(cell,col);strip.Children.Add(cell);
+                    Illustration(row[col].Image,cell,row.Count>1);shown.Add(row[col].Image);
+                }
+                pos=row[^1].End;
             }
             Prose(section.PlainText[pos..]);
-            for (int i = 0; i < section.Images.Count; i++) if (!shown.Contains(i)) Illustration(section.Images[i]);
+            for (int i = 0; i < section.Images.Count; i++) if (!shown.Contains(i)) Illustration(i,paper);
             foreach (var entry in section.Entries)
             {
                 paper.Children.Add(Display(entry.Heading, 21)); paper.Children.Add(Label(string.Join(" · ", new[] { entry.Organization, entry.Period }.Where(s => s != "")))); Prose(entry.Description);
@@ -80,7 +90,7 @@ public sealed partial class Studio
             if (indexOf + 1 < sections.Count) nav.Children.Add(Action("Siguiente ›", () => ReadSection(sections[indexOf + 1])));
             paper.Children.Add(nav);
         }
-        root.Children.Add(new ScrollViewer { Content = Card(paper) }); page.Content = root;
+        root.Children.Add(new ScrollViewer { Content = paper }); page.Content = root;
     }
 }
 

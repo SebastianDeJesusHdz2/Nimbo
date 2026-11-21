@@ -30,7 +30,7 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends texlive-xetex texlive-latex-extra texlive-fonts-recommended
-          NIMBO_SAMPLE_DIR="$RUNNER_TEMP/CV" dotnet run --project tests/Nimbo.Checks -c Release -- --pdf
+          NIMBO_SAMPLE_ART="$GITHUB_WORKSPACE/src/Nimbo.Desktop/Art" NIMBO_SAMPLE_DIR="$RUNNER_TEMP/CV" dotnet run --project tests/Nimbo.Checks -c Release -- --pdf
       - name: Publicar escritorio
         run: dotnet publish src/Nimbo.Desktop -c Release -r ${{ matrix.rid }} --self-contained -o artifacts/app
       - name: Abrir la biblioteca en Linux
@@ -38,7 +38,9 @@ jobs:
         run: NIMBO_UI_CAPTURE="$RUNNER_TEMP/Biblioteca.png" xvfb-run -a -s "-screen 0 1920x1080x24" artifacts/app/Nimbo.Desktop --verify-ui
       - name: Comprobar edición, lectura, glosario y preferencias
         if: runner.os == 'Linux'
-        run: xvfb-run -a artifacts/app/Nimbo.Desktop --verify-editors
+        run: |
+          mkdir -p "$RUNNER_TEMP/vistas"
+          NIMBO_VIEW_SAMPLES="$RUNNER_TEMP/vistas" xvfb-run -a -s "-screen 0 1920x1080x24" artifacts/app/Nimbo.Desktop --verify-editors
       - name: Abrir la biblioteca en Windows
         if: runner.os == 'Windows'
         shell: pwsh
@@ -50,13 +52,13 @@ jobs:
       - name: Preparar versión
         shell: bash
         run: |
-          version=0.5.0-alpha.3
+          version="$(dotnet msbuild src/Nimbo.Desktop/Nimbo.Desktop.csproj -getProperty:Version | tr -d '\r')"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then version="${GITHUB_REF_NAME#v}"; fi
           printf '%s\n' "Nimbo · GPL-3.0-only" "https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA" > artifacts/app/FUENTES.txt
           test -s artifacts/app/LICENSE
           ./tools/vpk pack --packId Nimbo --packTitle Nimbo --packVersion "$version" --runtime ${{ matrix.rid }} --packDir artifacts/app --mainExe ${{ matrix.exe }} --outputDir artifacts/release
       - if: runner.os == 'Linux'
-        run: cp -r packaging/instalar-linux.sh "$RUNNER_TEMP/Biblioteca.png" "$RUNNER_TEMP/CV" artifacts/release/
+        run: cp -r packaging/instalar-linux.sh "$RUNNER_TEMP/Biblioteca.png" "$RUNNER_TEMP/vistas" "$RUNNER_TEMP/CV" artifacts/release/
       - name: Instalar y abrir desde el escritorio de Linux
         if: runner.os == 'Linux'
         run: |

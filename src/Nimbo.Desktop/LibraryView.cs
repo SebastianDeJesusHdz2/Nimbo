@@ -11,32 +11,31 @@ namespace Nimbo.Desktop;
 public sealed partial class Studio
 {
     static TextBlock Display(string text,double size) => new(){
-        Text=text,FontSize=size,FontFamily=new FontFamily("Georgia, Liberation Serif, serif"),TextWrapping=TextWrapping.Wrap
+        Text=text,FontSize=size,FontFamily=new FontFamily("Palatino Linotype, Liberation Serif, serif"),TextWrapping=TextWrapping.Wrap
     };
+    async void InspectBook(Entry entry)
+    {
+        var body=Column(12);body.Margin=new Thickness(26);body.Children.Add(Kicker(entry.Type));body.Children.Add(Display(entry.Title,30));
+        if(entry.Author!="")body.Children.Add(Label(entry.Author));
+        body.Children.Add(new SelectableTextBlock{Text=entry.Description==""?"Sin sinopsis":entry.Description,FontFamily=WritingFamily,FontSize=17,TextWrapping=TextWrapping.Wrap});
+        var dialog=new Window{Title="Contraportada",Width=465,Height=450,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=Sheet,Content=new ScrollViewer{Content=body}};
+        await dialog.ShowDialog(this);
+    }
     void Library()
     {
         if(!TrySave())return;
-        session.Close();chapter=null;
+        session.Close();chapter=null;Navigate("Biblioteca");
         var entries=shelf.List();
         var layout=new DockPanel();
-        var rail=Column(16);rail.Width=166;
-        rail.Children.Add(Display("Nimbo",34));
-        var controls=Column(7);
-        rail.Children.Add(controls);
-        var footer=Column(8);
-        footer.Children.Add(Action("Importar biblioteca…",async()=>await Guard(async()=>{
+        var content=Column(16);content.MaxWidth=1460;content.Margin=new Thickness(10,6);
+        var titleBar=new DockPanel();
+        var import=Action("Importar biblioteca…",async()=>await Guard(async()=>{
             var folder=(await StorageProvider.OpenFolderPickerAsync(new(){Title="Carpeta de LumenWriter"})).FirstOrDefault()?.TryGetLocalPath();
             if(folder==null)return;
             var count=await Task.Run(()=>Legacy.Import(shelf,folder));Library();status.Text=$"{count} obras importadas.";
-        })));
-        footer.Children.Add(Action("Preferencias",Preferences));
-        var sidebar=new DockPanel();DockPanel.SetDock(footer,Dock.Bottom);sidebar.Children.Add(footer);
-        sidebar.Children.Add(new ScrollViewer{Content=rail});
-        var railCard=Card(sidebar);railCard.Margin=new Thickness(0,0,24,0);DockPanel.SetDock(railCard,Dock.Left);layout.Children.Add(railCard);
-
-        var content=Column(18);
-        var heading=Display("Biblioteca",44);
-        content.Children.Add(heading);
+        }));
+        DockPanel.SetDock(import,Dock.Right);titleBar.Children.Add(import);
+        titleBar.Children.Add(Display("Mi biblioteca",42));content.Children.Add(titleBar);
         var create=Column(10);
         var title=new TextBox{Watermark="Título de tu obra"};
         var format=new ComboBox{ItemsSource=Format.All,SelectedIndex=0,HorizontalAlignment=HorizontalAlignment.Stretch};
@@ -52,7 +51,7 @@ public sealed partial class Studio
         createButton.Background=Accent;createButton.Foreground=ActualThemeVariant==Avalonia.Styling.ThemeVariant.Light?Brushes.White:Brushes.Black;
         var createFields=new Grid{ColumnDefinitions=new ColumnDefinitions("1.2*,2*,Auto"),ColumnSpacing=8};
         createFields.Children.Add(format);Grid.SetColumn(title,1);createFields.Children.Add(title);Grid.SetColumn(createButton,2);createFields.Children.Add(createButton);
-        create.Children.Add(Display("Nueva obra",24));create.Children.Add(createFields);create.Children.Add(Label("Plantilla"));create.Children.Add(templates);
+        create.Children.Add(createFields);create.Children.Add(Label("Plantilla"));create.Children.Add(templates);
         if(entries.Count==0){
             var gallery=new WrapPanel();
             foreach(var (kind,color) in new[]{("Novela","#435D61"),("Apuntes","#686342"),("CV","#664D61"),("Presentación","#435877")}){
@@ -72,35 +71,52 @@ public sealed partial class Studio
             }
             create.Children.Insert(1,gallery);
         }
-        content.Children.Add(Card(create));
+        content.Children.Add(new Expander{Header="Crear una obra",Content=create,IsExpanded=entries.Count==0,HorizontalAlignment=HorizontalAlignment.Stretch,HorizontalContentAlignment=HorizontalAlignment.Stretch});
         if(entries.Count>0){
-            var latest=entries[0];var resume=new DockPanel();
-            var button=Action("Continuar →",()=>Run(()=>{var item=shelf.Open(latest.Id);Open(item.Work,item.Revision);}));
-            DockPanel.SetDock(button,Dock.Right);resume.Children.Add(button);
-            var info=Column(3);info.Children.Add(Label("Última obra guardada",13));info.Children.Add(Display(latest.Title,25));resume.Children.Add(info);content.Children.Add(Card(resume));
+            var latest=entries[0];void Resume()=>Run(()=>{var item=shelf.Open(latest.Id);Open(item.Work,item.Revision);});
+            var hero=new Grid{ColumnDefinitions=new ColumnDefinitions("230,*,Auto"),ColumnSpacing=24};
+            var jacket=new Border{Background=EditionPalette.Mix(palette.Wood,palette.Ink,.55),Child=new BookCover(latest,shelf.Media,palette,Resume),CornerRadius=new CornerRadius(4)};
+            hero.Children.Add(jacket);
+            var info=Column(8);info.VerticalAlignment=VerticalAlignment.Center;info.Children.Add(Kicker("Última obra guardada"));
+            info.Children.Add(Display(latest.Title,34));info.Children.Add(Label(string.Join("  ·  ",new[]{latest.Type,latest.Author,latest.Collection}.Where(t=>t!="")),14));
+            if(latest.Description!="")info.Children.Add(new TextBlock{Text=latest.Description,MaxLines=2,MaxWidth=560,HorizontalAlignment=HorizontalAlignment.Left,TextWrapping=TextWrapping.Wrap,TextTrimming=TextTrimming.CharacterEllipsis});
+            Grid.SetColumn(info,1);hero.Children.Add(info);
+            var resume=Action("Abrir manuscrito →",Resume);Emphasize(resume);Grid.SetColumn(resume,2);resume.VerticalAlignment=VerticalAlignment.Center;hero.Children.Add(resume);
+            content.Children.Insert(1,SheetOf(hero,double.PositiveInfinity));
         }
         var search=new TextBox{Watermark="Buscar por título o autor",Width=225,HorizontalAlignment=HorizontalAlignment.Right};
         var section=new DockPanel();DockPanel.SetDock(search,Dock.Right);section.Children.Add(search);
         var groupTitle=Display("Tu estantería",26);section.Children.Add(groupTitle);content.Children.Add(section);
-        var books=new WrapPanel();content.Children.Add(books);
-        var browse=Row();
+        var listings=new ContentControl{HorizontalContentAlignment=HorizontalAlignment.Stretch};content.Children.Add(listings);
+        var browse=new WrapPanel();
         var types=new ComboBox{ItemsSource=new[]{"Todos los formatos"}.Concat(entries.Select(e=>e.Type).Distinct().Order()).ToArray(),SelectedIndex=0};
         var view=new ComboBox{ItemsSource=new[]{"Portadas","Catálogo"},SelectedIndex=ReadPref("vista","Portadas")=="Catálogo"?1:0};
-        browse.Children.Add(types);browse.Children.Add(view);content.Children.Insert(content.Children.IndexOf(books),browse);
+        browse.Children.Add(types);browse.Children.Add(view);content.Children.Insert(content.Children.IndexOf(listings),browse);
         string selected="";
         void Filter(){
-            books.Children.Clear();groupTitle.Text=selected==""?"Tu estantería":selected;
+            var books=new WrapPanel();
+            if(view.SelectedIndex==0){
+                books.ItemWidth=Bookcase.Slot;books.ItemHeight=Bookcase.Pitch;
+                var rack=new Grid{ClipToBounds=true};rack.Children.Add(new Bookcase(palette));rack.Children.Add(books);listings.Content=rack;
+            }else listings.Content=books;
+            groupTitle.Text=selected==""?"Tu estantería":selected;
             foreach(var entry in entries.Where(e=>(selected==""||e.Collection==selected) && (types.SelectedIndex==0||e.Type==types.SelectedItem as string) && (e.Title+" "+e.Author).Contains(search.Text??"",StringComparison.CurrentCultureIgnoreCase))){
-                var book=new BookCover(entry,shelf.Media,()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));
-                if(view.SelectedIndex==0)books.Children.Add(book);else{var record=Column(4);record.Width=215;record.Children.Add(Label(entry.Type));record.Children.Add(Display(entry.Title,20));if(entry.Author!="")record.Children.Add(Label(entry.Author));var open=Action("",()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));open.Content=record;open.Margin=new Thickness(0,0,8,8);books.Children.Add(open);}
+                var book=new BookCover(entry,shelf.Media,palette,()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));
+                if(view.SelectedIndex==0){
+                    var slot=Column(0);var miniature=new Viewbox{Child=book,Height=163,Width=Bookcase.Slot,Stretch=Stretch.Uniform};
+                    slot.Children.Add(miniature);
+                    var caption=Label(entry.Title,11);caption.TextWrapping=TextWrapping.NoWrap;caption.TextTrimming=TextTrimming.CharacterEllipsis;
+                    var tag=Action(entry.Title,()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));
+                    tag.Content=caption;tag.HorizontalAlignment=HorizontalAlignment.Center;tag.MaxWidth=Bookcase.Slot-8;tag.Padding=new Thickness(5,1);tag.MinHeight=18;
+                    tag.Background=Brush.Parse("#E6D8BC");tag.Foreground=Brush.Parse("#352A24");slot.Children.Add(tag);
+                    book.ContextMenu=new ContextMenu{ItemsSource=new[]{MenuAction("Leer sinopsis",()=>InspectBook(entry))}};
+                    books.Children.Add(slot);
+                }else{var record=Column(4);record.Width=215;record.Children.Add(Label(entry.Type));record.Children.Add(Display(entry.Title,20));if(entry.Author!="")record.Children.Add(Label(entry.Author));var open=Action("",()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));open.Content=record;open.Margin=new Thickness(0,0,8,8);books.Children.Add(open);}
             }
-            if(books.Children.Count==0)books.Children.Add(Label(entries.Count==0?"Aquí aparecerá tu primera obra.":"Ninguna obra coincide con la búsqueda."));
+            if(books.Children.Count==0)listings.Content=Label(entries.Count==0?"Aquí aparecerá tu primera obra.":"Ninguna obra coincide con la búsqueda.");
         }
-        controls.Children.Add(Label("Colecciones",15));
-        foreach(var collection in new[]{""}.Concat(entries.Select(e=>e.Collection).Where(g=>g!="").Distinct().Order())){
-            var item=Action(collection==""?"Todas las obras":collection,()=>{selected=collection;Filter();});
-            item.HorizontalAlignment=HorizontalAlignment.Stretch;controls.Children.Add(item);
-        }
+        var collections=new ComboBox{ItemsSource=new[]{"Todas las colecciones"}.Concat(entries.Select(e=>e.Collection).Where(c=>c!="").Distinct().Order()).ToArray(),SelectedIndex=0,MaxWidth=200};
+        collections.SelectionChanged+=(_,_)=>{selected=collections.SelectedIndex<1?"":(string)collections.SelectedItem!;Filter();};browse.Children.Insert(0,collections);
         types.SelectionChanged+=(_,_)=>Filter();view.SelectionChanged+=(_,_)=>Run(()=>{File.WriteAllText(Config("vista"),view.SelectedItem!.ToString());Filter();});search.TextChanged+=(_,_)=>Filter();Filter();
                 layout.Children.Add(new ScrollViewer{Content=content});
         var surface=new Grid();
@@ -112,7 +128,7 @@ public sealed partial class Studio
                 background.DetachedFromVisualTree+=(_,_)=>image.Dispose();surface.Children.Add(background);
             }catch(IOException){}
         }
-        surface.Children.Add(layout);page.Content=surface;
+        surface.Background=Background;surface.Children.Add(layout);page.Content=surface;
     }
 }
 

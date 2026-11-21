@@ -18,42 +18,47 @@ public sealed partial class Studio
         catch(UnauthorizedAccessException ex) { status.Text=ex.Message; }
     }
 
-    static void AddSearch(Control root, StackPanel body, StackPanel toolbar, TextBox manuscript)
+    static void AddSearch(Control root, StackPanel body, Panel toolbar, DraftSurface draft)
     {
-        var panel=Row();
+        var panel=new WrapPanel();
         panel.IsVisible=false;
         var query=new TextBox { Watermark="Buscar en esta sección",MinWidth=185 };
+        var replacement=new TextBox { Watermark="Reemplazar con…",MinWidth=155 };
         var result=Label("");
-        int match=-1;
-        string? lastText=null;
-        string? lastQuery=null;
-        void Find(bool previous)
+        TextBox? last=null;int previousIndex=-1;string previousTerm="";
+        void Find(bool backwards)
         {
-            var text=manuscript.Text??"";
             var term=query.Text??"";
-            if(term.Length==0){result.Text="";return;}
-            if(text!=lastText || term!=lastQuery) match=-1;
-            lastText=text;lastQuery=term;
-            const StringComparison mode=StringComparison.OrdinalIgnoreCase;
-            if(previous){
-                var end=match>0?match-1:text.Length-1;
-                match=end>=0?text.LastIndexOf(term,end,mode):-1;
-                if(match<0)match=text.LastIndexOf(term,mode);
-            }else{
-                int start=match<0?0:Math.Min(text.Length,match+term.Length);
-                match=text.IndexOf(term,start,mode);
-                if(match<0)match=text.IndexOf(term,mode);
+            if(term.Length==0)return;
+            var hits=new List<(TextBox Box,int Index)>();
+            foreach(var box in draft.Blocks){
+                var text=box.Text??"";int from=0;
+                while(from<text.Length){
+                    int index=text.IndexOf(term,from,StringComparison.OrdinalIgnoreCase);
+                    if(index<0)break;hits.Add((box,index));from=index+term.Length;
+                }
             }
-            if(match<0){result.Text="Sin coincidencias";return;}
-            manuscript.Focus();manuscript.SelectionStart=match;manuscript.SelectionEnd=match+term.Length;
-            result.Text="Coincidencia seleccionada";
+            if(hits.Count==0){result.Text="Sin coincidencias";return;}
+            int current=term==previousTerm?hits.FindIndex(h=>h.Box==last&&h.Index==previousIndex):-1;
+            int next=current<0?(backwards?hits.Count-1:0):(current+(backwards?-1:1)+hits.Count)%hits.Count;
+            var hit=hits[next];hit.Box.Focus();hit.Box.SelectionStart=hit.Index;hit.Box.SelectionEnd=hit.Index+term.Length;
+            last=hit.Box;previousIndex=hit.Index;previousTerm=term;result.Text=$"{next+1} de {hits.Count}";
         }
         void Show(){panel.IsVisible=true;query.Focus();query.SelectAll();}
-        void Hide(){panel.IsVisible=false;manuscript.Focus();}
-        toolbar.Children.Add(Action("Buscar",Show));
+        void Hide(){panel.IsVisible=false;draft.Active.Focus();}
+        var findButton=Action("Buscar",Show);findButton.Background=Avalonia.Media.Brushes.Transparent;findButton.BorderThickness=new Avalonia.Thickness(0);toolbar.Children.Add(findButton);
         panel.Children.Add(query);
         panel.Children.Add(Action("Anterior",()=>Find(true)));
         panel.Children.Add(Action("Siguiente",()=>Find(false)));
+        panel.Children.Add(replacement);
+        panel.Children.Add(Action("Reemplazar",()=>{
+            string term=query.Text??"";
+            if(term.Length==0)return;
+            if(last==null || previousTerm!=term || last.SelectionStart==last.SelectionEnd ||
+                Math.Min(last.SelectionStart,last.SelectionEnd)!=previousIndex || !string.Equals(last.SelectedText,term,StringComparison.OrdinalIgnoreCase))Find(false);
+            if(last==null || !string.Equals(last.SelectedText,term,StringComparison.OrdinalIgnoreCase))return;
+            last.SelectedText=replacement.Text??"";last.Focus();previousIndex=-1;result.Text="Coincidencia reemplazada";
+        }));
         panel.Children.Add(Action("Cerrar",Hide));
         body.Children.Add(panel);
         panel.Children.Add(result);
