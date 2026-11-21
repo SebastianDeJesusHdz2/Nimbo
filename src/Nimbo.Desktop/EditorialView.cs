@@ -27,7 +27,6 @@ public sealed partial class Studio
             Console.Error.WriteLine($"Fallo en la comprobación editorial (línea {line}, ventana {Bounds.Size}, área {page.Bounds.Size}).");
             Capture("Diagnostico");return false;
         }
-        WindowState=WindowState.Normal;Width=1600;Height=960;
         Layout(); Details(); Layout(); if (!Visible("Datos profesionales")) return Fail();
         ReadSection(chapter); Layout(); if (!Visible("CV de prueba")) return Fail();
         var novel=Format.All.First(f=>f.Name=="Novela").Create("Los jardines de invierno");
@@ -41,8 +40,17 @@ public sealed partial class Studio
         town.Background="Puerto de canales estrechos al pie de los invernaderos.";botanist.Age="32 años";botanist.Pinned=true;
         novel.Glossary.AddRange([town,botanist,new Node{Name="Casa de cristal",NodeKind="Lugar",ParentId=town.Id,Background="Invernadero orientado al este."}]);Open(novel,shelf.Save(novel,0));Layout();
         if(!Visible("Índice del manuscrito"))return Fail();Capture("Manuscrito");
-        var note=page.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(b=>Avalonia.Automation.AutomationProperties.GetName(b)=="Notas de la sección");
+        static TextBox? NoteIn(Control root)=>root.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(b=>Avalonia.Automation.AutomationProperties.GetName(b)=="Notas de la sección");
+        TextBox? OpenPocket(out Flyout? popup){
+            popup=null;
+            var button=page.GetVisualDescendants().OfType<Button>().FirstOrDefault(b=>b.IsEffectivelyVisible && Equals(b.Content,"Cuaderno"));
+            if(button?.Flyout is not Flyout flyout)return null;
+            flyout.ShowAt(button);Layout();popup=flyout;
+            return flyout.Content is Control content?NoteIn(content):null;
+        }
+        Flyout? open=null;var note=NoteIn(page)??OpenPocket(out open);
         if(note==null)return Fail();note.Text="Nota de revisión guardada";Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        open?.Hide();
         if(!TrySave()||shelf.Open(novel.Id).Work.Chapters[0].AuthorMemo!="Nota de revisión guardada")return Fail();
         var sample=Path.Combine(shelf.Root,"Muestra.jpg");
         using(var image=Avalonia.Platform.AssetLoader.Open(new Uri("avares://Nimbo.Desktop/Art/observatorio.jpg")))
@@ -72,7 +80,8 @@ public sealed partial class Studio
         if(page.GetVisualDescendants().OfType<TextBlock>().Any(t=>t.Text=="Puerto de Lumbre"))return Fail();
         search.Text="";Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         page.Width=680;Editor();Layout();
-        if(!page.GetVisualDescendants().OfType<Button>().Any(b=>b.IsEffectivelyVisible && Equals(b.Content,"Cuaderno")))return Fail();
+        if(OpenPocket(out open)?.Text!="Nota de revisión guardada")return Fail();
+        open?.Hide();Layout();
         page.Width=double.NaN;
         if(!TrySave() || shelf.Open(novel.Id).Work.Glossary[1].RelatedIds.Single()!=town.Id)return Fail();
         File.WriteAllText(Config("tema"),"Claro");ApplyTheme();Glossary(botanist);Layout();Capture("Ficha-clara");

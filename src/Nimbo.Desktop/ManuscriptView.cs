@@ -89,12 +89,9 @@ public sealed partial class Studio
                 BorderBrush=Edge,BorderThickness=new Thickness(1,0,0,0)};
             DockPanel.SetDock(margin,Dock.Right);root.Children.Add(margin);
             var pocket=new Button{Content="Cuaderno",Background=Brushes.Transparent,BorderThickness=new Thickness(0)};
-            pocket.Click+=(_,_)=>{
-                margin.Child=null;marginContent.Width=250;marginContent.MaxHeight=430;
-                var pop=new Flyout{Content=marginContent};
-                pop.Closed+=(_,_)=>{pop.Content=null;marginContent.Width=double.NaN;marginContent.MaxHeight=double.PositiveInfinity;margin.Child=marginContent;};
-                pop.ShowAt(pocket);
-            };
+            var pop=new Flyout();pocket.Flyout=pop;
+            pop.Opening+=(_,_)=>{margin.Child=null;marginContent.Width=250;marginContent.MaxHeight=430;pop.Content=marginContent;};
+            pop.Closed+=(_,_)=>{pop.Content=null;marginContent.Width=double.NaN;marginContent.MaxHeight=double.PositiveInfinity;margin.Child=marginContent;};
             top.Children.Add(pocket);
             void FitMargin(double width){margin.IsVisible=!work.FocusWriting && width>=1260;pocket.IsVisible=!margin.IsVisible;}
             FitMargin(Bounds.Width-130);root.SizeChanged+=(_,e)=>FitMargin(e.NewSize.Width);
