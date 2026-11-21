@@ -245,7 +245,10 @@ public static class Publisher
             File.WriteAllText(Path.Combine(temp, "obra.tex"), tex.ToString());
             if (pdf)
             {
-                for (int i = 0; i < 2; i++)
+                var referencesFile = Path.Combine(temp, "obra.aux");
+                string? previousReferences = null;
+                const int maximumPasses = 5;
+                for (int pass = 1; pass <= maximumPasses; pass++)
                 {
                     var info = new ProcessStartInfo(engine ?? "xelatex") { WorkingDirectory = temp, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
                     if (engine != null && Path.IsPathRooted(engine))
@@ -263,6 +266,11 @@ public static class Publisher
                     try { await process.WaitForExitAsync(timeout.Token); } catch (OperationCanceledException) { process.Kill(true); process.WaitForExit(); throw new TimeoutException("XeLaTeX superó tres minutos."); }
                     var log = await stdout + "\n" + await stderr;
                     if (process.ExitCode != 0) throw new IOException("XeLaTeX: " + log[^Math.Min(900, log.Length)..]);
+                    var references = File.ReadAllText(referencesFile);
+                    if (references == previousReferences) break;
+                    if (pass == maximumPasses)
+                        throw new IOException("La numeración del índice sigue cambiando. Revisa los saltos de página antes de imprimir.");
+                    previousReferences = references;
                 }
                 File.Copy(Path.Combine(temp, "obra.pdf"), pending);
             }
