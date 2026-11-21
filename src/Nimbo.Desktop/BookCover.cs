@@ -176,7 +176,7 @@ internal sealed class BookCover : Control
                 dc.DrawRectangle(null,foil,new Rect(7,6,w-14,h-12));
                 dc.DrawLine(foil,new Point(46,21),new Point(w-46,21));
                 DrawSynopsis(dc,new Rect(16,30,w-32,111),ink);
-                Words(entry.Author,new Rect(11,152,w-22,15),10,gold);
+                Words(entry.Author,new Rect(11,152,w-22,15),10,ink);
             }
         }
         Edge(-w/2,d/2,w/2,d/2,w,()=>Jacket(true));
@@ -192,14 +192,23 @@ internal sealed class BookCover : Control
                 }
             });
         }
+        var spine=new List<Point>();
         for(int i=7;i<outline.Count-1;i++){
-            var a=outline[i];var b=outline[i+1];double t=(i-7+.5)*Math.PI/16;
-            double intensity=.64+.36*Math.Sin(t+.45);
-            var lit=new SolidColorBrush(Color.FromRgb((byte)(color.R*intensity),(byte)(color.G*intensity),(byte)(color.B*intensity)));
-            Edge(a.X,a.Z,b.X,b.Z,1,()=>{
-                dc.DrawRectangle(lit,null,new Rect(-.045,0,1.09,h));
-                foreach(int band in new[]{11,14,160,163})dc.DrawRectangle(gold,null,new Rect(0,band,1,.9));
-            });
+            var a=Project(outline[i].X,0,outline[i].Z);var b=Project(outline[i+1].X,0,outline[i+1].Z);
+            if(b.X<=a.X)continue;
+            if(spine.Count==0)spine.Add(a);
+            spine.Add(b);
+        }
+        if(spine.Count>1){
+            var binding=new StreamGeometry();
+            using(var path=binding.Open()){
+                path.BeginFigure(spine[0],true);
+                foreach(var p in spine.Skip(1))path.LineTo(p);
+                foreach(var p in spine.AsEnumerable().Reverse())path.LineTo(new Point(p.X,p.Y+h));
+                path.EndFigure(true);
+            }
+            var shade=Wash(false,(0,"#55141A21"),(.45,"#12FFFFFF"),(1,"#44131C24"));
+            faces.Add((depth(-w/2,0),()=>{dc.DrawGeometry(cloth,null,binding);dc.DrawGeometry(shade,null,binding);}));
         }
         foreach(var face in faces.OrderBy(f=>f.Z))face.Draw();
         if(sin>.42)Face(-w/2-4,-d*.37,-w/2-4,d*.37,d*.74,()=>{

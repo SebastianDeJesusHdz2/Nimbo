@@ -84,6 +84,24 @@ public sealed partial class Studio
             foreach(var item in files){if(item.TryGetLocalPath() is string path)Attach(path,work.TexDirectory==""?Path.GetFileName(path):Path.GetRelativePath(work.TexDirectory,path));}
             Refresh();
         })));
+        controls.Children.Add(QuietAction("Adjuntar carpeta de recursos…",async()=>await Guard(async()=>{
+            var dir=(await StorageProvider.OpenFolderPickerAsync(new(){Title="Carpeta con imágenes, fuentes o paquetes"})).FirstOrDefault()?.TryGetLocalPath();
+            if(dir==null)return;
+            var root=work.TexDirectory==""?Path.GetDirectoryName(dir)!:work.TexDirectory;
+            var prefix=Path.GetRelativePath(root,dir);
+            if(prefix==".."||prefix.StartsWith(".."+Path.DirectorySeparatorChar)||Path.IsPathRooted(prefix))throw new IOException("Elige una carpeta del proyecto.");
+            var extensions=new HashSet<string>(StringComparer.OrdinalIgnoreCase){".png",".jpg",".jpeg",".pdf",".sty",".cls",".otf",".ttf",".bib",".bst",".csv",".tex",".svg",".eps"};
+            var added=await Task.Run(()=>{
+                var files=new Dictionary<string,string>();
+                foreach(var path in Directory.EnumerateFiles(dir,"*",new EnumerationOptions{RecurseSubdirectories=true,AttributesToSkip=FileAttributes.ReparsePoint})){
+                    var rel=Path.GetRelativePath(root,path).Replace('\\','/');
+                    if(extensions.Contains(Path.GetExtension(path)) && !rel.Equals("obra.tex",StringComparison.OrdinalIgnoreCase))files[rel]=shelf.AddAsset(path);
+                }
+                return files;
+            });
+            foreach(var (name,key) in added)work.TexResources[name]=key;
+            Changed();Refresh();status.Text=$"{added.Count} recursos adjuntados";
+        })));
         Refresh();controls.Children.Add(resources);controls.Children.Add(QuietAction("Quitar recurso seleccionado",()=>{if(resources.SelectedItem is string key){work.TexResources.Remove(key);Changed();Refresh();}}));
         panel.Children.Add(new Expander{Header="Proyecto LaTeX avanzado",Content=controls,HorizontalContentAlignment=HorizontalAlignment.Stretch});
     }
