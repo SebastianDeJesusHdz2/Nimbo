@@ -17,14 +17,19 @@ public sealed partial class Studio
         test.Chapters[0].PlainText = "Un **perfil** con énfasis."; test.Glossary.Add(new() { Name = "Ejemplo" });
         Open(test, shelf.Save(test, 0));
         bool Visible(string text) => page.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == text);
-        void Layout() { UpdateLayout(); }
+        void Layout() { Avalonia.Threading.Dispatcher.UIThread.RunJobs();UpdateLayout(); }
         void Capture(string name){
             if(Environment.GetEnvironmentVariable("NIMBO_VIEW_SAMPLES") is not string folder || Content is not Control view)return;
             using var bitmap=new Avalonia.Media.Imaging.RenderTargetBitmap(new PixelSize((int)Math.Ceiling(view.Bounds.Width),(int)Math.Ceiling(view.Bounds.Height)));
             bitmap.Render(view);bitmap.Save(Path.Combine(folder,name+".png"));
         }
-        Layout(); Details(); Layout(); if (!Visible("Datos profesionales")) return false;
-        ReadSection(chapter); Layout(); if (!Visible("CV de prueba")) return false;
+        bool Fail([System.Runtime.CompilerServices.CallerLineNumber] int line=0){
+            Console.Error.WriteLine($"Fallo en la comprobación editorial (línea {line}, ventana {Bounds.Size}, área {page.Bounds.Size}).");
+            Capture("Diagnostico");return false;
+        }
+        WindowState=WindowState.Normal;Width=1600;Height=960;
+        Layout(); Details(); Layout(); if (!Visible("Datos profesionales")) return Fail();
+        ReadSection(chapter); Layout(); if (!Visible("CV de prueba")) return Fail();
         var novel=Format.All.First(f=>f.Name=="Novela").Create("Los jardines de invierno");
         novel.Chapters[0].Title="La casa de cristal";
         novel.Chapters[0].PlainText="A las seis, la escarcha había borrado el nombre de todas las calles. Inés reconoció la suya por el único balcón donde aún quedaban geranios.";
@@ -35,10 +40,10 @@ public sealed partial class Studio
         novel.Chapters.Add(new(){Title="El herbario",Order=1});novel.Chapters.Add(new(){Title="Cartas desde el puerto",Order=2});
         town.Background="Puerto de canales estrechos al pie de los invernaderos.";botanist.Age="32 años";botanist.Pinned=true;
         novel.Glossary.AddRange([town,botanist,new Node{Name="Casa de cristal",NodeKind="Lugar",ParentId=town.Id,Background="Invernadero orientado al este."}]);Open(novel,shelf.Save(novel,0));Layout();
-        if(!Visible("Índice del manuscrito"))return false;Capture("Manuscrito");
+        if(!Visible("Índice del manuscrito"))return Fail();Capture("Manuscrito");
         var note=page.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(b=>Avalonia.Automation.AutomationProperties.GetName(b)=="Notas de la sección");
-        if(note==null)return false;note.Text="Nota de revisión guardada";Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-        if(!TrySave()||shelf.Open(novel.Id).Work.Chapters[0].AuthorMemo!="Nota de revisión guardada")return false;
+        if(note==null)return Fail();note.Text="Nota de revisión guardada";Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        if(!TrySave()||shelf.Open(novel.Id).Work.Chapters[0].AuthorMemo!="Nota de revisión guardada")return Fail();
         var sample=Path.Combine(shelf.Root,"Muestra.jpg");
         using(var image=Avalonia.Platform.AssetLoader.Open(new Uri("avares://Nimbo.Desktop/Art/observatorio.jpg")))
         using(var file=File.Create(sample))image.CopyTo(file);
@@ -46,33 +51,33 @@ public sealed partial class Studio
         illustrated.PlainText="Desde el puente, Inés distinguió la cúpula entre los cipreses.\n"+Illustrations.At(0)+"\nLas ventanas reflejaban la última luz del puerto.";
         chapter=illustrated;Changed();Editor();Layout();
         var blocks=page.GetVisualDescendants().OfType<TextBox>().Where(b=>Avalonia.Automation.AutomationProperties.GetName(b)=="Texto del manuscrito").ToArray();
-        if(blocks.Length!=2)return false;
+        if(blocks.Length!=2)return Fail();
         blocks[1].Text+=" En la terraza aguardaba una carta.";
         var placement=page.GetVisualDescendants().OfType<ComboBox>().Single(b=>b.Items.Contains("De la sección"));
         placement.SelectedItem="Lámina ilustrada";Layout();Capture("Escritura-ilustrada");
-        if(!TrySave())return false;
+        if(!TrySave())return Fail();
         var restored=shelf.Open(novel.Id).Work.Chapters[1];
-        if(!restored.PlainText.Contains(Illustrations.At(0))||!restored.PlainText.EndsWith("una carta.")||Illustrations.Layout(restored,0)!="Lámina ilustrada")return false;
+        if(!restored.PlainText.Contains(Illustrations.At(0))||!restored.PlainText.EndsWith("una carta.")||Illustrations.Layout(restored,0)!="Lámina ilustrada")return Fail();
         illustrated.Images.Add(illustrated.Images[0]);illustrated.ImageLayouts[0]=Illustrations.Gallery;illustrated.ImageLayouts[1]=Illustrations.Gallery;
         illustrated.PlainText=illustrated.PlainText.Replace(Illustrations.At(0),Illustrations.At(0)+Illustrations.At(1));
         illustrated.ImageCaptions[1]="El puerto";Changed();Editor();Layout();
-        if(Illustrations.Rows(illustrated).Single().Count!=2 || !page.GetVisualDescendants().OfType<TextBox>().Any(t=>t.Text=="El puerto"))return false;
-        Capture("Galería");ReadSection(illustrated);Layout();if(!Visible("El puerto"))return false;
+        if(Illustrations.Rows(illustrated).Single().Count!=2 || !page.GetVisualDescendants().OfType<TextBox>().Any(t=>t.Text=="El puerto"))return Fail();
+        Capture("Galería");ReadSection(illustrated);Layout();if(!Visible("El puerto"))return Fail();
         chapter=novel.Chapters[0];
-        Glossary(botanist,2);Layout();if(!Visible("Relaciones"))return false;
+        Glossary(botanist,2);Layout();if(!Visible("Relaciones"))return Fail();
         Glossary(botanist);Layout();Capture("Ficha");
         Glossary(null);Layout();Capture("Glosario");
         var search=page.GetVisualDescendants().OfType<TextBox>().Single(b=>b.Watermark=="Buscar nombre, alias o clase");
         search.Text="Salgado";Avalonia.Threading.Dispatcher.UIThread.RunJobs();Layout();
-        if(page.GetVisualDescendants().OfType<TextBlock>().Any(t=>t.Text=="Puerto de Lumbre"))return false;
+        if(page.GetVisualDescendants().OfType<TextBlock>().Any(t=>t.Text=="Puerto de Lumbre"))return Fail();
         search.Text="";Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         page.Width=680;Editor();Layout();
-        if(!page.GetVisualDescendants().OfType<Button>().Any(b=>b.IsEffectivelyVisible && Equals(b.Content,"Cuaderno")))return false;
+        if(!page.GetVisualDescendants().OfType<Button>().Any(b=>b.IsEffectivelyVisible && Equals(b.Content,"Cuaderno")))return Fail();
         page.Width=double.NaN;
-        if(!TrySave() || shelf.Open(novel.Id).Work.Glossary[1].RelatedIds.Single()!=town.Id)return false;
+        if(!TrySave() || shelf.Open(novel.Id).Work.Glossary[1].RelatedIds.Single()!=town.Id)return Fail();
         File.WriteAllText(Config("tema"),"Claro");ApplyTheme();Glossary(botanist);Layout();Capture("Ficha-clara");
-        if(!Visible(botanist.Name))return false;
-        Preferences(); Layout();if(!Visible("Fondo de la biblioteca"))return false;
+        if(!Visible(botanist.Name))return Fail();
+        Preferences(); Layout();if(!Visible("Fondo de la biblioteca"))return Fail();
         File.WriteAllText(Config("tema"),"Oscuro");ApplyTheme();
         foreach(var name in new[]{"Bajo el hielo","Manual de mareas","Cantos del sur","Las manos del reloj","La memoria del muelle","Voces del camino","La carta de Aro","Cuaderno de campo"}){
             var book=Format.All.First(f=>f.Name=="Novela").Create(name);
@@ -80,7 +85,7 @@ public sealed partial class Studio
             shelf.Save(book,0);
         }
         Library();Layout();Capture("Estantería");
-        return page.GetVisualDescendants().OfType<BookCover>().Count()>=10;
+        return page.GetVisualDescendants().OfType<BookCover>().Count()>=10 || Fail();
     }
     double WritingSize=>int.TryParse(ReadPref("cuerpo","18"),out var size)?Math.Clamp(size,14,28):18;
     FontFamily WritingFamily=>new(ReadPref("letra","Literaria") switch{

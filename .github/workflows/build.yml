@@ -41,6 +41,12 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/vistas"
           NIMBO_VIEW_SAMPLES="$RUNNER_TEMP/vistas" xvfb-run -a -s "-screen 0 1920x1080x24" artifacts/app/Nimbo.Desktop --verify-editors
+      - uses: actions/upload-artifact@v4
+        if: failure() && runner.os == 'Linux'
+        with:
+          name: Diagnostico-editor
+          path: ${{ runner.temp }}/vistas
+          retention-days: 3
       - name: Abrir la biblioteca en Windows
         if: runner.os == 'Windows'
         shell: pwsh
