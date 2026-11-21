@@ -85,7 +85,8 @@ public static class Publisher
             }
             if (slide) tex.AppendLine(@"\setbeamercolor{structure}{fg=accent}\setbeamercolor{frametitle}{bg=accent,fg=white}\setbeamertemplate{navigation symbols}{}");
             if (novel) tex.AppendLine(@"\renewcommand{\chaptername}{Capítulo}\renewcommand{\partname}{Parte}\renewcommand{\contentsname}{Contenido}");
-            if (!slide && work.Chapters.Any(c => Enumerable.Range(0,c.Images.Count).Any(i=>Illustrations.Layout(c,i).StartsWith("Ajustar")))) tex.AppendLine(@"\usepackage{wrapfig}");
+            if (!slide && !glossary && work.Chapters.Any(c => Enumerable.Range(0,c.Images.Count).Any(i=>Illustrations.Layout(c,i).StartsWith("Ajustar"))))
+                tex.AppendLine(@"\usepackage{wrapfig}\newsavebox{\nimbofigure}");
             if(!glossary && work.Type=="CV")tex.AppendLine(@"\setlength{\parindent}{0pt}");
             var title = glossary ? "Glosario de " + work.Title : work.Title;
             if(slide){
@@ -115,7 +116,10 @@ public static class Publisher
                 if (layout.StartsWith("Ajustar") && !slide)
                 {
                     var side = layout.EndsWith("izquierda") ? "l" : "r";
-                    tex.AppendLine(@"\begin{wrapfigure}{" + side + @"}{.36\linewidth}\centering\includegraphics[width=\linewidth,height=.35\textheight,keepaspectratio]{media/" + key + "}"+caption+@"\end{wrapfigure}");
+                    // Measure the actual illustration and its caption before wrapping on a small page.
+                    tex.AppendLine(@"\par\sbox{\nimbofigure}{\begin{minipage}{.36\linewidth}\centering\includegraphics[width=\linewidth,height=.35\textheight,keepaspectratio]{media/" + key + "}" + caption + @"\end{minipage}}");
+                    tex.AppendLine(@"\ifdim\dimexpr\pagegoal-\pagetotal\relax<\dimexpr\ht\nimbofigure+\dp\nimbofigure+2\intextsep+\baselineskip\relax\newpage\fi");
+                    tex.AppendLine(@"\begin{wrapfigure}{" + side + @"}{.36\linewidth}\usebox{\nimbofigure}\end{wrapfigure}");
                 }
                 else if(layout == "Lámina ilustrada" && !slide)
                     tex.AppendLine(@"\vspace*{\fill}\noindent\includegraphics[width=\linewidth,height=.52\textheight,keepaspectratio]{media/" + key + "}"+caption+@"\par\medskip");

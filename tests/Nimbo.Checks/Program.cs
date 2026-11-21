@@ -116,6 +116,18 @@ try
         await Publisher.Export(guide,shelf.Media,Path.Combine(output,"Cuadernillo de bolsillo.pdf"),true,true,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
         await Publisher.Export(guide,shelf.Media,Path.Combine(output,"Ficha de Mara Vélez.pdf"),true,true,Environment.GetEnvironmentVariable("NIMBO_XELATEX"),keeper.Id);
         await Publisher.Export(guide,shelf.Media,Path.Combine(output,"Composición ilustrada.pdf"),true,false,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
+        var smallBook=Format.All.Single(f=>f.Name=="Novela").Create("Ajuste de ilustraciones");
+        smallBook.Publication.Paper="Bolsillo";smallBook.Publication.Contents=false;
+        var sample=smallBook.Chapters[0];
+        for(int i=0;i<12;i++){
+            sample.Images.Add(image);
+            sample.ImageLayouts[i]=i%2==0?"Ajustar a la derecha":"Ajustar a la izquierda";
+            sample.ImageCaptions[i]="Figura de referencia "+(i+1);
+            sample.PlainText+=string.Concat(Enumerable.Repeat("Una línea de referencia para probar las dos orillas del papel.\n",8+i));
+            sample.PlainText+=Illustrations.At(i)+"\n";
+        }
+        sample.PlainText+="La última figura acompaña al cierre del capítulo.";
+        await Publisher.Export(smallBook,shelf.Media,Path.Combine(output,"Figuras ajustadas.pdf"),true,false,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
     }
     var paragraph = new Chapter { Title = "Prueba de estilo", PlainText = "Una palabra", Order = 1 };
     var subset=Path.Combine(root,"seleccion.zip");
