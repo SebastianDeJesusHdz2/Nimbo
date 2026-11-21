@@ -5,7 +5,7 @@ using Nimbo.Core;
 
 namespace Nimbo.Storage;
 
-public sealed record Entry(string Id, string Title, string Type, long Revision, string Cover, string Color, string Author, string Description, string Collection)
+public sealed record Entry(string Id, string Title, string Type, long Revision, string Cover, string Color, string Author, string Description, string Collection, string Lettering = "Automática")
 {
     public override string ToString() => Title;
 }
@@ -33,9 +33,9 @@ public sealed class Shelf : Nimbo.Application.IWorkRepository
     public List<Entry> List()
     {
         using var db = Connect(); using var cmd = db.CreateCommand();
-        cmd.CommandText = "SELECT id,title,type,revision,coalesce(json_extract(content,'$.CoverImage'),''),coalesce(json_extract(content,'$.CoverColor'),''),coalesce(json_extract(content,'$.Author'),''),coalesce(json_extract(content,'$.Description'),''),coalesce(json_extract(content,'$.CollectionId'),'') FROM works ORDER BY edited DESC,title";
+        cmd.CommandText = "SELECT id,title,type,revision,coalesce(json_extract(content,'$.CoverImage'),''),coalesce(json_extract(content,'$.CoverColor'),''),coalesce(json_extract(content,'$.Author'),''),coalesce(json_extract(content,'$.Description'),''),coalesce(json_extract(content,'$.CollectionId'),''),coalesce(json_extract(content,'$.CoverLettering'),'Automática') FROM works ORDER BY edited DESC,title";
         using var reader = cmd.ExecuteReader(); var items = new List<Entry>();
-        while (reader.Read()) items.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetInt64(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), reader.GetString(7), reader.GetString(8)));
+        while (reader.Read()) items.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetInt64(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), reader.GetString(7), reader.GetString(8), reader.GetString(9)));
         return items;
     }
     public (Work Work, long Revision) Open(string id)
@@ -66,7 +66,7 @@ public sealed class Shelf : Nimbo.Application.IWorkRepository
         if (ext is not (".png" or ".jpg" or ".jpeg")) throw new InvalidDataException("Elige una imagen PNG o JPEG.");
         return AddAsset(path);
     }
-    internal string AddAsset(string path)
+    public string AddAsset(string path)
     {
         var ext = Path.GetExtension(path).ToLowerInvariant();
         using var source = File.OpenRead(path);

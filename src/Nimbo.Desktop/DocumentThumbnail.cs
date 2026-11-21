@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Input;
 using Avalonia.Media;
 using Nimbo.Storage;
 
@@ -8,6 +9,35 @@ namespace Nimbo.Desktop;
 
 public sealed partial class Studio
 {
+    sealed class TurningSheet(Control paper,Action open):Button
+    {
+        Point? origin;
+        double angle,start;
+        bool moved;
+        void Turn(double value){
+            angle=value%(Math.PI*2);
+            var scale=Math.Max(.018,Math.Abs(Math.Cos(angle)));
+            paper.RenderTransform=new MatrixTransform(new Matrix(scale,.08*Math.Sin(angle),0,1,0,0));
+        }
+        protected override void OnClick()=>open();
+        protected override void OnPointerPressed(PointerPressedEventArgs e){
+            if(!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed){base.OnPointerPressed(e);return;}
+            Focus();origin=e.GetPosition(this);start=angle;moved=false;e.Pointer.Capture(this);e.Handled=true;
+        }
+        protected override void OnPointerMoved(PointerEventArgs e){
+            if(origin is not Point p)return;
+            var delta=e.GetPosition(this)-p;if(Math.Abs(delta.X)>5||Math.Abs(delta.Y)>5)moved=true;
+            if(moved)Turn(start+.018*delta.X);
+        }
+        protected override void OnPointerReleased(PointerReleasedEventArgs e){
+            if(origin==null){base.OnPointerReleased(e);return;}
+            bool click=!moved&&new Rect(Bounds.Size).Contains(e.GetPosition(this));origin=null;e.Pointer.Capture(null);e.Handled=true;if(click)OnClick();
+        }
+        protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e){origin=null;base.OnPointerCaptureLost(e);}
+        protected override void OnKeyDown(KeyEventArgs e){
+            if(e.Key is Key.Left or Key.Right){Turn(angle+(e.Key==Key.Left?-1:1)*Math.PI/8);e.Handled=true;}else base.OnKeyDown(e);
+        }
+    }
     Control Miniature(Entry entry,Action open)
     {
         if(entry.Type is "Novela" or "Historia")return new BookCover(entry,shelf.Media,palette,open);
@@ -36,9 +66,9 @@ public sealed partial class Studio
             face.Child=design;
         }
         var canvas=new Grid{Width=155,Height=210};sheets.VerticalAlignment=VerticalAlignment.Bottom;sheets.Margin=new Thickness(0,0,0,15);canvas.Children.Add(sheets);
-        var button=new Button{Content=canvas,Name=slide?"MiniDiapositiva":"MiniDocumento",Padding=new Thickness(0),Background=Brushes.Transparent,
+        var button=new TurningSheet(sheets,open){Content=canvas,Name=slide?"MiniDiapositiva":"MiniDocumento",Padding=new Thickness(0),Background=Brushes.Transparent,
             BorderThickness=new Thickness(0),HorizontalContentAlignment=HorizontalAlignment.Center};
-        Avalonia.Automation.AutomationProperties.SetName(button,entry.Title);ToolTip.SetTip(button,entry.Title);button.Click+=(_,_)=>open();
+        Avalonia.Automation.AutomationProperties.SetName(button,entry.Title);ToolTip.SetTip(button,entry.Title);
         return button;
     }
 }

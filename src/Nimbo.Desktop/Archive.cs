@@ -103,21 +103,33 @@ public sealed partial class Studio
     {
         var window=new Window{Title="Elegir fichas",Width=460,Height=540,MinWidth=320,MinHeight=300,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=Sheet};
         var root=new DockPanel{Margin=new Thickness(20)};var choices=Column(5);
-        var checks=work.Glossary.OrderBy(n=>n.Name).Select(n=>(Entry:n,Box:new CheckBox{Content=n.Name+" · "+n.NodeKind})).ToArray();
+        var all=work.Glossary.OrderBy(n=>n.Name).ToArray();
+        var selected=new HashSet<string>();var matches=all;int pageIndex=0;
         var footer=Row();DockPanel.SetDock(footer,Dock.Bottom);root.Children.Add(footer);
         var save=Action("Exportar PDF…",()=>window.Close(true));Emphasize(save);footer.Children.Add(save);footer.Children.Add(QuietAction("Cancelar",()=>window.Close(false)));
         var head=Column(8);DockPanel.SetDock(head,Dock.Top);root.Children.Add(head);head.Children.Add(Display("Elegir fichas",26));
         var query=new TextBox{Watermark="Buscar por nombre o clase"};head.Children.Add(query);
         var group=new WrapPanel();
+        Button prev=null!,next=null!;var count=Label("");
         foreach(var on in new[]{true,false})group.Children.Add(QuietAction(on?"Marcar visibles":"Desmarcar visibles",()=>{
-            foreach(var (_,box) in checks.Where(p=>p.Box.IsVisible))box.IsChecked=on;
+            foreach(var entry in matches){if(on)selected.Add(entry.Id);else selected.Remove(entry.Id);}Draw();
         }));
-        head.Children.Add(group);
-        void Count(){var n=checks.Count(p=>p.Box.IsChecked==true);save.IsEnabled=n>0;save.Content=$"Exportar PDF ({n})…";}
-        foreach(var (_,box) in checks){box.IsCheckedChanged+=(_,_)=>Count();choices.Children.Add(box);}Count();
-        query.TextChanged+=(_,_)=>{foreach(var (entry,box) in checks)box.IsVisible=(entry.Name+" "+entry.NodeKind).Contains(query.Text?.Trim()??"",StringComparison.CurrentCultureIgnoreCase);};
+        prev=QuietAction("‹",()=>{pageIndex--;Draw();});next=QuietAction("›",()=>{pageIndex++;Draw();});
+        group.Children.Add(prev);group.Children.Add(count);group.Children.Add(next);head.Children.Add(group);
+        void Count(){save.IsEnabled=selected.Count>0;save.Content=$"Exportar PDF ({selected.Count})…";}
+        void Draw(){
+            choices.Children.Clear();
+            foreach(var entry in matches.Skip(pageIndex*40).Take(40)){
+                var box=new CheckBox{Content=entry.Name+" · "+entry.NodeKind,IsChecked=selected.Contains(entry.Id)};
+                box.IsCheckedChanged+=(_,_)=>{if(box.IsChecked==true)selected.Add(entry.Id);else selected.Remove(entry.Id);Count();};choices.Children.Add(box);
+            }
+            prev.IsEnabled=pageIndex>0;next.IsEnabled=(pageIndex+1)*40<matches.Length;
+            count.Text=$"{pageIndex+1} / {Math.Max(1,(matches.Length+39)/40)}";Count();
+        }
+        query.TextChanged+=(_,_)=>{matches=all.Where(n=>(n.Name+" "+n.NodeKind).Contains(query.Text?.Trim()??"",StringComparison.CurrentCultureIgnoreCase)).ToArray();pageIndex=0;Draw();};
+        Draw();
         root.Children.Add(new ScrollViewer{Content=choices});window.Content=root;
-        if(await window.ShowDialog<bool>(this))await Export(true,true,selection:checks.Where(p=>p.Box.IsChecked==true).Select(p=>p.Entry.Id).ToHashSet());
+        if(await window.ShowDialog<bool>(this))await Export(true,true,selection:selected);
     }
 
     void Dossier(Work work,Node node,string query)

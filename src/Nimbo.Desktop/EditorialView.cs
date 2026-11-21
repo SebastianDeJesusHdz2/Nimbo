@@ -117,7 +117,7 @@ public sealed partial class Studio
         box.SelectionChanged += (_, _) => { if (box.SelectedItem is string value) select(value); };
         parent.Children.Add(box); return box;
     }
-    static readonly string[] Tones = ["Océano", "Bosque", "Vino", "Grafito"];
+    static readonly string[] Tones = ["Océano", "Bosque", "Vino", "Grafito", "Aurora", "Porcelana"];
     static readonly string[] Inks = ["Por formato", "Petróleo", "Vino", "Oliva", "Grafito"];
     void WritingPreferences(StackPanel panel)
     {

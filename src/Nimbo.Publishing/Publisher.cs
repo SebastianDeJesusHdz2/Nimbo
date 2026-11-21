@@ -67,6 +67,16 @@ public static class Publisher
             var format=Format.All.FirstOrDefault(f=>f.Name==work.Type);
             var style=format==null?"Clásica":EditorialTemplate.For(format).FirstOrDefault(t=>t.Name==work.Template)?.Style??"Clásica";
             var paper=work.Publication.Paper switch {"Bolsillo" when novel=>"paperwidth=110mm,paperheight=175mm","A5"=>"a5paper","Carta"=>"letterpaper","A4"=>"a4paper",_=>novel?"a5paper":"a4paper"};
+            if(!glossary && work.UseTexSource){
+                if(string.IsNullOrWhiteSpace(work.TexSource))throw new InvalidDataException("El proyecto LaTeX está vacío.");
+                foreach(var (relative,key) in work.TexResources){
+                    var path=Path.GetFullPath(relative,temp);
+                    if(Path.IsPathRooted(relative)||!path.StartsWith(temp+Path.DirectorySeparatorChar,(OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal))||Path.GetFileName(key)!=key||!Regex.IsMatch(key,@"^[0-9a-f]{64}\.[a-z0-9]+$")||Path.GetFileName(path).Equals("obra.tex",StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("Ruta de recurso no válida: "+relative);
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);File.Copy(Path.Combine(media,key),path);
+                }
+                tex.Append(work.TexSource);
+            }else{
             tex.AppendLine(slide ? @"\documentclass[aspectratio=169]{beamer}" :
                 novel ? @"\documentclass[11pt,a5paper,openany]{book}" : glossary ? @"\documentclass[11pt,twoside]{article}" : @"\documentclass[11pt]{article}");
             tex.AppendLine(@"\usepackage{fontspec,graphicx,xcolor,tabularx}");
@@ -128,12 +138,35 @@ public static class Publisher
                 else tex.AppendLine(@"\begin{center}\includegraphics[width=.84\linewidth,height=.47\textheight,keepaspectratio]{media/" + key + "}"+caption+@"\end{center}");
             }
             if(novel && work.Publication.RunningHead=="Sin encabezado")tex.AppendLine(@"\pagestyle{plain}");
-            if (novel && work.CoverImage != "")
-            {
-                tex.AppendLine(@"\begin{titlepage}\centering"); Image(work.CoverImage);
-                tex.AppendLine(@"{\Huge " + Escape(work.Title) + @"\par}\vfill " + Escape(work.Author) + @"\end{titlepage}");
+            void Cover(string picture,bool back){
+                tex.AppendLine(@"\clearpage\thispagestyle{empty}");
+                if(picture.Length>0){
+                    CopyImage(picture);
+                    var file="media/"+picture;
+                    tex.AppendLine(@"\AddToHookNext{shipout/background}{\put(0,-\paperheight){\vbox to \paperheight{\vss\hbox to \paperwidth{\hss\sbox0{\includegraphics[width=\paperwidth]{"+file+@"}}\ifdim\ht0<\paperheight\includegraphics[height=\paperheight]{"+file+@"}\else\usebox0\fi\hss}\vss}}}");
+                }
+                bool centered=work.CoverStyle=="Centrada";
+                if(centered || work.CoverStyle!="Cabecera")tex.AppendLine(@"\null\vfill");
+                tex.AppendLine(@"\noindent\colorbox{accent!75!black}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{\color{white}\raggedright"+(centered?@"\centering":"")+@"\vspace{8pt}");
+                if(back)tex.AppendLine(Paragraphs(work.Description.Length>900?"":work.Description));
+                else{
+                    tex.AppendLine(@"{\Huge\bfseries "+Escape(work.Title)+@"\par}");
+                    if(work.ShowCoverSubtitle && work.Subtitle!="")tex.AppendLine(@"\medskip{\large "+Escape(work.Subtitle)+@"\par}");
+                    if(work.Author!="")tex.AppendLine(@"\bigskip "+Escape(work.Author)+@"\par");
+                }
+                tex.AppendLine(@"\vspace{8pt}}}\par");
+                if(back && work.Description.Length>900)tex.AppendLine(@"\medskip\noindent "+Paragraphs(work.Description));
+                if(centered || work.CoverStyle=="Cabecera")tex.AppendLine(@"\vfill\null");
+                tex.AppendLine(@"\clearpage");
             }
-            else if(!glossary && work.Type=="CV"){
+            if(!slide && !glossary && work.FrameStyle is "Filete" or "Doble filete" or "Esquinas"){
+                tex.AppendLine(@"\newcommand{\nimboframe}[1]{\put(#1,-\dimexpr\paperheight-#1\relax){\framebox(\dimexpr\paperwidth-#1-#1\relax,\dimexpr\paperheight-#1-#1\relax){}}}");
+                string lines=work.FrameStyle=="Esquinas"?@"\put(6mm,-6mm){\line(1,0){18mm}}\put(6mm,-6mm){\line(0,-1){18mm}}\put(\dimexpr\paperwidth-6mm\relax,-\dimexpr\paperheight-6mm\relax){\line(-1,0){18mm}}\put(\dimexpr\paperwidth-6mm\relax,-\dimexpr\paperheight-6mm\relax){\line(0,1){18mm}}":@"\nimboframe{5mm}"+(work.FrameStyle=="Doble filete"?@"\nimboframe{6mm}":"");
+                tex.AppendLine(@"\AddToHook{shipout/foreground}{\color{accent}\linethickness{.45pt}"+lines+"}");
+            }
+            bool designedCover=!slide && !glossary && (novel || work.CoverStyle!="Por formato");
+            if(designedCover)Cover(work.CoverImage,false);
+            if(!glossary && work.Type=="CV"){
                 string Contact(string key)=>work.Contact.GetValueOrDefault(key,"").Trim();
                 var name=Contact("Nombre profesional");if(name=="")name=work.Title;
                 var profession=Contact("Profesión");if(profession=="")profession=work.Subtitle;
@@ -147,7 +180,7 @@ public static class Publisher
                 if(style=="Académica")tex.AppendLine(@"\end{center}");
                 else tex.AppendLine(@"\noindent{\color{accent}\rule{\linewidth}{1pt}}\par");
             }
-            else if (!glossary && work.Type is "Carta" or "Acta" or "Apuntes")
+            else if (!designedCover && !glossary && work.Type is "Carta" or "Acta" or "Apuntes")
             {
                 tex.AppendLine(@"\noindent{\sffamily\Huge\color{accent}" + Escape(work.Title) + @"\par}\medskip");
                 if (work.Subtitle != "") tex.AppendLine(@"{\large " + Escape(work.Subtitle) + @"\par}");
@@ -160,7 +193,7 @@ public static class Publisher
                     if(work.Glossary.Count>0)tex.AppendLine(@"\tableofcontents");
                 }
             }
-            else tex.AppendLine(slide ? @"\begin{frame}\titlepage\end{frame}" : @"\maketitle");
+            else if(!designedCover)tex.AppendLine(slide ? @"\begin{frame}\titlepage\end{frame}" : @"\maketitle");
             var facts=EditorialTemplate.FrontMatter(work.Type).Where(k=>!string.IsNullOrWhiteSpace(work.DocumentFacts.GetValueOrDefault(k))).ToArray();
             if(!slide && !glossary && facts.Length>0){
                 if(slide)tex.AppendLine(@"\begin{frame}{"+Escape(work.Subtitle==""?work.Title:work.Subtitle)+"}");
@@ -244,11 +277,17 @@ public static class Publisher
                     if (slide) tex.AppendLine(@"\end{frame}");
                 }
             }
-            if (novel && work.Publication.BackCover && work.Description != "") tex.AppendLine(@"\clearpage\thispagestyle{empty}\vspace*{\fill}" + Paragraphs(work.Description) + @"\vspace*{\fill}");
+            if(novel && work.Publication.BackCover && (work.Description!="" || work.BackImage!=""))Cover(work.BackImage,true);
             tex.AppendLine(@"\end{document}");
+            }
             File.WriteAllText(Path.Combine(temp, "obra.tex"), tex.ToString());
             if (pdf)
             {
+                if(!glossary && work.UseTexSource){
+                    var program=work.TexEngine=="Automático"?Regex.Match(work.TexSource,@"(?im)^%\s*!\s*TeX\s+program\s*=\s*(pdflatex|lualatex|xelatex)\b").Groups[1].Value.ToLowerInvariant():work.TexEngine;
+                    if(program is "pdflatex" or "lualatex")
+                        engine=engine!=null && Path.IsPathRooted(engine)?Path.Combine(Path.GetDirectoryName(engine)!,program+Path.GetExtension(engine)):program;
+                }
                 var referencesFile = Path.Combine(temp, "obra.aux");
                 string? previousReferences = null;
                 const int maximumPasses = 5;
@@ -269,8 +308,8 @@ public static class Publisher
                     using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
                     try { await process.WaitForExitAsync(timeout.Token); } catch (OperationCanceledException) { process.Kill(true); process.WaitForExit(); throw new TimeoutException("XeLaTeX superó tres minutos."); }
                     var log = await stdout + "\n" + await stderr;
-                    if (process.ExitCode != 0) throw new IOException("XeLaTeX: " + log[^Math.Min(900, log.Length)..]);
-                    var references = File.ReadAllText(referencesFile);
+                    if (process.ExitCode != 0) throw new IOException(Path.GetFileNameWithoutExtension(engine??"xelatex")+": " + log[^Math.Min(900, log.Length)..]);
+                    var references = File.Exists(referencesFile)?File.ReadAllText(referencesFile):"";
                     if (references == previousReferences) break;
                     if (pass == maximumPasses)
                         throw new IOException("La numeración del índice sigue cambiando. Revisa los saltos de página antes de imprimir.");

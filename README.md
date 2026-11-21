@@ -1,6 +1,6 @@
 # Nimbo
 
-Estudio de escritura de escritorio para Windows y Linux. Nimbo 0.5.1 usa C# y .NET 10, Avalonia, SQLite y XeLaTeX.
+Estudio de escritura de escritorio para Windows y Linux. Nimbo 0.5.2 usa C# y .NET 10, Avalonia, SQLite y XeLaTeX.
 
 ## Primera sesión
 
@@ -13,6 +13,14 @@ Elige un formato en la biblioteca, escribe un título y pulsa **Crear obra**. A 
 Las novelas aparecen como libros giratorios, los documentos como hojas y las presentaciones como diapositivas. En el editor, sitúa el cursor donde quieres una ilustración y abre **Imágenes**. Puedes escoger una imagen o varias, escribir un pie y elegir la composición de cada una. **Publicar → Vista previa de impresión** permite comprobar el ajuste del texto alrededor de una imagen antes de imprimir.
 
 En **Glosario → Cuadernillo** puedes elegir el tamaño de papel y exportar todas las fichas o una selección. Cada ficha tiene también su propio botón de PDF. **Publicar → Edición completa y fichas** prepara el manuscrito, el proyecto LaTeX, el glosario y los retratos de personaje con sus datos en PDF.
+
+### Preparar una edición
+
+En la biblioteca, **Organizar colecciones** permite elegir varias obras y escribir o elegir el nombre de su estante. La etiqueta bajo cada miniatura abre su ficha. Arrastra la portada, hoja o diapositiva para girarla.
+
+En **Ficha → Impresión** puedes elegir el marco, la posición del título, la visibilidad del subtítulo y una imagen de contraportada para novelas. La portada ilustrada llena el papel mediante un recorte centrado. El campo Autor determina la firma impresa. Para guardar una edición anterior, busca su nombre en la ficha y utiliza el selector de archivo.
+
+**Proyecto LaTeX avanzado** admite una fuente completa, incluida la clase Beamer. Carga el archivo principal o escribe la fuente y activa su uso. Al cargarlo se copian los paquetes locales y recursos con rutas literales detectables. Adjunta manualmente recursos con rutas construidas mediante macros. El motor automático respeta la directiva de cabecera de TeXstudio para pdfLaTeX, LuaLaTeX o XeLaTeX. También puedes elegirlo en la ficha. Los paquetes del sistema deben estar instalados en el motor elegido. El proyecto exportado conserva la fuente y los recursos adjuntos.
 
 ### Importación
 

@@ -223,19 +223,20 @@ public sealed partial class Studio
         var jacket=new DockPanel();var coverOptions=Column(8);
         var proof=new ContentControl{Width=160,Height=222,Margin=new Thickness(0,0,22,0)};
         void RefreshJacket(){
-            var entry=new Entry(work.Id,work.Title,work.Type,0,work.CoverImage,work.CoverColor,work.Author,work.Description,work.CollectionId);
+            var entry=new Entry(work.Id,work.Title,work.Type,0,work.CoverImage,work.CoverColor,work.Author,work.Description,work.CollectionId,work.CoverLettering);
             proof.Content=Miniature(entry,()=>{if(work.IsNovel)InspectBook(entry);else ReadSection(chapter);});
         }
         RefreshJacket();DockPanel.SetDock(proof,Dock.Left);jacket.Children.Add(proof);
         coverOptions.VerticalAlignment=VerticalAlignment.Center;coverOptions.Children.Add(Kicker(work.IsNovel?"Encuadernación":"Miniatura"));
         var inks=new WrapPanel();
-        foreach(var hex in palette.Swatches.Prepend(work.CoverColor).Where(s=>Color.TryParse(s,out _)).Distinct(StringComparer.OrdinalIgnoreCase)){
+        foreach(var hex in palette.Swatches.Concat(new[]{"#3C425E","#886240","#8C6273","#1E6667","#E4DABC","#392B39","#88403F","#FAF8F0"}).Prepend(work.CoverColor).Where(s=>Color.TryParse(s,out _)).Distinct(StringComparer.OrdinalIgnoreCase)){
             var swatch=new Button{Width=30,Height=30,MinWidth=0,Padding=new Thickness(0),Margin=new Thickness(0,0,5,4),Background=Brush.Parse(hex),CornerRadius=new CornerRadius(15),
                 BorderBrush=Foreground,BorderThickness=new Thickness(hex==work.CoverColor?2:0)};
             ToolTip.SetTip(swatch,"Pasta "+hex);Avalonia.Automation.AutomationProperties.SetName(swatch,"Pasta "+hex);
             swatch.Click+=(_,_)=>{work.CoverColor=hex;Changed();RefreshJacket();foreach(var b in inks.Children.OfType<Button>())b.BorderThickness=new Thickness(b==swatch?2:0);};inks.Children.Add(swatch);
         }
         coverOptions.Children.Add(inks);
+        if(work.IsNovel)Choice(coverOptions,"Letras de la encuadernación",["Automática","Marfil","Carbón","Oro"],work.CoverLettering,v=>{work.CoverLettering=v;Changed();RefreshJacket();});
         coverOptions.Children.Add(Action("Elegir portada…", async () => await Guard(async () =>
         {
             var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Portada PNG o JPEG" })).FirstOrDefault()?.TryGetLocalPath();
@@ -257,13 +258,18 @@ public sealed partial class Studio
             body.Children.Add(Card(data));
         }
         PrintSettings(print,work);
+        CoverSettings(print,work);
+        SourceSettings(print,work);
         if (work.Editions.Count > 0)
         {
             body.Children.Add(Label("Edición anterior", 21));
-            foreach (var edition in work.Editions)
-            {
-                body.Children.Add(Action("Guardar copia de " + edition.Name, async () => await Guard(async () =>
+            var query=new TextBox{Watermark="Buscar un PDF o proyecto por nombre"};
+            var files=new ComboBox{HorizontalAlignment=HorizontalAlignment.Stretch};
+            void FindFiles(){files.ItemsSource=work.Editions.Where(e=>e.Name.Contains(query.Text??"",StringComparison.CurrentCultureIgnoreCase)).Select(e=>e.Name).Distinct().ToArray();files.SelectedIndex=0;}
+            query.TextChanged+=(_,_)=>FindFiles();FindFiles();body.Children.Add(query);body.Children.Add(files);
+            body.Children.Add(Action("Guardar archivo seleccionado…", async () => await Guard(async () =>
                 {
+                    var edition=work.Editions.FirstOrDefault(e=>e.Name==files.SelectedItem as string);if(edition==null)return;
                     var destination = await StorageProvider.SaveFilePickerAsync(new() { Title = "Guardar edición anterior", SuggestedFileName = Path.GetFileName(edition.Name) });
                     if (destination?.TryGetLocalPath() is not string path) return;
                     var source = Path.Combine(shelf.Media, Path.GetFileName(edition.Key));
@@ -271,7 +277,6 @@ public sealed partial class Studio
                     try { File.Copy(source, temp); File.Move(temp, path, true); } finally { File.Delete(temp); }
                     status.Text = "Edición anterior guardada";
                 })));
-            }
         }
         var tabs=new TabControl{ItemsSource=new[]{new TabItem{Header="Datos editoriales",Content=form},new TabItem{Header="Impresión",Content=print}},SelectedIndex=0};
         coverPage.Children.Add(tabs);page.Content=new ScrollViewer{Content=SheetOf(coverPage,940)};

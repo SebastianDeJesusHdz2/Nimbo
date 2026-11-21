@@ -25,6 +25,16 @@ public class Work : Extensible
 {
     public string Id { get; set; } = Guid.NewGuid().ToString(); public string Title { get; set; } = "Sin título"; public string Type { get; set; } = "Historia";
     public string Author { get; set; } = ""; public string Subtitle { get; set; } = ""; public string Description { get; set; } = ""; public string CollectionId { get; set; } = "";
+    public string CoverLettering { get; set; } = "Automática";
+    public string BackImage { get; set; } = "";
+    public string CoverStyle { get; set; } = "Por formato";
+    public string FrameStyle { get; set; } = "Sin marco";
+    public bool ShowCoverSubtitle { get; set; } = true;
+    public bool UseTexSource { get; set; }
+    public string TexEngine { get; set; } = "Automático";
+    public string TexDirectory { get; set; } = "";
+    public string TexSource { get; set; } = "";
+    public Dictionary<string,string> TexResources { get; set; } = [];
     public string CoverImage { get; set; } = ""; public string CoverColor { get; set; } = "#315F65"; public string Genre { get; set; } = ""; public string Status { get; set; } = "En progreso";
     public string WritingPaper { get; set; } = "Marfil"; public int WritingWidth { get; set; } = 900; public bool FocusWriting { get; set; }
     public bool CheckSpelling { get; set; }

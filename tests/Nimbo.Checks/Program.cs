@@ -116,6 +116,15 @@ try
         await Publisher.Export(guide,shelf.Media,Path.Combine(output,"Cuadernillo de bolsillo.pdf"),true,true,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
         await Publisher.Export(guide,shelf.Media,Path.Combine(output,"Ficha de Mara Vélez.pdf"),true,true,Environment.GetEnvironmentVariable("NIMBO_XELATEX"),keeper.Id);
         await Publisher.Export(guide,shelf.Media,Path.Combine(output,"Composición ilustrada.pdf"),true,false,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
+        var cover=Format.All.Single(f=>f.Name=="Novela").Create("Edición ilustrada");
+        cover.Author="Autora de prueba";cover.CoverImage=page.Images[0];cover.BackImage=page.Images[1];cover.Description="Una sinopsis de prueba.";cover.Publication.Paper="Bolsillo";
+        foreach(var frame in new[]{"Filete","Doble filete","Esquinas"}){
+            cover.FrameStyle=frame;await Publisher.Export(cover,shelf.Media,Path.Combine(output,frame+".pdf"),true,false,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
+        }
+        var custom=Path.Combine(root,"prueba.sty");File.WriteAllText(custom,@"\ProvidesPackage{prueba}\newcommand{\resultado}{Diapositiva personalizada}");
+        cover.UseTexSource=true;cover.TexSource=@"\documentclass{beamer}\usepackage{prueba}\begin{document}\begin{frame}\resultado\end{frame}\end{document}";
+        cover.TexResources["prueba.sty"]=shelf.AddAsset(custom);
+        await Publisher.Export(cover,shelf.Media,Path.Combine(output,"Fuente personalizada.pdf"),true,false,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
         var smallBook=Format.All.Single(f=>f.Name=="Novela").Create("Ajuste de ilustraciones");
         smallBook.Publication.Paper="Bolsillo";smallBook.Publication.Contents=false;
         var sample=smallBook.Chapters[0];

@@ -54,6 +54,13 @@ public static class Legacy
                     continue;
                 }
                 var collection = catalog.Collections.FirstOrDefault(g => g.Id == w.CollectionId); if (collection != null) w.CollectionId = collection.Name;
+                foreach(var key in w.TexResources.Keys.ToList()){
+                    var full=Path.GetFullPath(w.TexResources[key],root);
+                    var relative=Path.GetRelativePath(root,full);
+                    if(Path.IsPathRooted(relative)||relative==".."||relative.StartsWith(".."+Path.DirectorySeparatorChar))throw new InvalidDataException("Recurso fuera de la biblioteca.");
+                    w.TexResources[key]=shelf.AddAsset(full);
+                }
+                if (w.BackImage != "") w.BackImage = Image(w.BackImage, root);
                 if (w.CoverImage != "") w.CoverImage = Image(w.CoverImage, root);
                 foreach (var node in w.Glossary.Where(n => n.ImagePath != "")) node.ImagePath = Image(node.ImagePath, root);
                 foreach(var chapter in w.Chapters){
