@@ -21,6 +21,7 @@ public sealed partial class Studio
         var work=current!;masthead.IsVisible=!work.FocusWriting;var root=new DockPanel();var top=new WrapPanel{Margin=new Thickness(0,2,0,5)};
         var header=new DockPanel{Margin=new Thickness(0,0,0,12)};
         var menu=new MenuFlyout();
+        menu.Items.Add(MenuAction("Ajustes de impresión y fuente LaTeX",()=>Details(true)));
         menu.Items.Add(MenuAction("Vista previa de impresión",async()=>await Preview()));
         menu.Items.Add(MenuAction("Exportar PDF…",async()=>await Export(true)));
         menu.Items.Add(MenuAction("Proyecto LaTeX…",async()=>await Export(false)));
@@ -39,6 +40,14 @@ public sealed partial class Studio
         var publish=new Button{Content="Publicar  ▾",Flyout=menu};Emphasize(publish);
         DockPanel.SetDock(publish,Dock.Right);header.Children.Add(publish);header.Children.Add(top);
         DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
+        if(work.UseTexSource){
+            top.Children.Add(Display(work.Title,23));
+            top.Children.Add(QuietAction("Fuente y recursos",()=>Details(true)));
+            top.Children.Add(QuietAction("Guardar",()=>TrySave()));
+            var code=new TextBox{Text=work.TexSource,AcceptsReturn=true,AcceptsTab=true,FontFamily=new FontFamily("Consolas, Liberation Mono, monospace"),FontSize=15,TextWrapping=TextWrapping.Wrap,VerticalContentAlignment=VerticalAlignment.Top,Padding=new Thickness(16)};
+            code.TextChanged+=(_,_)=>{work.TexSource=code.Text??"";Changed();};
+            root.Children.Add(code);page.Content=root;return;
+        }
         var left=Column(12);left.Width=202;
         left.Children.Add(WorkArt(work,360,116));
         left.Children.Add(Kicker(work.Type));left.Children.Add(Display(work.Title,25));left.Children.Add(Rule(Edge));
@@ -217,7 +226,8 @@ public sealed partial class Studio
         var sheet=new Border{Child=body,Padding=new Thickness(36,30,36,24),MaxWidth=body.MaxWidth+72,HorizontalAlignment=HorizontalAlignment.Stretch};
         root.Children.Add(new ScrollViewer{Content=sheet}); page.Content = root;
     }
-    void Details()
+    void Details()=>Details(false);
+    void Details(bool printing)
     {
         Navigate("Ficha");var work = current!; var body = Column();body.MaxWidth=ReadPref("ancho","Medio") switch {"Amplio"=>1120,"Estrecho"=>680,_=>860};body.HorizontalAlignment=HorizontalAlignment.Stretch; body.Children.Add(Kicker(work.Type));body.Children.Add(Display("Ficha de la obra",36));
         var jacket=new DockPanel();var coverOptions=Column(8);
@@ -278,7 +288,7 @@ public sealed partial class Studio
                     status.Text = "Edición anterior guardada";
                 })));
         }
-        var tabs=new TabControl{ItemsSource=new[]{new TabItem{Header="Datos editoriales",Content=form},new TabItem{Header="Impresión",Content=print}},SelectedIndex=0};
+        var tabs=new TabControl{ItemsSource=new[]{new TabItem{Header="Datos editoriales",Content=form},new TabItem{Header="Impresión",Content=print}},SelectedIndex=printing?1:0};
         coverPage.Children.Add(tabs);page.Content=new ScrollViewer{Content=SheetOf(coverPage,940)};
     }
 }

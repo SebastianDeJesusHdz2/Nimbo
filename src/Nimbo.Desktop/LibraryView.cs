@@ -143,7 +143,7 @@ public sealed partial class Studio
                     menu.ItemsSource=commands;book.ContextMenu=menu;
                     tag.Content= new TextBlock{Text="Ficha · "+entry.Title,FontSize=11,TextTrimming=TextTrimming.CharacterEllipsis,Foreground=Brush.Parse("#352A24")};
                     books.Children.Add(slot);
-                }else{var record=Column(4);record.Width=215;record.Children.Add(Label(entry.Type));record.Children.Add(Display(entry.Title,20));if(entry.Author!="")record.Children.Add(Label(entry.Author));var open=Action("",()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));open.Content=record;open.Margin=new Thickness(0,0,8,8);record.Children.Add(QuietAction("Ficha de la obra",()=>Run(()=>Ficha(entry))));books.Children.Add(open);}
+                }else{var record=Column(4);record.Width=215;record.Children.Add(Label(entry.Type));record.Children.Add(Display(entry.Title,20));if(entry.Author!="")record.Children.Add(Label(entry.Author));var open=Action("",()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));open.Content=record;open.Margin=new Thickness(0,0,8,8);open.Content=record;open.Margin=new Thickness(0,0,8,4);var item=Column(2);item.Children.Add(open);item.Children.Add(QuietAction("Ficha de la obra",()=>Run(()=>Ficha(entry))));books.Children.Add(item);}
             }
             }
             if(groups.Children.Count==0)listings.Content=Label(entries.Count==0?"Aquí aparecerá tu primera obra.":"Ninguna obra coincide con la búsqueda.");
