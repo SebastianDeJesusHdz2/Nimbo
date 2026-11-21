@@ -140,6 +140,7 @@ try
     Check(WorldModel.Effective(shelf.Open(old.Id).Work, elf).Single().Value == "8 cm", "herencia");
     if (args.Contains("--pdf"))
     {
+        old = shelf.Open(old.Id).Work;
         old.Chapters[0].Images.Add(image); old.Chapters[0].Layout = "Centrada"; old.Chapters[0].PlainText += "\nInicio de figura\n" + Illustrations.At(0) + "\nFin de figura";
         old.Chapters[0].ImageLayouts[0]="Ajustar a la derecha";
         var book = Path.Combine(root, "book.pdf"); var glossary = Path.Combine(root, "glossary.pdf");
