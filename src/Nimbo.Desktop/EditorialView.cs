@@ -91,10 +91,15 @@ public sealed partial class Studio
         foreach(var name in new[]{"Bajo el hielo","Manual de mareas","Cantos del sur","Las manos del reloj","La memoria del muelle","Voces del camino","La carta de Aro","Cuaderno de campo"}){
             var book=Format.All.First(f=>f.Name=="Novela").Create(name);
             book.CoverColor=palette.Swatches[name.Length%palette.Swatches.Length];book.Author="Inés Salgado";
+            book.Description="La carta llegó sin dirección. Inés reconoció el papel por las motas de sal que aún guardaba el pliegue. Alguien había trazado a lápiz la costa de una isla que solo se veía en bajamar. En la esquina, una letra diminuta indicaba la hora del último barco.";
             shelf.Save(book,0);
         }
         Library();Layout();Capture("Estantería");
-        return page.GetVisualDescendants().OfType<BookCover>().Count()>=10 || Fail();
+        var books=page.GetVisualDescendants().OfType<BookCover>().ToArray();
+        if(books.Length<10)return Fail();
+        foreach(var book in books.Take(3))book.ShowJacket(true);
+        Layout();Capture("Contraportadas");
+        return true;
     }
     double WritingSize=>int.TryParse(ReadPref("cuerpo","18"),out var size)?Math.Clamp(size,14,28):18;
     FontFamily WritingFamily=>new(ReadPref("letra","Literaria") switch{

@@ -33,7 +33,7 @@ internal sealed class BookCover : Control
         };
         DetachedFromVisualTree += (_, _) => { art?.Dispose(); art = null; };
         Avalonia.Automation.AutomationProperties.SetName(this, entry.Title);
-        ToolTip.SetTip(this, entry.Title + " · Clic para abrir, arrastra para girar");
+        ToolTip.SetTip(this,entry.Title+" · Clic para abrir. Arrastra o usa las flechas para girar. Fin muestra la contraportada.");
     }
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
@@ -52,12 +52,14 @@ internal sealed class BookCover : Control
         e.Handled = true; if (click) open();
     }
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e) { down = null; base.OnPointerCaptureLost(e); }
+    internal void ShowJacket(bool back){angle=Rest+(back?Math.PI:0);InvalidateVisual();}
     protected override void OnKeyDown(KeyEventArgs e)
     {
         switch(e.Key){
             case Key.Left: angle-=Math.PI/8;break;
             case Key.Right: angle+=Math.PI/8;break;
-            case Key.Home: angle=Rest;break;
+            case Key.Home: ShowJacket(false);e.Handled=true;return;
+            case Key.End: ShowJacket(true);e.Handled=true;return;
             case Key.Enter: case Key.Space:open();e.Handled=true;return;
             default:base.OnKeyDown(e);return;
         }
@@ -81,7 +83,8 @@ internal sealed class BookCover : Control
             FormattedText Set(string value,double size)=>new(value,CultureInfo.CurrentCulture,FlowDirection.LeftToRight,new Typeface("Georgia"),size,ink){MaxTextWidth=box.Width,TextAlignment=TextAlignment.Left};
             // Measure the untrimmed paragraph; reduce within book proportions, then end on a word.
             int limit=Math.Min(560,text.Length);string sample=text[..limit];
-            for(double size=9;size>=7;size-=.5){
+            const double minimum=8;
+            for(double size=10;size>=minimum;size-=.5){
                 var paragraph=Set(sample,size);
                 if(limit==text.Length && paragraph.Height<=box.Height){blurb=paragraph;break;}
             }
@@ -89,10 +92,10 @@ internal sealed class BookCover : Control
                 var words=sample.Split(' ');var excerpt="";
                 foreach(var word in words){
                     var next=excerpt.Length==0?word:excerpt+" "+word;
-                    if(Set(next+"…",7).Height>box.Height)break;
+                    if(Set(next+"…",minimum).Height>box.Height)break;
                     excerpt=next;
                 }
-                blurb=Set(excerpt+"…",7);
+                blurb=Set(excerpt+"…",minimum);
             }
         }
         using(dc.PushClip(box))dc.DrawText(blurb,box.TopLeft);

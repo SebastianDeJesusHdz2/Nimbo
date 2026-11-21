@@ -45,7 +45,7 @@ public static class Dossiers
             var roles=new List<string>();
             if(n.ParentId==node.Id)roles.Add("Contiene");
             if(node.RelatedIds.Contains(n.Id))roles.Add(node.RelationRoles.GetValueOrDefault(n.Id,"Vínculo"));
-            if(n.RelatedIds.Contains(node.Id))roles.Add("Desde "+n.Name+" · "+n.RelationRoles.GetValueOrDefault(node.Id,"Vínculo"));
+            if(n.RelatedIds.Contains(node.Id))roles.Add("Vínculo entrante · "+n.RelationRoles.GetValueOrDefault(node.Id,"Relacionado"));
             if(roles.Count>0)yield return (n,string.Join(" / ",roles));
         }
     }

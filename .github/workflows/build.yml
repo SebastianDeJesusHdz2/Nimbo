@@ -29,8 +29,18 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends texlive-xetex texlive-latex-extra texlive-fonts-recommended
+          sudo apt-get install -y --no-install-recommends texlive-xetex texlive-latex-extra texlive-fonts-recommended poppler-utils
           NIMBO_SAMPLE_ART="$GITHUB_WORKSPACE/src/Nimbo.Desktop/Art" NIMBO_SAMPLE_DIR="$RUNNER_TEMP/CV" dotnet run --project tests/Nimbo.Checks -c Release -- --pdf
+      - name: Comprobar la paginación de las fichas de bolsillo
+        if: runner.os == 'Linux'
+        run: |
+          pocket="$RUNNER_TEMP/CV/Cuadernillo de bolsillo.pdf"
+          card="$RUNNER_TEMP/CV/Ficha de Mara Vélez.pdf"
+          pdfinfo "$pocket"
+          test "$(pdfinfo "$pocket" | awk '/^Pages:/ {print $2}')" = 5
+          test "$(pdfinfo "$card" | awk '/^Pages:/ {print $2}')" = 1
+          pdftotext -f 3 -l 3 "$pocket" - | grep -F 'Notas de autor'
+          pdftotext -f 5 -l 5 "$pocket" - | grep -F 'Contiene'
       - name: Publicar escritorio
         run: dotnet publish src/Nimbo.Desktop -c Release -r ${{ matrix.rid }} --self-contained -o artifacts/app
       - name: Abrir la biblioteca en Linux

@@ -168,17 +168,22 @@ public static class Publisher
                 foreach (var node in work.Glossary.Where(n=>nodeId==null || n.Id==nodeId).OrderBy(n=>n.Name,StringComparer.CurrentCultureIgnoreCase))
                 {
                     tex.AppendLine(@"\abrirficha{"+Escape(node.NodeKind)+"}{"+Escape(node.Name)+"}");
-                    Image(node.ImagePath);
-                    void Entry(string label,string value){
+                    if(node.ImagePath!=""){
+                        CopyImage(node.ImagePath);
+                        tex.AppendLine(@"\retratoficha{media/"+node.ImagePath+"}");
+                    }
+                    void Entry(string label,string value,bool compact=false){
                         if(string.IsNullOrWhiteSpace(value))return;
-                        tex.AppendLine(@"\campoficha{"+Escape(label)+"}{"+InlineParagraphs(value)+"}");
+                        var command=compact && value.Length<=72 && !value.Contains('\n') && !value.Contains('\r')
+                            ? @"\datoficha{" : @"\campoficha{";
+                        tex.AppendLine(command+Escape(label)+"}{"+InlineParagraphs(value)+"}");
                     }
                     Entry("Función narrativa",node.Role);
-                    foreach(var (label,value) in Dossiers.Details(work,node))Entry(label,value);
+                    foreach(var (label,value) in Dossiers.Details(work,node))Entry(label,value,true);
                     Entry("Trasfondo",node.Background);
                     foreach(var (label,value) in node.Sections)Entry(label,value);
                     Entry("Relaciones",node.Relations);
-                    foreach(var (target,role) in Dossiers.Links(work,node))Entry(role,target.Name);
+                    foreach(var (target,role) in Dossiers.Links(work,node))Entry(role,target.Name,true);
                     Entry("Notas de autor",node.Notes);
                 }
             }

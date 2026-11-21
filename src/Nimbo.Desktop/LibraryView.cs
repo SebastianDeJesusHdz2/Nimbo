@@ -109,7 +109,7 @@ public sealed partial class Studio
                     var tag=Action(entry.Title,()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));
                     tag.Content=caption;tag.HorizontalAlignment=HorizontalAlignment.Center;tag.MaxWidth=Bookcase.Slot-8;tag.Padding=new Thickness(5,1);tag.MinHeight=18;
                     tag.Background=Brush.Parse("#E6D8BC");tag.Foreground=Brush.Parse("#352A24");slot.Children.Add(tag);
-                    book.ContextMenu=new ContextMenu{ItemsSource=new[]{MenuAction("Leer sinopsis",()=>InspectBook(entry))}};
+                    book.ContextMenu=new ContextMenu{ItemsSource=new[]{MenuAction("Ver portada",()=>book.ShowJacket(false)),MenuAction("Ver contraportada",()=>book.ShowJacket(true)),MenuAction("Leer sinopsis completa",()=>InspectBook(entry))}};
                     books.Children.Add(slot);
                 }else{var record=Column(4);record.Width=215;record.Children.Add(Label(entry.Type));record.Children.Add(Display(entry.Title,20));if(entry.Author!="")record.Children.Add(Label(entry.Author));var open=Action("",()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));open.Content=record;open.Margin=new Thickness(0,0,8,8);books.Children.Add(open);}
             }

@@ -87,4 +87,5 @@ ALFA 8 · TALLER EDITORIAL
 [x] Selección múltiple de imágenes, disposición individual, pies y galerías de hasta tres por fila. Citas en bloque y búsqueda con reemplazo.
 [x] Fichas con apartados por clase, apartados propios, relaciones con nombre y atributos heredables con unidades.
 [x] Plantilla de cuadernillo con portada, índice, fichas individuales y tres tamaños de impresión. Muestra de bolsillo comprobada a 90 × 140 mm en seis páginas.
-[ ] Validar el arranque de esta alfa en el equipo del autor con la política de confianza de Windows activa.
+[x] Alfa 8 instalada en el equipo del autor. La compilación de GitHub superó la prueba local del editor y las pruebas de instalación en Windows y Linux.
+[x] Revisión de la maqueta de bolsillo. Composición más compacta de retratos y datos breves, con una prueba de paginación para el cuadernillo y una ficha suelta.

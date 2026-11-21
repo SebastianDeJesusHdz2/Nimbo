@@ -114,6 +114,7 @@ try
     if(args.Contains("--pdf")){
         var output=Environment.GetEnvironmentVariable("NIMBO_SAMPLE_DIR")??root;
         await Publisher.Export(guide,shelf.Media,Path.Combine(output,"Cuadernillo de bolsillo.pdf"),true,true,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
+        await Publisher.Export(guide,shelf.Media,Path.Combine(output,"Ficha de Mara Vélez.pdf"),true,true,Environment.GetEnvironmentVariable("NIMBO_XELATEX"),keeper.Id);
         await Publisher.Export(guide,shelf.Media,Path.Combine(output,"Composición ilustrada.pdf"),true,false,Environment.GetEnvironmentVariable("NIMBO_XELATEX"));
     }
     var paragraph = new Chapter { Title = "Prueba de estilo", PlainText = "Una palabra", Order = 1 };
