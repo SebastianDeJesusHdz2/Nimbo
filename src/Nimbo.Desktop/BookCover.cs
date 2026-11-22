@@ -75,8 +75,8 @@ internal sealed class BookCover : Control
     static readonly IBrush clothLight=Wash(false,(0,"#55111618"),(.035,"#44FFEBBB"),(.073,"#780C1618"),(.095,"#33FFF2D3"),(.22,"#08FFFFFF"),(1,"#420B1518"));
     static readonly IBrush leaves=Wash(false,(0,"#B7A685"),(.35,"#E9DEC4"),(.8,"#F7EAD6"),(1,"#BCAA8E"));
     FormattedText? blurb;
-    Geometry? synopsisOutline;
-    void DrawSynopsis(DrawingContext dc,Rect box,IBrush ink)
+
+    void DrawSynopsis(DrawingContext dc,Rect box,IBrush ink,IBrush? label)
     {
         if(blurb==null){
             var text=string.Join(" ",entry.Description.Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries));
@@ -100,10 +100,7 @@ internal sealed class BookCover : Control
             }
         }
         using(dc.PushClip(box)){
-            if(entry.Lettering=="Carbón"){
-                synopsisOutline??=blurb.BuildGeometry(box.TopLeft);
-                if(synopsisOutline!=null)dc.DrawGeometry(null,new Pen(Brush.Parse("#B8EACFAC"),.65),synopsisOutline);
-            }
+            if(label!=null)dc.DrawRectangle(label,null,new Rect(box.X,box.Y,box.Width,Math.Min(box.Height,blurb.Height)).Inflate(2));
             dc.DrawText(blurb,box.TopLeft);
         }
     }
@@ -112,7 +109,13 @@ internal sealed class BookCover : Control
         var cos = Math.Cos(angle); var sin = Math.Sin(angle);
         var color = Color.TryParse(entry.Color, out var parsed) ? parsed : Color.Parse("#43676B");
         var cloth = new SolidColorBrush(color); IBrush ink = entry.Lettering switch {"Carbón"=>Brush.Parse("#15191D"),"Oro"=>Brush.Parse("#FFE4A0"),"Marfil"=>Brushes.Ivory,_=>Brushes.WhiteSmoke};
-        void Words(string text, Rect bounds, double size, IBrush brush)
+        bool charcoal=entry.Lettering=="Carbón";
+        // A compact label in the binding hue supports solid dark ink on dark cloth or a photograph.
+        static double Linear(byte channel){var s=channel/255d;return s<=.04045?s/12.92:Math.Pow((s+.055)/1.055,2.4);}
+        var luminance=.2126*Linear(color.R)+.7152*Linear(color.G)+.0722*Linear(color.B);
+        var label=EditionPalette.Mix(color.ToString(),"#ECCB9F",.62);
+        bool needsLabel=charcoal && luminance<.31;
+        void Words(string text, Rect bounds, double size, IBrush brush,bool photograph=false)
         {
             if (bounds.Width < 2 || text.Length == 0) return;
             var fmt = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, new Typeface("Georgia"), size, brush)
@@ -123,7 +126,10 @@ internal sealed class BookCover : Control
                 TextAlignment = TextAlignment.Center
             };
             using (dc.PushClip(bounds)){
-                if(entry.Lettering=="Carbón" && brush==ink && fmt.BuildGeometry(bounds.TopLeft) is {} outline)dc.DrawGeometry(null,new Pen(Brush.Parse("#B8EACFAC"),1),outline);
+                if(brush==ink && (needsLabel || (charcoal && photograph))){
+                    double width=Math.Min(bounds.Width,fmt.Width+6);
+                    dc.DrawRectangle(label,null,new Rect(bounds.Center.X-width/2,bounds.Y,width,Math.Min(bounds.Height,fmt.Height+1)),1,1);
+                }
                 dc.DrawText(fmt,bounds.TopLeft);
             }
         }
@@ -177,14 +183,14 @@ internal sealed class BookCover : Control
             if(front){
                 dc.DrawLine(foil,new Point(15,88),new Point(w-10,88));
                 Words(entry.Type.ToUpperInvariant(),new Rect(15,93,w-26,13),8,gold);
-                Words(entry.Title,new Rect(13,110,w-22,41),16,ink);
-                Words(entry.Author,new Rect(13,154,w-22,15),10,ink);
+                Words(entry.Title,new Rect(13,110,w-22,41),16,ink,art!=null);
+                Words(entry.Author,new Rect(13,154,w-22,15),10,ink,front && art!=null);
             }else{
                 if(entry.Lettering!="Carbón")dc.DrawRectangle(Brush.Parse("#7F12181B"),null,new Rect(0,0,w,h));
                 dc.DrawRectangle(null,foil,new Rect(7,6,w-14,h-12));
                 dc.DrawLine(foil,new Point(46,21),new Point(w-46,21));
-                DrawSynopsis(dc,new Rect(16,30,w-32,111),ink);
-                Words(entry.Author,new Rect(11,152,w-22,15),10,ink);
+                DrawSynopsis(dc,new Rect(16,30,w-32,111),ink,needsLabel?label:null);
+                Words(entry.Author,new Rect(11,152,w-22,15),10,ink,front && art!=null);
             }
         }
         Edge(-w/2,d/2,w/2,d/2,w,()=>Jacket(true));

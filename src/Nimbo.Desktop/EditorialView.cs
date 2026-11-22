@@ -102,6 +102,11 @@ public sealed partial class Studio
         var books=page.GetVisualDescendants().OfType<BookCover>().ToArray();
         if(books.Length!=10 || !page.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="MiniDocumento"))return Fail();
         if(!page.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="MiniDiapositiva"))return Fail();
+        var sheets=page.GetVisualDescendants().OfType<TurningSheet>().ToArray();
+        foreach(var angle in new[]{Math.PI/2,Math.PI,Math.PI*1.5,Math.Tau}){
+            foreach(var sheet in sheets)sheet.Turn(angle);
+            Layout();Capture("Giro-"+(int)Math.Round(angle*180/Math.PI));
+        }
         foreach(var book in books.Take(3))book.ShowJacket(true);
         Layout();Capture("Contraportadas");
         return true;
@@ -202,6 +207,3 @@ public sealed partial class Studio
         list.Children.Add(Action("+ Añadir entrada", () => { c.Entries.Add(new()); Changed(); Editor(); })); body.Children.Add(list);
     }
 }
-
-
-

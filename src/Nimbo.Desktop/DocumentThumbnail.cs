@@ -9,15 +9,34 @@ namespace Nimbo.Desktop;
 
 public sealed partial class Studio
 {
-    sealed class TurningSheet(Control paper,Action open):Button
+    sealed class TurningSheet : Button
     {
+        readonly Control front,back,edge;
+        readonly Action open;
+        readonly double width,thickness;
         Point? origin;
         double angle,start;
         bool moved;
-        void Turn(double value){
-            angle=value%(Math.PI*2);
-            var scale=Math.Max(.018,Math.Abs(Math.Cos(angle)));
-            paper.RenderTransform=new MatrixTransform(new Matrix(scale,.08*Math.Sin(angle),0,1,0,0));
+
+        public TurningSheet(Control front,Control back,Control edge,double width,double thickness,Action open)
+        {
+            this.front=front;this.back=back;this.edge=edge;
+            this.width=width;this.thickness=thickness;this.open=open;
+            Turn(0);
+        }
+
+        internal void Turn(double value)
+        {
+            angle=value%Math.Tau;
+            var c=Math.Cos(angle);var s=Math.Sin(angle);
+            bool facingFront=c>=0;
+            front.IsVisible=facingFront;back.IsVisible=!facingFront;
+            var face=facingFront?front:back;
+            double side=facingFront?1:-1;
+            // Project the two sheets and their shared cut edge around a fixed vertical axis.
+            face.RenderTransform=new MatrixTransform(new Matrix(Math.Abs(c),-.12*s*side,0,1,side*thickness*s/2,.12*side*thickness*c/2));
+            var rimSide=s>=0?-1:1;
+            edge.RenderTransform=new MatrixTransform(new Matrix(Math.Abs(s),.12*c*(-rimSide),0,1,rimSide*width*c/2,-.12*rimSide*width*s/2));
         }
         protected override void OnClick()=>open();
         protected override void OnPointerPressed(PointerPressedEventArgs e){
@@ -35,6 +54,7 @@ public sealed partial class Studio
         }
         protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e){origin=null;base.OnPointerCaptureLost(e);}
         protected override void OnKeyDown(KeyEventArgs e){
+            if(e.Key is Key.Home or Key.End){Turn(e.Key==Key.Home?0:Math.PI);e.Handled=true;return;}
             if(e.Key is Key.Left or Key.Right){Turn(angle+(e.Key==Key.Left?-1:1)*Math.PI/8);e.Handled=true;}else base.OnKeyDown(e);
         }
     }
@@ -45,30 +65,34 @@ public sealed partial class Studio
         var edge=Color.TryParse(entry.Color,out var color)?new SolidColorBrush(color):Brush.Parse(palette.Binding);
         double width=slide?145:113,height=slide?82:155;
         var paper=Brush.Parse(slide?"#192C39":"#F7F3EB");
-        var sheets=new Grid{Width=width+5,Height=height+5};
-        for(int offset=4;offset>=0;offset-=2){
-            var face=new Border{Width=width,Height=height,HorizontalAlignment=HorizontalAlignment.Left,
-                VerticalAlignment=VerticalAlignment.Top,Margin=new Thickness(offset,offset,0,0),
-                Background=offset==0?paper:Brush.Parse(slide?"#516472":"#CCC9BF"),BorderThickness=new Thickness(.8),BorderBrush=Brush.Parse("#9B998D")};
-            sheets.Children.Add(face);
-            if(offset!=0)continue;
+        Border Face(bool reverse)
+        {
             var design=new Grid{ClipToBounds=true};
-            if(entry.Cover!="" && Thumbnail(Path.Combine(shelf.Media,Path.GetFileName(entry.Cover)),360,height-2) is {} image){
+            var face=new Border{Width=width,Height=height,Child=design,Background=paper,
+                BorderThickness=new Thickness(.8),BorderBrush=Brush.Parse(slide?"#506776":"#B5B1A6")};
+            if(!reverse && entry.Cover!="" && Thumbnail(Path.Combine(shelf.Media,Path.GetFileName(entry.Cover)),360,height-2) is {} image){
                 image.HorizontalAlignment=HorizontalAlignment.Stretch;image.Stretch=Stretch.Uniform;design.Children.Add(image);
             }else{
-                var line=new Border{Height=slide?5:2,VerticalAlignment=slide?VerticalAlignment.Bottom:VerticalAlignment.Top,
-                    Background=edge,Margin=slide?new Thickness(0):new Thickness(12,15,12,0)};
-                design.Children.Add(line);
-                design.Children.Add(new TextBlock{Text=entry.Title,FontSize=slide?16:15,FontWeight=FontWeight.SemiBold,
+                design.Children.Add(new Border{Height=slide?5:2,VerticalAlignment=slide?VerticalAlignment.Bottom:VerticalAlignment.Top,
+                    Background=edge,Margin=slide?new Thickness(0):new Thickness(12,15,12,0)});
+                design.Children.Add(new TextBlock{Text=entry.Title,FontSize=slide?15:13,FontWeight=FontWeight.SemiBold,
                     Foreground=slide?Brushes.Ivory:Brush.Parse("#26343C"),TextWrapping=TextWrapping.Wrap,TextTrimming=TextTrimming.CharacterEllipsis,
-                    MaxLines=slide?3:5,Margin=new Thickness(12,slide?8:26,12,9),VerticalAlignment=slide?VerticalAlignment.Center:VerticalAlignment.Top});
+                    MaxLines=slide?3:4,Margin=new Thickness(12,slide?6:23,12,10),VerticalAlignment=slide?VerticalAlignment.Center:VerticalAlignment.Top});
+                if(!slide)
+                    for(int n=0;n<(reverse?6:4);n++)
+                        design.Children.Add(new Border{Height=1,Background=Brush.Parse("#C9C6BD"),VerticalAlignment=VerticalAlignment.Bottom,
+                            Margin=new Thickness(12,0,n%3==0?33:13,17+n*7)});
             }
-            face.Child=design;
+            return face;
         }
-        var canvas=new Grid{Width=155,Height=210};sheets.VerticalAlignment=VerticalAlignment.Bottom;sheets.Margin=new Thickness(0,0,0,15);canvas.Children.Add(sheets);
-        var button=new TurningSheet(sheets,open){Content=canvas,Name=slide?"MiniDiapositiva":"MiniDocumento",Padding=new Thickness(0),Background=Brushes.Transparent,
-            BorderThickness=new Thickness(0),HorizontalContentAlignment=HorizontalAlignment.Center};
-        Avalonia.Automation.AutomationProperties.SetName(button,entry.Title);ToolTip.SetTip(button,entry.Title);
+        var front=Face(false);var back=Face(true);double thickness=slide?4:5;
+        var rim=new Border{Width=thickness,Height=height,Background=Brush.Parse(slide?"#627987":"#C8C3B6")};
+        var stack=new Grid{Width=155,Height=height+24,VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(0,0,0,4)};
+        stack.Children.Add(rim);stack.Children.Add(back);stack.Children.Add(front);
+        var canvas=new Grid{Width=155,Height=210,Background=Brushes.Transparent};canvas.Children.Add(stack);
+        var button=new TurningSheet(front,back,rim,width,thickness,open){Content=canvas,Name=slide?"MiniDiapositiva":"MiniDocumento",Padding=new Thickness(0),Background=Brushes.Transparent,
+            BorderThickness=new Thickness(0),HorizontalContentAlignment=HorizontalAlignment.Center,Cursor=new Cursor(StandardCursorType.Hand)};
+        Avalonia.Automation.AutomationProperties.SetName(button,entry.Title);ToolTip.SetTip(button,entry.Title+" · Arrastra para girar o usa las flechas. Inicio y Fin muestran cada cara.");
         return button;
     }
 }
