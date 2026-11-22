@@ -201,7 +201,9 @@ public sealed partial class Studio
             }
             var barFrame=new Border{Background=EditionPalette.Mix(palette.Detail,IsLight?"#FFFFFF":"#252527",IsLight?.85:.78),IsVisible=!work.FocusWriting,Child=bar,BorderBrush=Edge,BorderThickness=new Thickness(0,1),Padding=new Thickness(0,4)};
             if(work.FocusWriting)top.Children.Add(QuietAction("Formato",()=>barFrame.IsVisible=!barFrame.IsVisible));
-            body.Children.Add(barFrame);AddSearch(root,body,bar,draft);body.Children.Add(draft.View);
+            var fixedTools=Column(0);fixedTools.Name="HerramientasDeEscritura";fixedTools.MaxWidth=body.MaxWidth;fixedTools.HorizontalAlignment=HorizontalAlignment.Stretch;
+            fixedTools.Children.Add(barFrame);DockPanel.SetDock(fixedTools,Dock.Top);root.Children.Add(fixedTools);
+            AddSearch(root,fixedTools,bar,draft);body.Children.Add(draft.View);
             var count=Label("",12);void Count(){var words=System.Text.RegularExpressions.Regex.Count(Illustrations.Marker().Replace(c.PlainText," ").Replace("[[Página]]"," "), @"[\p{L}\p{N}]+");count.Text=$"{words:N0} palabras   ·   {Math.Max(1,(int)Math.Ceiling(words/210d))} min de lectura";}Count();draft.Edited+=Count;body.Children.Add(count);
             if(c.Images.Count!=0 && !illustrated){
                 var assets=new Expander{Header=$"Ilustraciones de la sección  ·  {c.Images.Count}",HorizontalAlignment=HorizontalAlignment.Stretch};

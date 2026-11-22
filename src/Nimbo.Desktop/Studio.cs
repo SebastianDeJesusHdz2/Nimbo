@@ -34,6 +34,7 @@ public sealed partial class Studio : Window
     {
         shelf=new Shelf(testLibrary??UserLibrary.OpenDirectory(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)));
         session = new(shelf);
+        using(var icon=Avalonia.Platform.AssetLoader.Open(new Uri("avares://Nimbo.Desktop/Art/nimbo.png")))Icon=new WindowIcon(icon);
         Title = "Nimbo"; Width = 1280; Height = 850;WindowState=WindowState.Maximized; MinWidth = 760; MinHeight = 540;
         Background = Brush.Parse("#141C23");
         var frame = new DockPanel();

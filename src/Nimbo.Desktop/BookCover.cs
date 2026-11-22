@@ -75,6 +75,7 @@ internal sealed class BookCover : Control
     static readonly IBrush clothLight=Wash(false,(0,"#55111618"),(.035,"#44FFEBBB"),(.073,"#780C1618"),(.095,"#33FFF2D3"),(.22,"#08FFFFFF"),(1,"#420B1518"));
     static readonly IBrush leaves=Wash(false,(0,"#B7A685"),(.35,"#E9DEC4"),(.8,"#F7EAD6"),(1,"#BCAA8E"));
     FormattedText? blurb;
+    Geometry? synopsisOutline;
     void DrawSynopsis(DrawingContext dc,Rect box,IBrush ink)
     {
         if(blurb==null){
@@ -98,7 +99,13 @@ internal sealed class BookCover : Control
                 blurb=Set(excerpt+"…",minimum);
             }
         }
-        using(dc.PushClip(box))dc.DrawText(blurb,box.TopLeft);
+        using(dc.PushClip(box)){
+            if(entry.Lettering=="Carbón"){
+                synopsisOutline??=blurb.BuildGeometry(box.TopLeft);
+                if(synopsisOutline!=null)dc.DrawGeometry(null,new Pen(Brush.Parse("#B8EACFAC"),.65),synopsisOutline);
+            }
+            dc.DrawText(blurb,box.TopLeft);
+        }
     }
     public override void Render(DrawingContext dc)
     {
@@ -115,7 +122,10 @@ internal sealed class BookCover : Control
                 Trimming = TextTrimming.CharacterEllipsis,
                 TextAlignment = TextAlignment.Center
             };
-            using (dc.PushClip(bounds)) dc.DrawText(fmt, bounds.TopLeft);
+            using (dc.PushClip(bounds)){
+                if(entry.Lettering=="Carbón" && brush==ink && fmt.BuildGeometry(bounds.TopLeft) is {} outline)dc.DrawGeometry(null,new Pen(Brush.Parse("#B8EACFAC"),1),outline);
+                dc.DrawText(fmt,bounds.TopLeft);
+            }
         }
         const double w=131,h=176,d=21;
         double depth(double x,double z)=>z*cos-x*sin;
@@ -148,11 +158,9 @@ internal sealed class BookCover : Control
             if(front && art!=null){
                 double scale=Math.Max(w/art.Size.Width,h/art.Size.Height);var size=new Size(w/scale,h/scale);
                 dc.DrawImage(art,new Rect((art.Size.Width-size.Width)/2,(art.Size.Height-size.Height)/2,size.Width,size.Height),new Rect(0,0,w,h));
-                if(entry.Lettering=="Carbón")dc.DrawRectangle(Brush.Parse("#BDFFF9E9"),null,new Rect(0,0,w,h));
-                else dc.DrawRectangle(jacketShade,null,new Rect(0,0,w,h));
+                if(entry.Lettering!="Carbón")dc.DrawRectangle(jacketShade,null,new Rect(0,0,w,h));
             }else{
-                if(entry.Lettering=="Carbón")dc.DrawRectangle(Brush.Parse("#BDFFF9E9"),null,new Rect(0,0,w,h));
-                else dc.DrawRectangle(jacketShade,null,new Rect(0,0,w,h));
+                if(entry.Lettering!="Carbón")dc.DrawRectangle(jacketShade,null,new Rect(0,0,w,h));
                 if(front){
                     var binding=new Pen(gold,.7);
                     var stamp=Studio.JacketStamp(entry.Id);
@@ -172,7 +180,7 @@ internal sealed class BookCover : Control
                 Words(entry.Title,new Rect(13,110,w-22,41),16,ink);
                 Words(entry.Author,new Rect(13,154,w-22,15),10,ink);
             }else{
-                dc.DrawRectangle(Brush.Parse(entry.Lettering=="Carbón"?"#BBFFF9E9":"#7F12181B"),null,new Rect(0,0,w,h));
+                if(entry.Lettering!="Carbón")dc.DrawRectangle(Brush.Parse("#7F12181B"),null,new Rect(0,0,w,h));
                 dc.DrawRectangle(null,foil,new Rect(7,6,w-14,h-12));
                 dc.DrawLine(foil,new Point(46,21),new Point(w-46,21));
                 DrawSynopsis(dc,new Rect(16,30,w-32,111),ink);
@@ -212,7 +220,7 @@ internal sealed class BookCover : Control
         }
         foreach(var face in faces.OrderBy(f=>f.Z))face.Draw();
         if(sin>.42)Face(-w/2-4,-d*.37,-w/2-4,d*.37,d*.74,()=>{
-            dc.DrawRectangle(entry.Lettering=="Carbón"?Brush.Parse("#FFF5D9"):EditionPalette.Mix(color.ToString(),"#10141A",.74),null,new Rect(0,15,d*.74,h-30));
+            if(entry.Lettering!="Carbón")dc.DrawRectangle(EditionPalette.Mix(color.ToString(),"#10141A",.74),null,new Rect(0,15,d*.74,h-30));
             using(dc.PushTransform(Matrix.CreateRotation(-Math.PI/2)*Matrix.CreateTranslation(1,h-18)))
                 Words(entry.Title,new Rect(0,0,h-36,d*.72),11,ink);
         });

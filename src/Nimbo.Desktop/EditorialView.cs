@@ -39,7 +39,9 @@ public sealed partial class Studio
         novel.Chapters.Add(new(){Title="El herbario",Order=1});novel.Chapters.Add(new(){Title="Cartas desde el puerto",Order=2});
         town.Background="Puerto de canales estrechos al pie de los invernaderos.";botanist.Age="32 años";botanist.Pinned=true;
         novel.Glossary.AddRange([town,botanist,new Node{Name="Casa de cristal",NodeKind="Lugar",ParentId=town.Id,Background="Invernadero orientado al este."}]);Open(novel,shelf.Save(novel,0));Layout();
-        if(!Visible("Índice del manuscrito"))return Fail();Capture("Manuscrito");
+        if(!Visible("Índice del manuscrito") || Icon==null)return Fail();
+        var tools=page.GetVisualDescendants().OfType<StackPanel>().Single(v=>v.Name=="HerramientasDeEscritura");
+        if(tools.GetVisualAncestors().OfType<ScrollViewer>().Any())return Fail();Capture("Manuscrito");
         static TextBox? NoteIn(Control root)=>root.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(b=>Avalonia.Automation.AutomationProperties.GetName(b)=="Notas de la sección");
         TextBox? OpenPocket(out Flyout? popup){
             popup=null;
@@ -91,6 +93,7 @@ public sealed partial class Studio
         var slides=Format.All.Single(f=>f.Name=="Presentación").Create("El cielo en invierno");slides.CoverImage=illustrated.Images[0];shelf.Save(slides,0);
         foreach(var name in new[]{"Bajo el hielo","Manual de mareas","Cantos del sur","Las manos del reloj","La memoria del muelle","Voces del camino","La carta de Aro","Cuaderno de campo"}){
             var book=Format.All.First(f=>f.Name=="Novela").Create(name);
+            if(name=="Bajo el hielo")book.CoverLettering="Carbón";
             book.CoverColor=palette.Swatches[name.Length%palette.Swatches.Length];book.Author="Inés Salgado";
             book.Description="La carta llegó sin dirección. Inés reconoció el papel por las motas de sal que aún guardaba el pliegue. Alguien había trazado a lápiz la costa de una isla que solo se veía en bajamar. En la esquina, una letra diminuta indicaba la hora del último barco.";
             shelf.Save(book,0);

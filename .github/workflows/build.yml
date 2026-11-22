@@ -84,7 +84,9 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then test "$version" = "${GITHUB_REF_NAME#v}"; fi
           printf '%s\n' "Nimbo · GPL-3.0-only" "https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA" > artifacts/app/FUENTES.txt
           test -s artifacts/app/LICENSE
-          ./tools/vpk pack --packId Nimbo --packTitle Nimbo --packVersion "$version" --runtime ${{ matrix.rid }} --packDir artifacts/app --mainExe ${{ matrix.exe }} --outputDir artifacts/release
+          icon=src/Nimbo.Desktop/Art/nimbo.png
+          if [[ "$RUNNER_OS" == Windows ]]; then icon=src/Nimbo.Desktop/Art/nimbo.ico; fi
+          ./tools/vpk pack --icon "$icon" --packId Nimbo --packTitle Nimbo --packVersion "$version" --runtime ${{ matrix.rid }} --packDir artifacts/app --mainExe ${{ matrix.exe }} --outputDir artifacts/release
       - if: runner.os == 'Linux'
         run: cp -r packaging/instalar-linux.sh "$RUNNER_TEMP/Biblioteca.png" "$RUNNER_TEMP/vistas" "$RUNNER_TEMP/CV" artifacts/release/
       - name: Instalar y abrir desde el escritorio de Linux

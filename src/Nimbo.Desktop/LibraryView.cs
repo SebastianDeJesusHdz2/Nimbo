@@ -141,7 +141,7 @@ public sealed partial class Studio
                     var commands=new List<MenuItem>{MenuAction("Ficha de la obra",()=>Run(()=>Ficha(entry))),MenuAction("Cambiar colección…",async()=>await Guard(()=>Organize(entry)))};
                     if(menu.ItemsSource is IEnumerable<MenuItem> previous)commands.AddRange(previous);
                     menu.ItemsSource=commands;book.ContextMenu=menu;
-                    tag.Content= new TextBlock{Text="Ficha · "+entry.Title,FontSize=11,TextTrimming=TextTrimming.CharacterEllipsis,Foreground=Brush.Parse("#352A24")};
+                    caption.Foreground=Brush.Parse("#352A24");ToolTip.SetTip(tag,"Abrir ficha de la obra");
                     books.Children.Add(slot);
                 }else{var record=Column(4);record.Width=215;record.Children.Add(Label(entry.Type));record.Children.Add(Display(entry.Title,20));if(entry.Author!="")record.Children.Add(Label(entry.Author));var open=Action("",()=>Run(()=>{var item=shelf.Open(entry.Id);Open(item.Work,item.Revision);}));open.Content=record;open.Margin=new Thickness(0,0,8,8);open.Content=record;open.Margin=new Thickness(0,0,8,4);var item=Column(2);item.Children.Add(open);item.Children.Add(QuietAction("Ficha de la obra",()=>Run(()=>Ficha(entry))));books.Children.Add(item);}
             }
