@@ -96,9 +96,9 @@ public sealed partial class Studio
         slides.Chapters[0].Layout="Portada";slides.Chapters[0].Images.Add(illustrated.Images[0]);
         slides.Chapters[1].Layout="Ficha de concepto";slides.Chapters[1].Detail="Aventura astronómica";slides.Chapters[1].Summary="Observa las constelaciones de invierno desde la cúpula.";slides.Chapters[1].Images.Add(illustrated.Images[0]);slides.Chapters[1].ImageLayouts[0]="Plataforma";
         Open(slides,shelf.Save(slides,0));Layout();
-        if(masthead.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="NavGlosario") || !Visible("Vista en vivo de la diapositiva (16:9)"))return Fail();
+        if(masthead.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="NavGlosario") || !page.GetVisualDescendants().OfType<TextBlock>().Any(t=>t.Text!=null && t.Text.Contains("VISTA PREVIA EN VIVO",StringComparison.OrdinalIgnoreCase)))return Fail();
         ReadSection(slides.Chapters[1]);Layout();Capture("Lectura-presentacion");
-        if(!Visible("Modo presentación 16:9") || !Visible("Plataforma"))return Fail();
+        if(!page.GetVisualDescendants().OfType<TextBlock>().Any(t=>t.Text!=null && t.Text.Contains("MODO PRESENTACIÓN 16:9",StringComparison.OrdinalIgnoreCase)) || !Visible("Plataforma"))return Fail();
         foreach(var docFormat in Format.All.Where(f=>f.Name is not ("Novela" or "CV" or "Presentación"))){
             var docWork=docFormat.Create("Muestra de "+docFormat.Name);
             docWork.Author="Inés Salgado";

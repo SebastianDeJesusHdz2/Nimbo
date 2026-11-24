@@ -190,6 +190,70 @@ public static class Publisher
         return (refs, keys, extra);
     }
 
+    static List<(string Title, string Subtitle, List<string> Lines)> ParseSlideCards(string plainText)
+    {
+        var cards = new List<(string Title, string Subtitle, List<string> Lines)>();
+        var lines = plainText.ReplaceLineEndings("\n").Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i].Trim();
+            if (line.Length == 0 || (line.StartsWith("[[") && line.EndsWith("]]"))) continue;
+            if (line.StartsWith('|') && line.EndsWith('|') && line.Length > 2)
+            {
+                var rows = new List<string[]>();
+                do
+                {
+                    var cells = lines[i].Trim().Trim('|').Split('|').Select(c => c.Trim()).ToArray();
+                    if (!cells.All(c => Regex.IsMatch(c, @"^:?-+:?$"))) rows.Add(cells);
+                    i++;
+                } while (i < lines.Length && lines[i].Trim().StartsWith('|') && lines[i].Trim().EndsWith('|'));
+                i--;
+                int startRow = rows.Count > 1 && rows[0].Any(c => Regex.IsMatch(c, @"^(Indicador|Métrica|KPI|Fase|Etapa|Pilar|Columna|Cuadrante|Elemento|Título|Opción|Criterio|Antes)\b", RegexOptions.IgnoreCase)) ? 1 : 0;
+                for (int r = startRow; r < rows.Count; r++)
+                {
+                    var row = rows[r];
+                    if (row.Length == 0 || row.All(string.IsNullOrWhiteSpace)) continue;
+                    string title = row[0].Replace("**", "").Trim();
+                    string sub = row.Length > 1 ? row[1].Replace("**", "").Trim() : "";
+                    var body = row.Skip(2).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Replace("**", "").Trim()).ToList();
+                    cards.Add((title, sub, body));
+                }
+                continue;
+            }
+            if (line.StartsWith("### ") || line.StartsWith("## "))
+            {
+                var rawHead = line.TrimStart('#').Trim();
+                var parts = rawHead.Split('|', 2, StringSplitOptions.TrimEntries);
+                cards.Add((parts[0], parts.Length > 1 ? parts[1] : "", []));
+                continue;
+            }
+            var cleaned = Regex.Replace(line, @"^(?:-\s*|[1-9][0-9]*[\.\)]\s*)", "").Trim();
+            if (cards.Count > 0 && (line.StartsWith("- ") || !line.Contains(':')))
+            {
+                if (cards[^1].Subtitle == "" && cards[^1].Lines.Count == 0 && cleaned.Length <= 28)
+                {
+                    var last = cards[^1];
+                    cards[^1] = (last.Title, cleaned.Replace("**", ""), last.Lines);
+                }
+                else
+                {
+                    cards[^1].Lines.Add(cleaned.Replace("**", ""));
+                }
+            }
+            else if (cleaned.Contains(':'))
+            {
+                var colon = cleaned.Split(':', 2, StringSplitOptions.TrimEntries);
+                var rhs = colon[1].Split('|', StringSplitOptions.TrimEntries);
+                cards.Add((colon[0].Replace("**", ""), rhs[0].Replace("**", ""), rhs.Skip(1).ToList()));
+            }
+            else
+            {
+                cards.Add((cleaned.Replace("**", ""), "", []));
+            }
+        }
+        return cards;
+    }
+
     static void BuildPresentationTex(StringBuilder tex, Work work, string accent, Action<string> copyImage)
     {
         string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
@@ -469,6 +533,156 @@ public static class Publisher
             tex.AppendLine(@"\draw[SlideGold,line width=1.6bp] (38,66) -- (922,66);");
 
             var used = new HashSet<int>();
+            if (layout == "Cita o conclusión destacada")
+            {
+                var mainQuote = chapter.PlainText.Replace("> ", "").Trim();
+                if (mainQuote == "") mainQuote = chapter.Summary != "" ? chapter.Summary : chapter.Title;
+                tex.AppendLine(@"\fill[SlideNavy,rounded corners=8bp,draw=SlideGold,line width=1.6bp] (38,88) rectangle (922,474);");
+                tex.AppendLine(@"\node[anchor=center,text=white] at (480,260) {\parbox{780bp}{\centering\hyphenpenalty=10000\exhyphenpenalty=10000{\fontsize{21}{28}\selectfont\itshape\bfseries ``" + InlineParagraphs(mainQuote) + @"''\par}");
+                tex.AppendLine(@"\vspace{14bp}{\color{SlideGold}\rule{180bp}{2bp}\par}");
+                if (chapter.Summary != "" && chapter.PlainText.Trim() != "")
+                    tex.AppendLine(@"\vspace{12bp}{\fontsize{13}{17}\selectfont\color{SlideCream} " + InlineParagraphs(chapter.Summary) + @"\par}");
+                tex.AppendLine(@"}};");
+                EndSlide();
+                continue;
+            }
+
+            if (layout is "Tres columnas" or "Cuadrícula 2x2" or "Métricas e indicadores (KPIs)" or "Línea de tiempo / Roadmap" or "Comparativa (Antes / Después)")
+            {
+                var cards = ParseSlideCards(chapter.PlainText);
+                if (cards.Count == 0)
+                    cards.Add((chapter.Title, chapter.Detail, [chapter.PlainText]));
+                double areaBottom = chapter.Summary != "" ? 464 : 512;
+                double areaH = areaBottom - 82;
+
+                if (layout == "Métricas e indicadores (KPIs)")
+                {
+                    int kCount = Math.Clamp(cards.Count, 1, 4);
+                    double gap = 14;
+                    double cardW = (884 - gap * (kCount - 1)) / kCount;
+                    for (int i = 0; i < kCount; i++)
+                    {
+                        var item = cards[i];
+                        var bigVal = item.Subtitle != "" ? item.Subtitle : item.Title;
+                        var lbl = item.Subtitle != "" ? item.Title : (item.Lines.FirstOrDefault() ?? $"Indicador {i + 1}");
+                        var desc = item.Subtitle != "" ? string.Join(" · ", item.Lines) : string.Join(" · ", item.Lines.Skip(1));
+                        double x = 38 + i * (cardW + gap);
+                        tex.AppendLine(@"\fill[white,rounded corners=6bp,draw=SlideGold,line width=1bp] (" + F(x) + ",84) rectangle (" + F(x + cardW) + "," + F(areaBottom) + ");");
+                        tex.AppendLine(@"\node[anchor=center,text=SlideInk] at (" + F(x + cardW / 2) + "," + F(84 + areaH / 2) + @") {\parbox{" + F(cardW - 22) + @"bp}{\centering\hyphenpenalty=10000\exhyphenpenalty=10000");
+                        tex.AppendLine(@"{\fontsize{11}{14}\selectfont\bfseries\color{SlideTeal} " + Escape(lbl.ToUpperInvariant()) + @"\par}\vspace{10bp}");
+                        tex.AppendLine(@"{\fontsize{31}{35}\selectfont\bfseries\color{SlideNavy} " + Escape(bigVal) + @"\par}\vspace{10bp}");
+                        tex.AppendLine(@"{\color{SlideGold}\rule{64bp}{1.6bp}\par}");
+                        if (desc != "")
+                            tex.AppendLine(@"\vspace{10bp}{\fontsize{11}{14.5}\selectfont\color{SlideMuted} " + InlineParagraphs(desc) + @"\par}");
+                        tex.AppendLine(@"}};");
+                    }
+                }
+                else if (layout == "Línea de tiempo / Roadmap")
+                {
+                    int tCount = Math.Clamp(cards.Count, 1, 5);
+                    double gap = 12;
+                    double cardW = (884 - gap * (tCount - 1)) / tCount;
+                    for (int i = 0; i < tCount; i++)
+                    {
+                        var item = cards[i];
+                        double x = 38 + i * (cardW + gap);
+                        string badgeCol = i % 2 == 0 ? "SlideNavy" : "SlideTeal";
+                        tex.AppendLine(@"\fill[white,rounded corners=6bp,draw=SlideNavy!30,line width=0.7bp] (" + F(x) + ",84) rectangle (" + F(x + cardW) + "," + F(areaBottom) + ");");
+                        tex.AppendLine(@"\fill[" + badgeCol + @",rounded corners=4bp] (" + F(x + 8) + ",92) rectangle (" + F(x + cardW - 8) + ",126);");
+                        tex.AppendLine(@"\node[anchor=west,text=white] at (" + F(x + 14) + @",109) {\parbox{" + F(cardW - 28) + @"bp}{\raggedright\fontsize{10.5}{12.5}\selectfont\bfseries " + $"{i + 1:D2} · " + Escape(item.Title) + @"}};");
+                        var bodySb = new StringBuilder();
+                        if (item.Subtitle != "")
+                            bodySb.AppendLine(@"{\fontsize{10.5}{13}\selectfont\bfseries\color{SlideGold} " + Escape(item.Subtitle) + @"\par}\vspace{4bp}");
+                        foreach (var l in item.Lines.Take(5))
+                            bodySb.AppendLine(@"\noindent{\color{SlideTeal}\textbullet}\enspace " + InlineParagraphs(l) + @"\par\vspace{3bp}");
+                        tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (" + F(x + 10) + @",136) {\parbox{" + F(cardW - 20) + @"bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{10.5}{13.5}\selectfont " + bodySb + @"}};");
+                    }
+                }
+                else if (layout == "Cuadrícula 2x2")
+                {
+                    double gapX = 16, gapY = 14;
+                    double cardW = (884 - gapX) / 2;
+                    double cardH = (areaH - gapY) / 2;
+                    for (int i = 0; i < Math.Min(4, cards.Count); i++)
+                    {
+                        var item = cards[i];
+                        int r = i / 2, c = i % 2;
+                        double x = 38 + c * (cardW + gapX);
+                        double y = 84 + r * (cardH + gapY);
+                        tex.AppendLine(@"\fill[white,rounded corners=6bp,draw=SlideNavy!30,line width=0.7bp] (" + F(x) + "," + F(y) + ") rectangle (" + F(x + cardW) + "," + F(y + cardH) + ");");
+                        var bodySb = new StringBuilder();
+                        bodySb.AppendLine(@"{\fontsize{14}{17}\selectfont\bfseries\color{" + (i % 2 == 0 ? "SlideNavy" : "SlideTeal") + @"} " + Escape(item.Title) + @"\par}");
+                        if (item.Subtitle != "")
+                            bodySb.AppendLine(@"\vspace{2bp}{\fontsize{10.5}{13}\selectfont\bfseries\color{SlideMuted} " + Escape(item.Subtitle) + @"\par}");
+                        bodySb.AppendLine(@"\vspace{4bp}{\color{SlideGold}\rule{\linewidth}{1bp}\par}\vspace{4bp}");
+                        foreach (var l in item.Lines.Take(4))
+                            bodySb.AppendLine(@"\noindent{\color{SlideGold}\textbullet}\enspace " + InlineParagraphs(l) + @"\par\vspace{2.5bp}");
+                        tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (" + F(x + 14) + "," + F(y + 12) + @") {\parbox{" + F(cardW - 28) + @"bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{11}{14}\selectfont " + bodySb + @"}};");
+                    }
+                }
+                else
+                {
+                    int colCount = layout == "Comparativa (Antes / Después)" ? 2 : 3;
+                    double gap = 16;
+                    double cardW = (884 - gap * (colCount - 1)) / colCount;
+                    for (int i = 0; i < Math.Min(colCount, cards.Count); i++)
+                    {
+                        var item = cards[i];
+                        double x = 38 + i * (cardW + gap);
+                        string headCol = i == 0 ? "SlideNavy" : "SlideTeal";
+                        tex.AppendLine(@"\fill[white,rounded corners=6bp,draw=SlideNavy!30,line width=0.7bp] (" + F(x) + ",84) rectangle (" + F(x + cardW) + "," + F(areaBottom) + ");");
+                        tex.AppendLine(@"\fill[" + headCol + @",rounded corners=4bp] (" + F(x + 10) + ",94) rectangle (" + F(x + cardW - 10) + ",130);");
+                        tex.AppendLine(@"\node[anchor=west,text=white] at (" + F(x + 18) + @",112) {\parbox{" + F(cardW - 36) + @"bp}{\raggedright\fontsize{12.5}{15}\selectfont\bfseries " + Escape(item.Title) + @"}};");
+                        double contentTop = 140;
+                        if (i < chapter.Images.Count)
+                        {
+                            copyImage(chapter.Images[i]);
+                            tex.AppendLine(@"\node[anchor=north,inner sep=0pt] at (" + F(x + cardW / 2) + @",140) {\includegraphics[width=" + F(cardW - 24) + @"bp,height=110bp,keepaspectratio]{media/" + chapter.Images[i] + @"}};");
+                            contentTop = 258;
+                        }
+                        var bodySb = new StringBuilder();
+                        if (item.Subtitle != "")
+                            bodySb.AppendLine(@"{\fontsize{11}{13.5}\selectfont\bfseries\color{SlideTeal} " + Escape(item.Subtitle) + @"\par}\vspace{4bp}");
+                        foreach (var l in item.Lines.Take(5))
+                            bodySb.AppendLine(@"\noindent{\color{SlideGold}\textbullet}\enspace " + InlineParagraphs(l) + @"\par\vspace{3bp}");
+                        tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (" + F(x + 14) + "," + F(contentTop) + @") {\parbox{" + F(cardW - 28) + @"bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{11}{14.5}\selectfont " + bodySb + @"}};");
+                    }
+                }
+                if (chapter.Summary != "")
+                {
+                    tex.AppendLine(@"\fill[SlideCard,rounded corners=4bp,draw=SlideGold,line width=0.7bp] (38,476) rectangle (922,520);");
+                    tex.AppendLine(@"\node[anchor=west,text=SlideNavy] at (50,498) {\parbox{860bp}{\raggedright\fontsize{10.5}{13}\selectfont{\bfseries\color{SlideTeal}Síntesis:} " + InlineParagraphs(chapter.Summary) + @"}};");
+                }
+                EndSlide();
+                continue;
+            }
+
+            if (layout == "Galería triple")
+            {
+                double gap = 16;
+                double cardW = (884 - gap * 2) / 3;
+                double boxH = chapter.Summary != "" ? 330 : 380;
+                for (int i = 0; i < 3; i++)
+                {
+                    double x = 38 + i * (cardW + gap);
+                    tex.AppendLine(@"\fill[white,rounded corners=5bp,draw=SlideGold,line width=0.8bp] (" + F(x) + ",84) rectangle (" + F(x + cardW) + "," + F(84 + boxH) + ");");
+                    if (i < chapter.Images.Count)
+                    {
+                        copyImage(chapter.Images[i]);
+                        tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (" + F(x + cardW / 2) + "," + F(84 + boxH / 2 - 12) + @") {\includegraphics[width=" + F(cardW - 14) + @"bp,height=" + F(boxH - 42) + @"bp,keepaspectratio]{media/" + chapter.Images[i] + @"}};");
+                    }
+                    var cap = chapter.ImageCaptions.GetValueOrDefault(i, $"Lámina {i + 1}");
+                    tex.AppendLine(@"\node[anchor=south,text=SlideNavy] at (" + F(x + cardW / 2) + "," + F(84 + boxH - 6) + @") {\parbox{" + F(cardW - 12) + @"bp}{\centering\fontsize{10.5}{13}\selectfont\bfseries " + Escape(cap) + @"}};");
+                }
+                if (chapter.Summary != "")
+                {
+                    tex.AppendLine(@"\fill[SlideCard,rounded corners=4bp,draw=SlideGold,line width=0.7bp] (38,476) rectangle (922,520);");
+                    tex.AppendLine(@"\node[anchor=west,text=SlideNavy] at (50,498) {\parbox{860bp}{\raggedright\fontsize{10.5}{13}\selectfont{\bfseries\color{SlideTeal}Síntesis visual:} " + InlineParagraphs(chapter.Summary) + @"}};");
+                }
+                EndSlide();
+                continue;
+            }
+
             if (layout == "Tabla visual")
             {
                 var bodyTex = SlideRichText(chapter.PlainText, chapter, used, 884);

@@ -630,6 +630,140 @@ Las tres láminas documentan la estructura de salas (A–I), la distribución am
             Images = [hudScene3],
             ImageCaptions = new() { [0] = "Frenzied Dungeon: cuadrícula de alcance táctico, retrato de cristal y barra de acciones." },
             PlainText = "Vista final de combate por turnos con lectura simultánea de alcance azul/rojo y panel de habilidades."
+        },
+        new Chapter
+        {
+            Title = "Tres Pilares de Arquitectura Visual",
+            Order = 9,
+            Layout = "Tres columnas",
+            Detail = "Plantilla de 3 columnas comparativas",
+            Summary = "Los tres pilares aseguran consistencia estética desde el boceto inicial hasta la implementación en motor.",
+            PlainText = """
+### 1. Claridad Periférica | Lectura en < 1.5 s
+- Retrato, cordura y energía agrupados en el cuadrante superior izquierdo.
+- Zona central 16:9 libre de obstrucciones durante el combate.
+- Contrastes cromáticos validados sobre fondos oscuros.
+
+### 2. Diegesis Material | Inmersión en el mundo
+- Marcos forjados en hierro, pergamino y cristal arcano.
+- La vela funciona como temporizador real dentro de la escena.
+- Las rosas negras reflejan el desgaste psicológico.
+
+### 3. Modularidad 16:9 | Escalabilidad
+- Componentes vectoriales y sprites adaptables a 1080p y 4K.
+- Paletas codificadas por estrato subterráneo.
+- Exportación directa a dossier y presentación ejecutiva.
+"""
+        },
+        new Chapter
+        {
+            Title = "Indicadores Clave del Vertical Slice (KPIs)",
+            Order = 10,
+            Layout = "Métricas e indicadores (KPIs)",
+            Detail = "Tablero ejecutivo de métricas",
+            Summary = "Métricas verificadas durante las sesiones de prueba del Vertical Slice en los estratos L01 a L03.",
+            PlainText = """
+| Indicador | Valor | Detalle |
+|---|---|---|
+| Resolución nativa | 1920x1080 | Lienzo panorámico 16:9 sin recortes |
+| Lectura de HUD | 0.8 s | Tiempo medio de identificación de estado |
+| Tiempo de juego | 105 min | Recorrido táctico completo (N01 a N03) |
+| Plantillas activas | 17 | Composiciones profesionales de diapositiva |
+"""
+        },
+        new Chapter
+        {
+            Title = "Roadmap de Producción: Vertical Slice",
+            Order = 11,
+            Layout = "Línea de tiempo / Roadmap",
+            Detail = "Cronograma en 4 fases",
+            Summary = "Planificación escalonada desde la dirección de arte conceptual hasta el empaquetado final.",
+            PlainText = """
+### Fase 1: Concepto | Semanas 1 – 2
+- Definición de lore, landmarks L01–L03 y referencias.
+- Bocetos estructurales codificados por zonas.
+
+### Fase 2: Cartografía | Semanas 3 – 4
+- Distribución conceptual del Piso 85 (Salas A–I).
+- Construcción de tileset isométrico en Tiled.
+
+### Fase 3: Sistemas HUD | Semanas 5 – 6
+- Diseño de las 3 variantes de interfaz 16:9.
+- Integración de sprites reactivos y pruebas de lectura.
+
+### Fase 4: Cierre y QA | Semanas 7 – 8
+- Balance táctico del encuentro contra GRIM.
+- Publicación de dossier y presentación PDF.
+"""
+        },
+        new Chapter
+        {
+            Title = "Matriz 2x2 de Prioridades de Diseño",
+            Order = 12,
+            Layout = "Cuadrícula 2x2",
+            Detail = "Evaluación por cuadrantes",
+            Summary = "Clasificación de sistemas críticos para garantizar la entrega puntual del prototipo jugable.",
+            PlainText = """
+### Alto Impacto · Alta Prioridad | Núcleo jugable
+- Sincronización de patrullas por pulso en el Piso 85.
+- Temporizador diegético de vela y cordura en HUD.
+
+### Alto Impacto · Media Prioridad | Dirección visual
+- Transición ambiental de musgo oscuro a caliza blanca.
+- Iluminación cálida de faroles como guía de ruta.
+
+### Soporte Técnico · Alta Prioridad | Herramientas
+- Automatización de fichas de concepto y tablas sin cortes.
+- Validación de paletas Adobe Color en cinco muestras.
+
+### Expansión Futura · Post-Slice | Escalabilidad
+- Descenso a los estratos 86–100 de la Necrópolis.
+- Nuevas reliquias arcanas y árbol de sinergias.
+"""
+        },
+        new Chapter
+        {
+            Title = "Evolución Visual: Boceto vs. Render Final",
+            Order = 13,
+            Layout = "Comparativa (Antes / Después)",
+            Detail = "Contraste de etapas de producción",
+            Images = [l03Concept, l03Final],
+            Summary = "El paso de layout cromático a render iluminado conserva intacta la legibilidad espacial de la Cámara del Sol.",
+            PlainText = """
+### Etapa 1: Layout Estructural | Boceto de zonas
+- Codificación por bloques cromáticos para validar perspectiva.
+- Definición temprana de escala monumental y puntos de acceso.
+- Trazado de siluetas de árboles blancos y cúpula central.
+
+### Etapa 2: Arte Final Iluminado | Render de producción
+- Integración de atmósfera, reflejos en ríos carmesí y follaje.
+- Contraste dirigido hacia el altar solar del piso 85.
+- Texturizado completo listo para implementación en motor.
+"""
+        },
+        new Chapter
+        {
+            Title = "Galería Triple: Evolución Cartográfica Piso 85",
+            Order = 14,
+            Layout = "Galería triple",
+            Detail = "Tres etapas del nivel N01",
+            Images = [mapDist, mapScene, mapFinal],
+            ImageCaptions = new()
+            {
+                [0] = "1. Distribución conceptual (Salas A–I)",
+                [1] = "2. Ambientación de ríos rojos y árboles",
+                [2] = "3. Mapa final integrado en Tiled"
+            },
+            Summary = "Las tres láminas muestran la progresión completa desde el esquema táctico hasta el escenario jugable."
+        },
+        new Chapter
+        {
+            Title = "Principio Rector de Dirección Visual",
+            Order = 15,
+            Layout = "Cita o conclusión destacada",
+            Detail = "Conclusión ejecutiva",
+            Summary = "Estudio de Arte Conceptual y Diseño de Interfaces · Revisión 16:9",
+            PlainText = "Toda interfaz y composición espacial debe comunicar el riesgo, la ruta y el estado del jugador en un solo vistazo, convirtiendo la luz y el color en mecánicas vivas dentro del mundo."
         }
     ];
     examples.Add((presentacion, "03-Presentacion-Arquitectura-HUD-16x9.pdf"));

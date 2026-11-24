@@ -78,6 +78,15 @@ public sealed partial class Studio
             var sub=MenuAction("Añadir subcapítulo",()=>Add("Subchapter","Nuevo subcapítulo",parentChapter!.Id));
             sub.IsEnabled=parentChapter is {Level:"Chapter"};structure.Items.Add(sub);
         }
+        if(work.Type=="Presentación"){
+            foreach(var presetLayout in new[]{"Ficha de concepto","Tabla visual","Moodboard y paleta","Tres columnas","Cuadrícula 2x2","Métricas e indicadores (KPIs)","Línea de tiempo / Roadmap","Comparativa (Antes / Después)","Plano y leyenda","Galería triple","Imagen protagonista","Cita o conclusión destacada"}){
+                var preset=presetLayout;
+                structure.Items.Add(MenuAction("Añadir diapositiva: "+preset,()=>{
+                    chapter=new(){Title=preset,Level="Chapter",Order=work.Chapters.Count,Layout=preset};
+                    work.Chapters.Add(chapter);RememberSection(work,chapter);Changed();Editor();
+                }));
+            }
+        }
         if(chapter!=null){
             var siblings=work.Chapters.Where(c=>c.ParentId==chapter.ParentId).OrderBy(c=>c.Order).ToList();
             void Move(int step){
@@ -218,6 +227,11 @@ public sealed partial class Studio
             if(work.Type=="Presentación"){
                 insert.Items.Add(MenuAction("Listas de Ficha de concepto (Referencias y Key Words)",()=>Insert("\n| Referencias | Key Words |\n| Referencia 1 | Explorar |\n| Referencia 2 | Combatir |\n| Referencia 3 | Mejorar |\n| Referencia 4 | Investigar |\n| Referencia 5 | Sobrevivir |\n| Referencia 6 | Escapar |\n")));
                 insert.Items.Add(MenuAction("Tabla de HUD con imágenes",()=>Insert("\n| Imagen | Elemento | Uso y función | Estado o respuesta visual |\n| [[Imagen 1]] | Retrato | Identifica al personaje y su condición | Cambia según salud o estado |\n| [[Imagen 2]] | Indicador | Muestra el recurso principal en pantalla | Se consume gradualmente al usarse |\n")));
+                insert.Items.Add(MenuAction("Tarjetas de 3 columnas",()=>Insert("\n### Pilar 1: Claridad visual | Lectura inmediata\n- Jerarquía periférica limpia en proporción 16:9.\n- Contraste alto sobre fondos complejos.\n\n### Pilar 2: Respuesta diegética | Inmersión\n- Los indicadores pertenecen al universo de la obra.\n- Transiciones visuales reactivas al estado.\n\n### Pilar 3: Escalabilidad | Sistema modular\n- Componentes reutilizables y consistentes.\n- Adaptación directa a impresión y pantalla.\n")));
+                insert.Items.Add(MenuAction("Cuadrícula 2x2 (4 cuadrantes)",()=>Insert("\n### 1. Fortalezas de diseño | Núcleo visual\n- Identidad cromática definida y memorable.\n- Composición panorámica equilibrada.\n\n### 2. Oportunidades técnicas | Expansión\n- Plantillas modulares para múltiples entregas.\n- Integración con recursos de alta resolución.\n\n### 3. Riesgos controlados | Mitigación\n- Evitar saturación de texto en pantalla.\n- Mantener márgenes de seguridad 16:9.\n\n### 4. Criterios de validación | Entrega\n- Lectura en menos de 3 segundos por lámina.\n- Exportación vectorial nítida en PDF.\n")));
+                insert.Items.Add(MenuAction("Tarjetas de métricas (KPIs)",()=>Insert("\n| Indicador | Valor | Detalle |\n|---|---|---|\n| Resolución base | 1080p | Lienzo panorámico 16:9 (960x540 pt) |\n| Tiempo de lectura | < 1.5 s | Identificación inmediata de estado en HUD |\n| Escenarios validados | 100 % | Estratos L01 a L03 y Cámara del Sol |\n| Variantes visuales | 17 | Plantillas profesionales de diapositiva |\n")));
+                insert.Items.Add(MenuAction("Línea de tiempo / Roadmap",()=>Insert("\n### Fase 1: Concepto | Semana 1-2\n- Definición de pilares visuales y referencias.\n- Bocetos estructurales de zonas.\n\n### Fase 2: Prototipo | Semana 3-4\n- Construcción de mapas y pruebas de lectura.\n- Ajustes de paleta cromática.\n\n### Fase 3: Vertical Slice | Semana 5-6\n- Integración de HUD reactivo y sprites.\n- Balance de encuentro principal.\n\n### Fase 4: Entrega final | Semana 7-8\n- Empaquetado de dossier y presentación PDF.\n")));
+                insert.Items.Add(MenuAction("Comparativa (Antes / Después)",()=>Insert("\n### Antes: Boceto preliminar | Layout de zonas\n- Geometría base codificada por bloques de color.\n- Sin iluminación atmosférica ni texturas finales.\n- Jerarquía espacial en validación.\n\n### Después: Composición final | Render iluminado\n- Iluminación cálida de faroles frente a penumbra fría.\n- Texturas completas y profundidad ambiental.\n- Lectura inmediata de rutas y puntos focales.\n")));
             }
             insert.Items.Add(MenuAction("Paleta cromática",()=>Insert("\n[[Paleta: #E4D1A5 Luz cálida | #D99442 Ámbar | #7B8581 Piedra | #55705C Musgo | #182A27 Sombra]]\n")));
             if(!work.IsNovel && work.Type!="Presentación")insert.Items.Add(MenuAction("Bloque de firmas",()=>Insert("\n[[Firmas: Responsable 1 | Responsable 2]]\n")));
