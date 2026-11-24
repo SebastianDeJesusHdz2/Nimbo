@@ -46,9 +46,41 @@ public sealed partial class Studio
             {
                 foreach (var line in text.ReplaceLineEndings("\n").Split('\n').Where(l => l.Trim().Length > 0))
                 {
-                    if(work.IsNovel && line=="[[Página]]"){paper.Children.Add(new Separator());continue;} if (line.StartsWith("## ")) { paper.Children.Add(Display(line[3..], 24)); continue; }
+                    if(line=="[[Página]]" || line=="[[Índice]]"){paper.Children.Add(new Separator());continue;}
+                    if (line.StartsWith("### ")) { paper.Children.Add(Display(line[4..], 19)); continue; }
+                    if (line.StartsWith("## ")) { paper.Children.Add(Display(line[3..], 24)); continue; }
+                    if (line.StartsWith("[[Paleta:") && line.EndsWith("]]"))
+                    {
+                        var strip = new WrapPanel { Margin = new Thickness(0, 4) };
+                        foreach (var item in line[9..^2].Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        {
+                            var m = Regex.Match(item, @"^#?([0-9A-Fa-f]{6})(?:\s+(.*))?$");
+                            var hex = "#" + (m.Success ? m.Groups[1].Value.ToUpperInvariant() : "666666");
+                            var name = m.Success ? m.Groups[2].Value.Trim() : item;
+                            var swatch = Column(3); swatch.Width = 112; swatch.Margin = new Thickness(0, 0, 10, 8);
+                            swatch.Children.Add(new Border { Height = 32, Background = Color.TryParse(hex, out var col) ? new SolidColorBrush(col) : Brushes.Gray, CornerRadius = new CornerRadius(3), BorderBrush = Edge, BorderThickness = new Thickness(1) });
+                            swatch.Children.Add(Label(hex + (name != "" ? " · " + name : ""), 12));
+                            strip.Children.Add(swatch);
+                        }
+                        paper.Children.Add(strip); continue;
+                    }
+                    if (line.StartsWith("[[Firmas:") && line.EndsWith("]]"))
+                    {
+                        var signers = line[9..^2].Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                        var row = new Grid { ColumnDefinitions = new ColumnDefinitions(string.Join(",", signers.Select(_ => "*"))), Margin = new Thickness(0, 18, 0, 8) };
+                        for (int s = 0; s < signers.Length; s++)
+                        {
+                            var col = Column(4); col.Margin = new Thickness(12, 0);
+                            col.Children.Add(new Border { Height = 1, Background = Edge });
+                            var lbl = Label(signers[s], 13); lbl.HorizontalAlignment = HorizontalAlignment.Center;
+                            col.Children.Add(lbl);
+                            Grid.SetColumn(col, s); row.Children.Add(col);
+                        }
+                        paper.Children.Add(row); continue;
+                    }
                     if(line.Trim().StartsWith('|') && line.Trim().EndsWith('|') && line.Trim().Length>2){
                         var cells=line.Trim().Trim('|').Split('|');
+                        if(cells.All(c=>Regex.IsMatch(c.Trim(),@"^:?-+:?$")))continue;
                         var row=new Grid{ColumnDefinitions=new ColumnDefinitions(string.Join(",",cells.Select(_=>"*")))};
                         for(int col=0;col<cells.Length;col++){
                             var cell=new Border{BorderThickness=new Thickness(0,0,0,1),BorderBrush=Accent,Padding=new Thickness(5),Child=Label(cells[col].Trim())};

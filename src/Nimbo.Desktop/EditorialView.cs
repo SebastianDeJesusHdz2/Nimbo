@@ -90,10 +90,19 @@ public sealed partial class Studio
         if(!Visible(botanist.Name))return Fail();
         Preferences(); Layout();if(!Visible("Fondo de la biblioteca"))return Fail();
         File.WriteAllText(Config("tema"),"Oscuro");ApplyTheme();
-        var slides=Format.All.Single(f=>f.Name=="Presentación").Create("El cielo en invierno");slides.CoverImage=illustrated.Images[0];shelf.Save(slides,0);
+        var slides=Format.All.Single(f=>f.Name=="Presentación").Create("El cielo en invierno");slides.CoverImage=illustrated.Images[0];slides.Author="Inés Salgado";slides.Description="Recorrido visual por las constelaciones de invierno desde el observatorio del puerto.";shelf.Save(slides,0);
+        foreach(var docFormat in Format.All.Where(f=>f.Name is not ("Novela" or "CV" or "Presentación"))){
+            var docWork=docFormat.Create("Muestra de "+docFormat.Name);
+            docWork.Author="Inés Salgado";
+            docWork.Description="Síntesis editorial del documento con los puntos principales, acuerdos y notas de referencia para la colección.";
+            shelf.Save(docWork,0);
+        }
+        var styles=BookCover.LetteringStyles;
+        int styleIndex=0;
         foreach(var name in new[]{"Bajo el hielo","Manual de mareas","Cantos del sur","Las manos del reloj","La memoria del muelle","Voces del camino","La carta de Aro","Cuaderno de campo"}){
             var book=Format.All.First(f=>f.Name=="Novela").Create(name);
-            if(name=="Bajo el hielo")book.CoverLettering="Carbón";
+            book.CoverLettering=styles[styleIndex++%styles.Length];
+            if(name=="Bajo el hielo"){book.CoverLettering="Carbón";book.CoverImage=illustrated.Images[0];}
             book.CoverColor=palette.Swatches[name.Length%palette.Swatches.Length];book.Author="Inés Salgado";
             book.Description="La carta llegó sin dirección. Inés reconoció el papel por las motas de sal que aún guardaba el pliegue. Alguien había trazado a lápiz la costa de una isla que solo se veía en bajamar. En la esquina, una letra diminuta indicaba la hora del último barco.";
             shelf.Save(book,0);
@@ -103,6 +112,7 @@ public sealed partial class Studio
         if(books.Length!=10 || !page.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="MiniDocumento"))return Fail();
         if(!page.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="MiniDiapositiva"))return Fail();
         var sheets=page.GetVisualDescendants().OfType<TurningSheet>().ToArray();
+        if(sheets.Select(s=>s.Tag as string).Distinct().Count()<9)return Fail();
         foreach(var angle in new[]{Math.PI/2,Math.PI,Math.PI*1.5,Math.Tau}){
             foreach(var sheet in sheets)sheet.Turn(angle);
             Layout();Capture("Giro-"+(int)Math.Round(angle*180/Math.PI));

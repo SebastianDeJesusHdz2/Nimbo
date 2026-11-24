@@ -20,6 +20,45 @@ public static class Publisher
         string.Concat(Regex.Split(line, @"(\*\*[^*]+\*\*|\*[^*]+\*)").Select(part =>
             part.Length > 4 && part.StartsWith("**") && part.EndsWith("**") ? @"\textbf{" + Escape(part[2..^2]) + "}" :
             part.Length > 2 && part.StartsWith('*') && part.EndsWith('*') ? @"\emph{" + Escape(part[1..^1]) + "}" : Escape(part)))));
+    static string RenderPalette(string spec)
+    {
+        var items = spec.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (items.Length == 0) return "";
+        double width = Math.Round(0.92 / Math.Max(1, items.Length), 3, MidpointRounding.ToZero);
+        var sb = new StringBuilder(@"\par\smallskip\noindent");
+        for (int i = 0; i < items.Length; i++)
+        {
+            var item = items[i];
+            var match = Regex.Match(item, @"^#?([0-9A-Fa-f]{6})(?:\s+(.*))?$");
+            var hex = match.Success ? match.Groups[1].Value.ToUpperInvariant() : "666666";
+            var label = match.Success ? match.Groups[2].Value.Trim() : item;
+            if (i > 0) sb.Append(@"\hfill");
+            sb.Append(@"\begin{minipage}[t]{" + width.ToString(System.Globalization.CultureInfo.InvariantCulture) + @"\linewidth}\centering");
+            sb.Append(@"\definecolor{nimboswatch}{HTML}{" + hex + @"}\colorbox{nimboswatch}{\rule{0pt}{7.5mm}\rule{.80\linewidth}{0pt}}\par");
+            sb.Append(@"{\scriptsize\texttt{\#" + hex + @"}");
+            if (label != "") sb.Append(@"\par " + Escape(label));
+            sb.Append(@"}\end{minipage}");
+        }
+        sb.AppendLine(@"\par\smallskip");
+        return sb.ToString();
+    }
+    static string RenderSignatures(string spec)
+    {
+        var signers = spec.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (signers.Length == 0) return "";
+        double width = signers.Length == 1 ? 0.55 : signers.Length == 2 ? 0.46 : 0.31;
+        var sb = new StringBuilder(@"\par\vspace{9mm}\noindent");
+        if (signers.Length == 1) sb.Append(@"\begin{center}");
+        for (int i = 0; i < signers.Length; i++)
+        {
+            if (i > 0) sb.Append(@"\hfill");
+            sb.Append(@"\begin{minipage}[t]{" + width.ToString(System.Globalization.CultureInfo.InvariantCulture) + @"\linewidth}\centering");
+            sb.Append(@"\rule{.84\linewidth}{.45pt}\\[3pt]{\small\bfseries " + Escape(signers[i]) + @"}\end{minipage}");
+        }
+        if (signers.Length == 1) sb.Append(@"\end{center}");
+        sb.AppendLine(@"\par\medskip");
+        return sb.ToString();
+    }
     static string Paragraphs(string value,bool pageBreaks=false)
     {
         var output = new StringBuilder();
@@ -32,22 +71,42 @@ public static class Publisher
                 var rows = new List<string[]>();
                 do
                 {
-                    rows.Add(lines[i].Trim().Trim('|').Split('|'));
+                    var cells = lines[i].Trim().Trim('|').Split('|');
+                    if (!cells.All(c => Regex.IsMatch(c.Trim(), @"^:?-+:?$")))
+                        rows.Add(cells);
                     i++;
                 } while (i < lines.Length && lines[i].Trim().StartsWith('|') && lines[i].Trim().EndsWith('|'));
-                i--; int columns = rows.Max(r => r.Length);
-                output.AppendLine(@"\noindent\begin{tabularx}{\linewidth}{" + string.Concat(Enumerable.Repeat("X", columns)) + "}");
-                foreach (var row in rows) output.AppendLine(string.Join(" & ", Enumerable.Range(0, columns).Select(c => c < row.Length ? InlineParagraphs(row[c].Trim()) : "")) + @"\\");
-                output.AppendLine(@"\end{tabularx}\par");
+                i--;
+                if (rows.Count == 0) continue;
+                int columns = rows.Max(r => r.Length);
+                output.AppendLine(@"\par\smallskip\noindent{\renewcommand{\arraystretch}{1.18}\begin{tabularx}{\linewidth}{|" + string.Join("|", Enumerable.Repeat("X", columns)) + @"|}\hline");
+                for (int r = 0; r < rows.Count; r++)
+                {
+                    var row = rows[r];
+                    bool header = r == 0 && rows.Count > 1;
+                    if (header) output.Append(@"\rowcolor{accent!14}");
+                    output.AppendLine(string.Join(" & ", Enumerable.Range(0, columns).Select(c =>
+                    {
+                        var cell = c < row.Length ? InlineParagraphs(row[c].Trim()) : "";
+                        return header && !cell.Contains(@"\textbf{") ? @"\textbf{" + cell + "}" : cell;
+                    })) + @"\\\hline");
+                }
+                output.AppendLine(@"\end{tabularx}}\par\smallskip");
             }
             else if(pageBreaks && line=="[[Página]]") output.AppendLine(@"\clearpage");
-            else if (line.StartsWith("- ")) output.AppendLine(@"\noindent\textbullet\enspace " + InlineParagraphs(line[2..]) + @"\par");
+            else if(pageBreaks && line=="[[Índice]]") output.AppendLine(@"\tableofcontents\clearpage");
+            else if(line.StartsWith("[[Paleta:") && line.EndsWith("]]")) output.Append(RenderPalette(line[9..^2]));
+            else if(line.StartsWith("[[Firmas:") && line.EndsWith("]]")) output.Append(RenderSignatures(line[9..^2]));
+            else if (line.StartsWith("- ")) output.AppendLine(@"\noindent\textcolor{accent}{\textbullet}\enspace " + InlineParagraphs(line[2..]) + @"\par");
+            else if (Regex.Match(line, @"^([1-9][0-9]*)\.\s+(.*)$") is { Success: true } num)
+                output.AppendLine(@"\noindent{\bfseries\color{accent}" + num.Groups[1].Value + @".}\enspace " + InlineParagraphs(num.Groups[2].Value) + @"\par");
             else if (line.StartsWith("> ")){
                 output.AppendLine(@"\begin{quote}\itshape");
                 do{output.AppendLine(InlineParagraphs(lines[i][2..])+@"\par");i++;}
                 while(i<lines.Length && lines[i].StartsWith("> "));
                 i--;output.AppendLine(@"\end{quote}");
             }
+            else if (line.StartsWith("### ")) output.AppendLine(@"\par\smallskip\noindent{\normalsize\bfseries\color{accent} " + Escape(line[4..]) + @"}\par");
             else if (line.StartsWith("## ")) output.AppendLine(@"\par\medskip\noindent{\large\bfseries " + Escape(line[3..]) + @"}\par");
             else output.AppendLine(InlineParagraphs(line) + @"\par");
         }
@@ -79,7 +138,7 @@ public static class Publisher
             }else{
             tex.AppendLine(slide ? @"\documentclass[aspectratio=169]{beamer}" :
                 novel ? @"\documentclass[11pt,a5paper,openany]{book}" : glossary ? @"\documentclass[11pt,twoside]{article}" : @"\documentclass[11pt]{article}");
-            tex.AppendLine(@"\usepackage{fontspec,graphicx,xcolor,tabularx}");
+            tex.AppendLine(@"\usepackage{fontspec,graphicx,xcolor,colortbl,tabularx}");
             var (leafWidth,leafHeight)=Dossiers.Size(work.GlossaryPaper);
             if (!slide) tex.AppendLine(glossary ? $@"\usepackage[paperwidth={leafWidth}mm,paperheight={leafHeight}mm,inner=12mm,outer=10mm,top=12mm,bottom=15mm,footskip=8mm]{{geometry}}" :
                 novel ? @"\usepackage["+paper+@",inner=18mm,outer=15mm]{geometry}" :
@@ -180,7 +239,25 @@ public static class Publisher
                 if(style=="Académica")tex.AppendLine(@"\end{center}");
                 else tex.AppendLine(@"\noindent{\color{accent}\rule{\linewidth}{1pt}}\par");
             }
-            else if (!designedCover && !glossary && work.Type is "Carta" or "Acta" or "Apuntes")
+            else if (!designedCover && !glossary && work.Type == "Carta")
+            {
+                var placeDate = work.DocumentFacts.GetValueOrDefault("Lugar y fecha", "").Trim();
+                if (placeDate != "") tex.AppendLine(@"\begin{flushright}{\small " + Escape(placeDate) + @"}\end{flushright}\smallskip");
+                var subject = work.DocumentFacts.GetValueOrDefault("Asunto", "").Trim();
+                if (subject == "") subject = work.Title;
+                tex.AppendLine(@"\noindent{\bfseries\color{accent}ASUNTO: }{\bfseries " + Escape(subject) + @"}\par\medskip");
+                var recipient = work.DocumentFacts.GetValueOrDefault("Destinatario", "").Trim();
+                var address = work.DocumentFacts.GetValueOrDefault("Dirección", "").Trim();
+                if (recipient != "" || address != "")
+                {
+                    tex.AppendLine(@"\noindent Dirigido a:\\");
+                    if (recipient != "") tex.AppendLine(@"{\bfseries " + Escape(recipient) + @"}\\");
+                    if (address != "") tex.AppendLine(Escape(address) + @"\\");
+                    tex.AppendLine(@"{\bfseries PRESENTE.}\par\medskip");
+                }
+                tex.AppendLine(@"\noindent{\color{accent}\rule{\linewidth}{.8pt}}\medskip");
+            }
+            else if (!designedCover && !glossary && work.Type is "Acta" or "Apuntes")
             {
                 tex.AppendLine(@"\noindent{\sffamily\Huge\color{accent}" + Escape(work.Title) + @"\par}\medskip");
                 if (work.Subtitle != "") tex.AppendLine(@"{\large " + Escape(work.Subtitle) + @"\par}");
@@ -193,12 +270,21 @@ public static class Publisher
                     if(work.Glossary.Count>0)tex.AppendLine(@"\tableofcontents");
                 }
             }
-            else if(!designedCover)tex.AppendLine(slide ? @"\begin{frame}\titlepage\end{frame}" : @"\maketitle");
+            else if(!designedCover){
+                if(slide && work.CoverImage!=""){
+                    CopyImage(work.CoverImage);
+                    tex.AppendLine(@"\begin{frame}[plain]\vspace*{2mm}\begin{center}\includegraphics[width=.72\linewidth,height=.42\textheight,keepaspectratio]{media/"+work.CoverImage+@"}\end{center}");
+                    tex.AppendLine(@"\begin{center}{\Large\bfseries\color{accent}"+Escape(work.Title)+@"\par}");
+                    if(work.Subtitle!="")tex.AppendLine(@"{\normalsize "+Escape(work.Subtitle)+@"\par}");
+                    if(work.Author!="")tex.AppendLine(@"\smallskip{\small "+Escape(work.Author)+@"\par}");
+                    tex.AppendLine(@"\end{center}\end{frame}");
+                }else tex.AppendLine(slide ? @"\begin{frame}\titlepage\end{frame}" : @"\maketitle");
+            }
             var facts=EditorialTemplate.FrontMatter(work.Type).Where(k=>!string.IsNullOrWhiteSpace(work.DocumentFacts.GetValueOrDefault(k))).ToArray();
-            if(!slide && !glossary && facts.Length>0){
-                if(slide)tex.AppendLine(@"\begin{frame}{"+Escape(work.Subtitle==""?work.Title:work.Subtitle)+"}");
-                foreach(var key in facts)tex.AppendLine(@"\noindent{\bfseries "+Escape(key)+@"}\enspace "+Escape(work.DocumentFacts[key])+@"\par");
-                if(slide)tex.AppendLine(@"\end{frame}");
+            if(!slide && !glossary && work.Type!="Carta" && facts.Length>0){
+                tex.AppendLine(@"\par\smallskip\noindent{\renewcommand{\arraystretch}{1.2}\begin{tabularx}{\linewidth}{|>{\columncolor{accent!12}\bfseries}p{4.2cm}|X|}\hline");
+                foreach(var key in facts)tex.AppendLine(Escape(key)+@" & "+Escape(work.DocumentFacts[key])+@"\\\hline");
+                tex.AppendLine(@"\end{tabularx}}\par\medskip");
             }
             if (novel && work.Publication.Contents && work.Chapters.Count > 1) tex.AppendLine(@"\tableofcontents");
             if (glossary)
@@ -236,10 +322,12 @@ public static class Publisher
                     tex.AppendLine(slide ? @"\begin{frame}[allowframebreaks]{" + heading + "}" : novel ?
                         (chapter.Level == "Arc" ? @"\part{" : chapter.Level == "Subchapter" ? @"\section{" : @"\chapter{") + heading + "}" :
                         work.Type is "Informe" or "Artículo" or "Propuesta" ? @"\section{" + heading + "}" : work.Type == "Carta" ? @"\medskip" : @"\section*{\color{accent}" + heading + "}");
-                    if (work.Type == "Apuntes" && chapter.Detail != "") tex.AppendLine(@"\begin{quote}\small\textbf{Conceptos}\par " + Paragraphs(chapter.Detail) + @"\end{quote}");
-                    else if (chapter.Detail != "") tex.AppendLine(@"\emph{" + Escape(chapter.Detail) + @"}\par");
+                    if (work.Type == "Apuntes" && chapter.Detail != "")
+                        tex.AppendLine(@"\par\smallskip\noindent\colorbox{accent!10}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{\small{\bfseries\color{accent}Conceptos y preguntas}\par " + Paragraphs(chapter.Detail) + @"}}\par\smallskip");
+                    else if (chapter.Detail != "")
+                        tex.AppendLine(@"\par\smallskip\noindent{\small\bfseries\color{accent}" + Escape(EditorialTemplate.DetailLabel(work.Type)) + @": }\emph{" + Escape(chapter.Detail) + @"}\par\smallskip");
                     bool columns = slide && chapter.Layout is "Texto e imagen" or "Dos columnas" or "Plano y leyenda" or "Moodboard y paleta" or "Moodboard y landmark";
-                    if (columns) tex.AppendLine(@"\begin{columns}[T,onlytextwidth]\begin{column}{.46\textwidth}");
+                    if (columns) tex.AppendLine(@"\begin{columns}[T,onlytextwidth]\begin{column}{.48\textwidth}");
                     var rows = slide ? [] : Illustrations.Rows(chapter).ToList();
                     var used = new HashSet<int>();
                     int start = 0;
@@ -249,7 +337,7 @@ public static class Publisher
                     }
                     foreach (var row in rows)
                     {
-                        tex.AppendLine(Paragraphs(chapter.PlainText[start..row[0].Start],novel));
+                        tex.AppendLine(Paragraphs(chapter.PlainText[start..row[0].Start],!slide));
                         if(row.Count>1)tex.AppendLine(@"\begin{center}");
                         for(int col=0;col<row.Count;col++){
                             int index=row[col].Image;var key=chapter.Images[index];used.Add(index);
@@ -262,8 +350,29 @@ public static class Publisher
                         if(row.Count>1)tex.AppendLine(@"\end{center}");
                         start=row[^1].End;
                     }
-                    tex.AppendLine(Paragraphs(chapter.PlainText[start..],novel));
-                    if (columns) tex.AppendLine(@"\end{column}\begin{column}{.50\textwidth}");
+                    tex.AppendLine(Paragraphs(chapter.PlainText[start..],!slide));
+                    if (columns) tex.AppendLine(@"\end{column}\begin{column}{.48\textwidth}");
+                    if (slide && chapter.Images.Count > 1 && chapter.Layout is "Moodboard y paleta" or "Moodboard y landmark")
+                    {
+                        int perRow = chapter.Images.Count >= 3 ? 3 : 2;
+                        string cellW = perRow == 3 ? ".31" : ".47";
+                        string cellH = chapter.Images.Count > 3 ? ".20" : ".30";
+                        tex.AppendLine(@"\begin{center}");
+                        for (int i = 0; i < chapter.Images.Count; i++)
+                        {
+                            used.Add(i);
+                            CopyImage(chapter.Images[i]);
+                            if (i > 0 && i % perRow == 0) tex.AppendLine(@"\par\smallskip");
+                            else if (i > 0) tex.AppendLine(@"\hfill%");
+                            tex.AppendLine(@"\begin{minipage}[t]{" + cellW + @"\linewidth}\centering\vspace{0pt}\includegraphics[width=\linewidth,height=" + cellH + @"\textheight,keepaspectratio]{media/" + chapter.Images[i] + "}" + Caption(chapter.ImageCaptions.GetValueOrDefault(i)) + @"\end{minipage}%");
+                        }
+                        tex.AppendLine(@"\end{center}");
+                    }
+                    else if (slide && chapter.Layout == "Imagen protagonista" && chapter.Images.Count > 0)
+                    {
+                        used.Add(0); CopyImage(chapter.Images[0]);
+                        tex.AppendLine(@"\begin{center}\includegraphics[width=.92\linewidth,height=.64\textheight,keepaspectratio]{media/" + chapter.Images[0] + "}" + Caption(chapter.ImageCaptions.GetValueOrDefault(0)) + @"\end{center}");
+                    }
                     for (int i = 0; i < chapter.Images.Count; i++) if (!used.Contains(i)) Image(chapter.Images[i], Illustrations.Layout(chapter,i),chapter.ImageCaptions.GetValueOrDefault(i));
                     if(work.Type=="CV"){
                         foreach(var entry in chapter.Entries){
@@ -272,7 +381,15 @@ public static class Publisher
                             tex.AppendLine(Paragraphs(entry.Description));
                         }
                     }
-                    if (chapter.Summary != "") tex.AppendLine(@"\par\medskip\textit{" + Escape(chapter.Summary) + "}");
+                    if (chapter.Summary != "")
+                    {
+                        if (work.Type == "Apuntes")
+                            tex.AppendLine(@"\par\medskip\noindent\fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\small{\bfseries\color{accent}Síntesis}\par " + Paragraphs(chapter.Summary) + @"}}\par");
+                        else if (slide && columns)
+                            tex.AppendLine(@"\par\smallskip{\small " + Paragraphs(chapter.Summary) + @"}");
+                        else
+                            tex.AppendLine(@"\par\medskip\textit{" + Escape(chapter.Summary) + "}");
+                    }
                     if (columns) tex.AppendLine(@"\end{column}\end{columns}");
                     if (slide) tex.AppendLine(@"\end{frame}");
                 }

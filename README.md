@@ -1,6 +1,6 @@
 # Nimbo
 
-Estudio de escritura de escritorio para Windows y Linux. Nimbo 0.5.2 usa C# y .NET 10, Avalonia, SQLite y XeLaTeX.
+Estudio de escritura de escritorio para Windows y Linux. Nimbo 0.5.4 usa C# y .NET 10, Avalonia, SQLite y XeLaTeX.
 
 ## Primera sesión
 
@@ -10,7 +10,7 @@ Elige un formato en la biblioteca, escribe un título y pulsa **Crear obra**. A 
 
 ## Biblioteca anterior
 
-Las novelas aparecen como libros giratorios, los documentos como hojas y las presentaciones como diapositivas. En el editor, sitúa el cursor donde quieres una ilustración y abre **Imágenes**. Puedes escoger una imagen o varias, escribir un pie y elegir la composición de cada una. **Publicar → Vista previa de impresión** permite comprobar el ajuste del texto alrededor de una imagen antes de imprimir.
+Las novelas aparecen como libros giratorios con ocho acabados de letras de encuadernación (`Automática`, `Marfil`, `Oro`, `Plata`, `Cobre`, `Carbón`, `Relieve` y `Tejuelo`), y cada formato documental (`Documento`, `Informe`, `Artículo`, `Apuntes`, `CV`, `Carta`, `Propuesta`, `Acta` y `Presentación`) cuenta con su propia miniatura 3D giratoria. En el editor, sitúa el cursor donde quieres una ilustración y abre **Imágenes**. Puedes escoger una imagen o varias, escribir un pie y elegir la composición de cada una, además de insertar subapartados (`### `), listas numeradas (`1. `), tablas editoriales sombreadas, paletas cromáticas (`[[Paleta: #HEX Nombre | ...]]`) y bloques de firmas (`[[Firmas: ...]]`). **Publicar → Vista previa de impresión** permite comprobar el ajuste del texto alrededor de una imagen antes de imprimir.
 
 En **Glosario → Cuadernillo** puedes elegir el tamaño de papel y exportar todas las fichas o una selección. Cada ficha tiene también su propio botón de PDF. **Publicar → Edición completa y fichas** prepara el manuscrito, el proyecto LaTeX, el glosario y los retratos de personaje con sus datos en PDF.
 

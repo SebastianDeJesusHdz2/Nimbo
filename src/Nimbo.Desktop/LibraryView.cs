@@ -137,6 +137,7 @@ public sealed partial class Studio
                     tag.Content=caption;tag.HorizontalAlignment=HorizontalAlignment.Center;tag.MaxWidth=Bookcase.Slot-8;tag.Padding=new Thickness(5,1);tag.MinHeight=18;
                     tag.Background=Brush.Parse("#E6D8BC");tag.Foreground=Brush.Parse("#352A24");slot.Children.Add(tag);
                     if(book is BookCover volume)volume.ContextMenu=new ContextMenu{ItemsSource=new[]{MenuAction("Ver portada",()=>volume.ShowJacket(false)),MenuAction("Ver contraportada",()=>volume.ShowJacket(true)),MenuAction("Leer sinopsis completa",()=>InspectBook(entry))}};
+                    else if(book is TurningSheet sheet)sheet.ContextMenu=new ContextMenu{ItemsSource=new[]{MenuAction("Ver anverso",()=>sheet.ShowFace(false)),MenuAction("Ver reverso",()=>sheet.ShowFace(true)),MenuAction("Leer sinopsis completa",()=>InspectBook(entry))}};
                     var menu=book.ContextMenu??new ContextMenu();
                     var commands=new List<MenuItem>{MenuAction("Ficha de la obra",()=>Run(()=>Ficha(entry))),MenuAction("Cambiar colección…",async()=>await Guard(()=>Organize(entry)))};
                     if(menu.ItemsSource is IEnumerable<MenuItem> previous)commands.AddRange(previous);

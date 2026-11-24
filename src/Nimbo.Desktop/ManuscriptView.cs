@@ -161,7 +161,7 @@ public sealed partial class Studio
                 var lines=text[first..last].Split('\n');
                 bool remove=prefix.Length>0 && lines.All(l=>l.StartsWith(prefix,StringComparison.Ordinal));
                 string FormatLine(string line){
-                    if(line.StartsWith("## "))line=line[3..];else if(line.StartsWith("- ") || line.StartsWith("> "))line=line[2..];
+                    if(line.StartsWith("### "))line=line[4..];else if(line.StartsWith("## "))line=line[3..];else if(line.StartsWith("- ") || line.StartsWith("> "))line=line[2..];else if(line.StartsWith("1. "))line=line[3..];
                     return remove?line:prefix+line;
                 }
                 string formatted=string.Join("\n",lines.Select(FormatLine));
@@ -171,12 +171,16 @@ public sealed partial class Studio
             var paragraph=new MenuFlyout();
             paragraph.Items.Add(MenuAction("Párrafo normal",()=>ParagraphStyle("")));
             paragraph.Items.Add(MenuAction("Subtítulo",()=>ParagraphStyle("## ")));
+            paragraph.Items.Add(MenuAction("Subapartado",()=>ParagraphStyle("### ")));
             paragraph.Items.Add(MenuAction("Lista con viñetas",()=>ParagraphStyle("- ")));
+            paragraph.Items.Add(MenuAction("Lista numerada",()=>ParagraphStyle("1. ")));
             paragraph.Items.Add(MenuAction("Cita en bloque",()=>ParagraphStyle("> ")));
             bar.Children.Add(new Button{Content="Párrafo  ▾",Flyout=paragraph,Background=Brushes.Transparent,BorderThickness=new Thickness(0)});
             var insert=new MenuFlyout();
-            if(work.IsNovel)insert.Items.Add(MenuAction("Salto de página",()=>Insert("\n[[Página]]\n")));
+            if(work.Type!="Presentación")insert.Items.Add(MenuAction("Salto de página",()=>Insert("\n[[Página]]\n")));
             insert.Items.Add(MenuAction("Tabla",()=>Insert("\n| Columna 1 | Columna 2 |\n| Dato | Dato |\n")));
+            insert.Items.Add(MenuAction("Paleta cromática",()=>Insert("\n[[Paleta: #E4D1A5 Luz cálida | #D99442 Ámbar | #7B8581 Piedra | #55705C Musgo | #182A27 Sombra]]\n")));
+            if(!work.IsNovel && work.Type!="Presentación")insert.Items.Add(MenuAction("Bloque de firmas",()=>Insert("\n[[Firmas: Responsable 1 | Responsable 2]]\n")));
             async Task InsertPictures(bool gallery){
                 var paths=await PickIllustrations(true);
                 if(paths.Length==0)return;
@@ -204,10 +208,10 @@ public sealed partial class Studio
             var fixedTools=Column(0);fixedTools.Name="HerramientasDeEscritura";fixedTools.MaxWidth=body.MaxWidth;fixedTools.HorizontalAlignment=HorizontalAlignment.Stretch;
             fixedTools.Children.Add(barFrame);DockPanel.SetDock(fixedTools,Dock.Top);root.Children.Add(fixedTools);
             AddSearch(root,fixedTools,bar,draft);body.Children.Add(draft.View);
-            var count=Label("",12);void Count(){var words=System.Text.RegularExpressions.Regex.Count(Illustrations.Marker().Replace(c.PlainText," ").Replace("[[Página]]"," "), @"[\p{L}\p{N}]+");count.Text=$"{words:N0} palabras   ·   {Math.Max(1,(int)Math.Ceiling(words/210d))} min de lectura";}Count();draft.Edited+=Count;body.Children.Add(count);
+            var count=Label("",12);void Count(){var clean=System.Text.RegularExpressions.Regex.Replace(Illustrations.Marker().Replace(c.PlainText," "),@"\[\[(?:Página|Índice|Paleta:[^\]]+|Firmas:[^\]]+)\]\]"," ");var words=System.Text.RegularExpressions.Regex.Count(clean, @"[\p{L}\p{N}]+");count.Text=$"{words:N0} palabras   ·   {Math.Max(1,(int)Math.Ceiling(words/210d))} min de lectura";}Count();draft.Edited+=Count;body.Children.Add(count);
             if(c.Images.Count!=0 && !illustrated){
                 var assets=new Expander{Header=$"Ilustraciones de la sección  ·  {c.Images.Count}",HorizontalAlignment=HorizontalAlignment.Stretch};
-                assets.Expanding+=(_,_)=>{
+                void LoadAssets(){
                     if(assets.Content!=null)return;
                     var shelfContent=Column(8);
                     if(work.Type!="Presentación")Choice(shelfContent,"Disposición",ImageLayouts,c.Layout,v=>{c.Layout=v;Changed();});
@@ -216,10 +220,15 @@ public sealed partial class Studio
                         var card=Column(5);card.Margin=new Thickness(0,0,12,8);
                         if(Thumbnail(Path.Combine(shelf.Media,Path.GetFileName(key)),180,90) is {} thumb)card.Children.Add(thumb);
                         card.Children.Add(Label("Imagen "+(index+1),13));
+                        var cap=new TextBox{Watermark="Pie de imagen",Text=c.ImageCaptions.GetValueOrDefault(index,""),Width=180};
+                        cap.TextChanged+=(_,_)=>{var val=cap.Text??"";if(val=="")c.ImageCaptions.Remove(index);else c.ImageCaptions[index]=val;Changed();};
+                        card.Children.Add(cap);
                         card.Children.Add(QuietAction("Quitar",()=>{Illustrations.Remove(c,index);Changed();Editor();}));cards.Children.Add(card);
                     }
                     shelfContent.Children.Add(cards);assets.Content=shelfContent;
-                };
+                }
+                assets.Expanding+=(_,_)=>LoadAssets();
+                if(work.Type=="Presentación"){LoadAssets();assets.IsExpanded=true;}
                 body.Children.Add(assets);
             }
             if(work.Type=="CV")ResumeEntries(body,c);
@@ -248,7 +257,7 @@ public sealed partial class Studio
             swatch.Click+=(_,_)=>{work.CoverColor=hex;Changed();RefreshJacket();foreach(var b in inks.Children.OfType<Button>())b.BorderThickness=new Thickness(b==swatch?2:0);};inks.Children.Add(swatch);
         }
         coverOptions.Children.Add(inks);
-        if(work.IsNovel)Choice(coverOptions,"Letras de la encuadernación",["Automática","Marfil","Carbón","Oro"],work.CoverLettering,v=>{work.CoverLettering=v;Changed();RefreshJacket();});
+        Choice(coverOptions,"Letras de la encuadernación",BookCover.LetteringStyles,work.CoverLettering,v=>{work.CoverLettering=v;Changed();RefreshJacket();});
         coverOptions.Children.Add(Action("Elegir portada…", async () => await Guard(async () =>
         {
             var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Portada PNG o JPEG" })).FirstOrDefault()?.TryGetLocalPath();
