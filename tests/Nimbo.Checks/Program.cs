@@ -955,12 +955,19 @@ Las tres láminas documentan la estructura de salas (A–I), la distribución am
     apuntes.Author = "Notas de Taller Editorial";
     apuntes.Subtitle = "Fundamentos visuales, escala monumental y lenguaje del color";
     apuntes.CollectionId = "Ejemplos de complejidad";
-    apuntes.CoverColor = "#376B48";
+    apuntes.CoverColor = "#004785";
     apuntes.CoverImage = colossus;
-    apuntes.Description = "Cuaderno de apuntes estilo Cornell con preguntas guía, galería comparativa de referentes artísticos, paleta cromática y recuadros de síntesis por lección.";
-    apuntes.DocumentFacts["Asignatura"] = "Arte Conceptual para Videojuegos · AC-3601";
+    apuntes.Description = "Libreta universitaria con portada institucional UASLP, tabla de datos académicos, índice automático, preguntas guía, galería comparativa de referentes artísticos y recuadros de síntesis.";
+    apuntes.DocumentFacts["Universidad"] = "Universidad Autónoma de San Luis Potosí";
+    apuntes.DocumentFacts["Facultad"] = "Facultad de Ingeniería";
+    apuntes.DocumentFacts["Asignatura"] = "Arte Conceptual para Videojuegos";
+    apuntes.DocumentFacts["Clave de clase"] = "360187";
     apuntes.DocumentFacts["Docente"] = "Mtro. Darío Velázquez Solís";
-    apuntes.DocumentFacts["Periodo"] = "Semestre Agosto – Diciembre 2026";
+    apuntes.DocumentFacts["Carrera"] = "Ingeniería en Sistemas Inteligentes";
+    apuntes.DocumentFacts["Clave U"] = "342198";
+    apuntes.DocumentFacts["Alumno"] = "Notas de Taller Editorial";
+    apuntes.DocumentFacts["Periodo"] = "Semestre 2025-2026/I";
+    apuntes.DocumentFacts["Lugar y fecha"] = "San Luis Potosí, S.L.P. · Noviembre de 2026";
     apuntes.Chapters = [
         new Chapter
         {
@@ -1188,17 +1195,20 @@ Esta guía establece los parámetros visuales y técnicos que deben cumplir toda
     ];
     examples.Add((documento, "09-Documento-Guia-Produccion-L02.pdf"));
 
-    var novela = EditorialTemplate.For(Format.All.Single(f => f.Name == "Novela"))[1].Create(Format.All.Single(f => f.Name == "Novela"), "Crónicas de la Fosa del Juramento");
+    var novela = EditorialTemplate.For(Format.All.Single(f => f.Name == "Novela"))[0].Create(Format.All.Single(f => f.Name == "Novela"), "Crónicas de la Fosa del Juramento");
     novela.Author = "Inés Salgado";
     novela.Subtitle = "El descenso a la Cámara del Sol";
     novela.CollectionId = "Ejemplos de complejidad";
     novela.CoverColor = "#284B52";
+    novela.CoverStyle = "Tejuelo clásico translúcido";
     novela.CoverLettering = "Tejuelo";
     novela.CoverImage = l03Final;
     novela.BackImage = l01Final;
     novela.Publication.Paper = "A5";
     novela.Description = "Durante tres generaciones ningún clan de Ciudad Miramar logró cruzar el piso ochenta y cinco. Cuando la capitana Mara Vélez enciende la última linterna frente a los árboles blancos de la Cámara del Sol, comprende que el laberinto recuerda el nombre de todos los que bajaron antes.";
+    novela.Chapters[0].Level = "Arc";
     novela.Chapters[0].Title = "Arco I: El umbral de piedra";
+    if (novela.Chapters.Count < 2) novela.Chapters.Add(new Chapter { Order = 1 });
     novela.Chapters[1].Title = "Capítulo 1: Las escaleras de Miramar";
     novela.Chapters[1].Images = [l01Final, l02Final];
     novela.Chapters[1].ImageLayouts = new() { [0] = "Ajustar a la derecha", [1] = "Lámina ilustrada" };

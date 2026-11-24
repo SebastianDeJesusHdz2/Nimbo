@@ -40,18 +40,37 @@ public sealed partial class Studio
         var title=new TextBox{Watermark="Título de tu obra"};
         var format=new ComboBox{ItemsSource=Format.All,SelectedIndex=0,HorizontalAlignment=HorizontalAlignment.Stretch};
         var templates=new ComboBox{HorizontalAlignment=HorizontalAlignment.Stretch};
-        void SetTemplates(){templates.ItemsSource=EditorialTemplate.For((Format)format.SelectedItem!);templates.SelectedIndex=0;}
+        var templateLabel=Label("Plantilla");
+        void SetTemplates(){
+            var selectedFormat=(Format)format.SelectedItem!;
+            if(selectedFormat.Name=="Novela"){
+                templateLabel.Text="Formato de portada";
+                templates.ItemsSource=EditorialTemplate.NovelCoverStyles;
+                templates.SelectedIndex=0;
+            }else{
+                templateLabel.Text="Formato y plantilla";
+                templates.ItemsSource=EditorialTemplate.For(selectedFormat);
+                templates.SelectedIndex=0;
+            }
+        }
         format.SelectionChanged+=(_,_)=>SetTemplates();SetTemplates();
         var createButton=Action("Crear obra",()=>Run(()=>{
             if(string.IsNullOrWhiteSpace(title.Text)){title.Focus();return;}
-            var work=((EditorialTemplate)templates.SelectedItem!).Create((Format)format.SelectedItem!,title.Text);
+            var selectedFormat=(Format)format.SelectedItem!;
+            Work work;
+            if(selectedFormat.Name=="Novela"){
+                work=EditorialTemplate.For(selectedFormat)[0].Create(selectedFormat,title.Text);
+                if(templates.SelectedItem is string coverStyle)work.CoverStyle=coverStyle;
+            }else{
+                work=((EditorialTemplate)templates.SelectedItem!).Create(selectedFormat,title.Text);
+            }
             if(File.Exists(Config("autor")))work.Author=File.ReadAllText(Config("autor"));
             Open(work,shelf.Save(work,0));
         }));
         createButton.Background=Accent;createButton.Foreground=ActualThemeVariant==Avalonia.Styling.ThemeVariant.Light?Brushes.White:Brushes.Black;
         var createFields=new Grid{ColumnDefinitions=new ColumnDefinitions("1.2*,2*,Auto"),ColumnSpacing=8};
         createFields.Children.Add(format);Grid.SetColumn(title,1);createFields.Children.Add(title);Grid.SetColumn(createButton,2);createFields.Children.Add(createButton);
-        create.Children.Add(createFields);create.Children.Add(Label("Plantilla"));create.Children.Add(templates);
+        create.Children.Add(createFields);create.Children.Add(templateLabel);create.Children.Add(templates);
         if(entries.Count==0){
             var gallery=new WrapPanel();
             foreach(var (kind,color) in new[]{("Novela","#435D61"),("Apuntes","#686342"),("CV","#664D61"),("Presentación","#435877")}){

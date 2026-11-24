@@ -105,6 +105,13 @@ public sealed partial class Studio
             docWork.Description="Síntesis editorial del documento con los puntos principales, acuerdos y notas de referencia para la colección.";
             shelf.Save(docWork,0);
         }
+        var libretaWork=EditorialTemplate.For(Format.All.Single(f=>f.Name=="Apuntes"))[0].Create(Format.All.Single(f=>f.Name=="Apuntes"),"Libreta de prueba UASLP");
+        libretaWork.DocumentFacts["Universidad"]="Universidad Autónoma de San Luis Potosí";
+        libretaWork.DocumentFacts["Asignatura"]="Interacción de Redes";
+        Open(libretaWork,shelf.Save(libretaWork,0));Layout();
+        if(!Visible("Universidad Autónoma de San Luis Potosí"))return Fail();
+        ReadSection(libretaWork.Chapters[0]);Layout();
+        if(!Visible("Apuntes:"))return Fail();
         var styles=BookCover.LetteringStyles;
         int styleIndex=0;
         foreach(var name in new[]{"Bajo el hielo","Manual de mareas","Cantos del sur","Las manos del reloj","La memoria del muelle","Voces del camino","La carta de Aro","Cuaderno de campo"}){
@@ -162,7 +169,7 @@ public sealed partial class Studio
     {
         panel.Children.Add(Display("Diseño de publicación", 22));
         var format = Format.All.FirstOrDefault(f => f.Name == work.Type);
-        if (format != null)
+        if (format != null && !work.IsNovel)
         {
             var options = EditorialTemplate.For(format);
             Choice(panel, "Estilo de la plantilla", options.Select(t => t.Name).ToArray(), work.Template, v => { work.Template = v; Changed(); });
@@ -173,10 +180,7 @@ public sealed partial class Studio
         {
             Choice(panel, "Interlineado impreso", ["Normal", "Abierto", "Amplio"], work.PrintSpacing, v => { work.PrintSpacing = v; Changed(); });
             Choice(panel, "Sangría de párrafo", ["Automática", "Sin sangría", "5 mm", "8 mm"], work.PrintIndent, v => { work.PrintIndent = v; Changed(); });
-        }
-        if (work.IsNovel)
-        {
-            var toc = new CheckBox { Content = "Incluir índice", IsChecked = work.Publication.Contents };
+            var toc = new CheckBox { Content = "Incluir índice de contenido (Table of Contents)", IsChecked = work.Publication.Contents };
             toc.IsCheckedChanged += (_, _) => { work.Publication.Contents = toc.IsChecked == true; Changed(); }; panel.Children.Add(toc);
         }
         panel.Children.Add(Action("Vista previa de impresión", async () => await Preview()));
@@ -208,16 +212,16 @@ public sealed partial class Studio
             Field(profile, key, work.Contact.GetValueOrDefault(key, ""), v => work.Contact[key] = v);
         body.Children.Add(Card(profile));
     }
-    void ResumeEntries(StackPanel body, Chapter c)
+    void ResumeEntries(StackPanel body, Chapter c, Action? onChanged = null)
     {
         var list = Column(12); list.Children.Add(Display("Entradas de la sección", 22));
         foreach (var entry in c.Entries)
         {
             var card = Column(6);
-            Field(card, "Puesto, título o logro", entry.Heading, v => entry.Heading = v);
-            Field(card, "Organización o institución", entry.Organization, v => entry.Organization = v);
-            Field(card, "Fechas", entry.Period, v => entry.Period = v);
-            Field(card, "Descripción y resultados", entry.Description, v => entry.Description = v, true);
+            Field(card, "Puesto, título o logro", entry.Heading, v => { entry.Heading = v; onChanged?.Invoke(); });
+            Field(card, "Organización o institución", entry.Organization, v => { entry.Organization = v; onChanged?.Invoke(); });
+            Field(card, "Fechas", entry.Period, v => { entry.Period = v; onChanged?.Invoke(); });
+            Field(card, "Descripción y resultados", entry.Description, v => { entry.Description = v; onChanged?.Invoke(); }, true);
             var remove = Action("Quitar entrada", () => { }); bool confirm = false;
             remove.Click += (_, _) => { if (!confirm) { confirm = true; remove.Content = "Confirmar eliminación"; return; } c.Entries.Remove(entry); Changed(); Editor(); };
             card.Children.Add(remove); list.Children.Add(Card(card));

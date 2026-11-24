@@ -11,7 +11,9 @@ public sealed partial class Studio
     void CoverSettings(StackPanel panel,Work work)
     {
         if(work.Type!="Presentación"){
-            Choice(panel,"Composición de portada",["Por formato","Al pie","Centrada","Cabecera"],work.CoverStyle,v=>{work.CoverStyle=v;Changed();});
+            var coverOptions=EditorialTemplate.CoverLayoutsFor(work.Type);
+            var currentCover=coverOptions.Contains(work.CoverStyle)?work.CoverStyle:coverOptions[0];
+            Choice(panel,work.IsNovel?"Formato de portada (imagen completa con blur)":"Formato de portada e inicio",coverOptions,currentCover,v=>{work.CoverStyle=v;Changed();});
             Choice(panel,"Marco de las páginas",["Sin marco","Filete","Doble filete","Esquinas"],work.FrameStyle,v=>{work.FrameStyle=v;Changed();});
             var subtitle=new CheckBox{Content="Imprimir el subtítulo en la portada",IsChecked=work.ShowCoverSubtitle};
             subtitle.IsCheckedChanged+=(_,_)=>{work.ShowCoverSubtitle=subtitle.IsChecked==true;Changed();};panel.Children.Add(subtitle);

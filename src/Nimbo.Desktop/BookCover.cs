@@ -124,8 +124,13 @@ internal sealed class BookCover : Control
 
     internal static void DrawTejueloReserve(DrawingContext dc, Rect zone, Color clothColor, IBrush ornament, bool translucent)
     {
+        if (translucent)
+        {
+            for (int b = 3; b >= 1; b--)
+                dc.DrawRectangle(Brush.Parse("#240E1318"), null, zone.Inflate(b * 1.4), 2.5, 2.5);
+        }
         var fill = translucent
-            ? Brush.Parse("#6E0E1318")
+            ? Brush.Parse("#8210161D")
             : EditionPalette.Mix(clothColor.ToString(), "#0F1318", .72);
         var outer = new Pen(ornament, .85);
         var inner = new Pen(ornament, .45);
@@ -137,6 +142,13 @@ internal sealed class BookCover : Control
             foreach (var pt in new[] { inset.TopLeft, inset.TopRight, inset.BottomLeft, inset.BottomRight })
                 dc.DrawEllipse(ornament, null, pt, 1.1, 1.1);
         }
+    }
+
+    internal static void DrawFrostedPhotoPlate(DrawingContext dc, Rect zone, IBrush ornament)
+    {
+        for (int b = 4; b >= 1; b--)
+            dc.DrawRectangle(Brush.Parse("#1F0E141B"), null, zone.Inflate(b * 1.35), 4 + b * .5, 4 + b * .5);
+        dc.DrawRectangle(Brush.Parse("#7410171F"), new Pen(ornament, .55), zone, 3.5, 3.5);
     }
 
     internal static StampStyle ResolveStamp(string mode, Color color, EditionPalette palette, bool overPhoto)
@@ -336,6 +348,8 @@ internal sealed class BookCover : Control
             {
                 if (style.Tejuelo)
                     DrawTejueloReserve(dc, new Rect(13, 86, w - 21, 83), color, style.Ornament, hasPhoto);
+                else if (hasPhoto)
+                    DrawFrostedPhotoPlate(dc, new Rect(12, 85, w - 19, 84), style.Ornament);
                 else
                     dc.DrawLine(foil, new Point(15, 88), new Point(w - 10, 88));
                 DrawWords(dc, entry.Type.ToUpperInvariant(), new Rect(15, 91, w - 26, 13), 8, ornamentStyle, FontWeight.SemiBold, true);
