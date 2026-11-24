@@ -17,6 +17,7 @@ public sealed partial class Studio
         Avalonia.Automation.AutomationProperties.SetName(notes,"Notas de la sección");
         notes.TextChanged+=(_,_)=>{if(section.AuthorMemo==notes.Text)return;section.AuthorMemo=notes.Text??"";Changed();};
         margin.Children.Add(Display("Notas de la sección",21));margin.Children.Add(notes);
+        if(!work.IsNovel)return margin;
         margin.Children.Add(Rule(Edge));margin.Children.Add(Display("Consultar glosario",21));
         var search=new TextBox{Watermark="Buscar una ficha…"};margin.Children.Add(search);
         var list=Column(5);var preview=Column(7);margin.Children.Add(list);margin.Children.Add(preview);

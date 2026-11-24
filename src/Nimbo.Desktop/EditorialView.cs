@@ -27,7 +27,9 @@ public sealed partial class Studio
             Console.Error.WriteLine($"Fallo en la comprobación editorial (línea {line}, ventana {Bounds.Size}, área {page.Bounds.Size}).");
             Capture("Diagnostico");return false;
         }
-        Layout(); Details(); Layout(); if (!Visible("Datos profesionales")) return Fail();
+        Layout();
+        if (masthead.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "NavGlosario")) return Fail();
+        Details(); Layout(); if (!Visible("Datos profesionales")) return Fail();
         ReadSection(chapter); Layout(); if (!Visible("CV de prueba")) return Fail();
         var novel=Format.All.First(f=>f.Name=="Novela").Create("Los jardines de invierno");
         novel.Chapters[0].Title="La casa de cristal";
@@ -39,7 +41,7 @@ public sealed partial class Studio
         novel.Chapters.Add(new(){Title="El herbario",Order=1});novel.Chapters.Add(new(){Title="Cartas desde el puerto",Order=2});
         town.Background="Puerto de canales estrechos al pie de los invernaderos.";botanist.Age="32 años";botanist.Pinned=true;
         novel.Glossary.AddRange([town,botanist,new Node{Name="Casa de cristal",NodeKind="Lugar",ParentId=town.Id,Background="Invernadero orientado al este."}]);Open(novel,shelf.Save(novel,0));Layout();
-        if(!Visible("Índice del manuscrito") || Icon==null)return Fail();
+        if(!Visible("Índice del manuscrito") || Icon==null || !masthead.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "NavGlosario"))return Fail();
         var tools=page.GetVisualDescendants().OfType<StackPanel>().Single(v=>v.Name=="HerramientasDeEscritura");
         if(tools.GetVisualAncestors().OfType<ScrollViewer>().Any())return Fail();Capture("Manuscrito");
         static TextBox? NoteIn(Control root)=>root.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(b=>Avalonia.Automation.AutomationProperties.GetName(b)=="Notas de la sección");
@@ -90,7 +92,13 @@ public sealed partial class Studio
         if(!Visible(botanist.Name))return Fail();
         Preferences(); Layout();if(!Visible("Fondo de la biblioteca"))return Fail();
         File.WriteAllText(Config("tema"),"Oscuro");ApplyTheme();
-        var slides=Format.All.Single(f=>f.Name=="Presentación").Create("El cielo en invierno");slides.CoverImage=illustrated.Images[0];slides.Author="Inés Salgado";slides.Description="Recorrido visual por las constelaciones de invierno desde el observatorio del puerto.";shelf.Save(slides,0);
+        var slides=Format.All.Single(f=>f.Name=="Presentación").Create("El cielo en invierno");slides.CoverImage=illustrated.Images[0];slides.Author="Inés Salgado";slides.Description="Recorrido visual por las constelaciones de invierno desde el observatorio del puerto.";
+        slides.Chapters[0].Layout="Portada";slides.Chapters[0].Images.Add(illustrated.Images[0]);
+        slides.Chapters[1].Layout="Ficha de concepto";slides.Chapters[1].Detail="Aventura astronómica";slides.Chapters[1].Summary="Observa las constelaciones de invierno desde la cúpula.";slides.Chapters[1].Images.Add(illustrated.Images[0]);slides.Chapters[1].ImageLayouts[0]="Plataforma";
+        Open(slides,shelf.Save(slides,0));Layout();
+        if(masthead.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="NavGlosario") || !Visible("Vista en vivo de la diapositiva (16:9)"))return Fail();
+        ReadSection(slides.Chapters[1]);Layout();Capture("Lectura-presentacion");
+        if(!Visible("Modo presentación 16:9") || !Visible("Plataforma"))return Fail();
         foreach(var docFormat in Format.All.Where(f=>f.Name is not ("Novela" or "CV" or "Presentación"))){
             var docWork=docFormat.Create("Muestra de "+docFormat.Name);
             docWork.Author="Inés Salgado";

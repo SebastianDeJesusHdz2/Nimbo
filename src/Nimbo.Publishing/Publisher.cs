@@ -1,5 +1,6 @@
 using Nimbo.Core;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -33,7 +34,7 @@ public static class Publisher
             var hex = match.Success ? match.Groups[1].Value.ToUpperInvariant() : "666666";
             var label = match.Success ? match.Groups[2].Value.Trim() : item;
             if (i > 0) sb.Append(@"\hfill");
-            sb.Append(@"\begin{minipage}[t]{" + width.ToString(System.Globalization.CultureInfo.InvariantCulture) + @"\linewidth}\centering");
+            sb.Append(@"\begin{minipage}[t]{" + width.ToString(CultureInfo.InvariantCulture) + @"\linewidth}\centering");
             sb.Append(@"\definecolor{nimboswatch}{HTML}{" + hex + @"}\colorbox{nimboswatch}{\rule{0pt}{7.5mm}\rule{.80\linewidth}{0pt}}\par");
             sb.Append(@"{\scriptsize\texttt{\#" + hex + @"}");
             if (label != "") sb.Append(@"\par " + Escape(label));
@@ -52,7 +53,7 @@ public static class Publisher
         for (int i = 0; i < signers.Length; i++)
         {
             if (i > 0) sb.Append(@"\hfill");
-            sb.Append(@"\begin{minipage}[t]{" + width.ToString(System.Globalization.CultureInfo.InvariantCulture) + @"\linewidth}\centering");
+            sb.Append(@"\begin{minipage}[t]{" + width.ToString(CultureInfo.InvariantCulture) + @"\linewidth}\centering");
             sb.Append(@"\rule{.84\linewidth}{.45pt}\\[3pt]{\small\bfseries " + Escape(signers[i]) + @"}\end{minipage}");
         }
         if (signers.Length == 1) sb.Append(@"\end{center}");
@@ -112,6 +113,455 @@ public static class Publisher
         }
         return output.ToString();
     }
+
+    static readonly string[] ConceptOrder =
+    [
+        "Plataforma",
+        "Target & ESRB",
+        "Referencia visual 1",
+        "Referencia visual 2",
+        "Referencia visual 3",
+        "Referencia visual 4",
+        "Gameplay 1",
+        "Gameplay 2",
+        "Gameplay 3",
+        "Fondo de diapositiva"
+    ];
+
+    static Dictionary<string, (string Key, string Caption, int Index)> MapSlideConceptImages(Chapter slide)
+    {
+        var map = new Dictionary<string, (string Key, string Caption, int Index)>();
+        var unassigned = new List<int>();
+        for (int i = 0; i < slide.Images.Count; i++)
+        {
+            var role = slide.ImageLayouts.GetValueOrDefault(i, "Automático");
+            if (ConceptOrder.Contains(role) && !map.ContainsKey(role))
+                map[role] = (slide.Images[i], slide.ImageCaptions.GetValueOrDefault(i, ""), i);
+            else unassigned.Add(i);
+        }
+        int cursor = 0;
+        foreach (var role in ConceptOrder)
+        {
+            if (!map.ContainsKey(role) && cursor < unassigned.Count)
+            {
+                int idx = unassigned[cursor++];
+                map[role] = (slide.Images[idx], slide.ImageCaptions.GetValueOrDefault(idx, ""), idx);
+            }
+        }
+        return map;
+    }
+
+    static (List<string> References, List<string> Keywords, List<string> ExtraLines) ParseSlideConceptLists(string text)
+    {
+        var refs = new List<string>();
+        var keys = new List<string>();
+        var extra = new List<string>();
+        int bucket = 0;
+        foreach (var raw in text.ReplaceLineEndings("\n").Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line == "") continue;
+            if (line.StartsWith("### ") || line.StartsWith("## "))
+            {
+                var head = line.TrimStart('#', ' ').ToLowerInvariant();
+                if (head.Contains("key") || head.Contains("palabra")) bucket = 2;
+                else if (head.Contains("referencia")) bucket = 1;
+                continue;
+            }
+            string? item = null;
+            if (line.StartsWith("- ")) item = line[2..].Trim();
+            else if (Regex.Match(line, @"^[1-9][0-9]*\.\s+(.*)$") is { Success: true } m) item = m.Groups[1].Value.Trim();
+            if (item != null)
+            {
+                if (bucket == 2 || (bucket == 0 && refs.Count >= 6)) keys.Add(item);
+                else refs.Add(item);
+            }
+            else if (line.Contains('|') && !line.StartsWith('|'))
+            {
+                var parts = line.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (var p in parts)
+                {
+                    if (refs.Count < 6) refs.Add(p);
+                    else keys.Add(p);
+                }
+            }
+            else extra.Add(line);
+        }
+        return (refs, keys, extra);
+    }
+
+    static void BuildPresentationTex(StringBuilder tex, Work work, string accent, Action<string> copyImage)
+    {
+        string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+        tex.AppendLine(@"\documentclass[11pt]{article}");
+        tex.AppendLine(@"\usepackage[paperwidth=960bp,paperheight=540bp,margin=0pt]{geometry}");
+        tex.AppendLine(@"\usepackage{fontspec,graphicx,xcolor,colortbl,tabularx,array,tikz}");
+        tex.AppendLine(@"\renewcommand{\familydefault}{\sfdefault}");
+        tex.AppendLine(@"\pagestyle{empty}\setlength{\parindent}{0pt}");
+        tex.AppendLine(@"\hyphenpenalty=10000\exhyphenpenalty=10000\sloppy");
+        tex.AppendLine(@"\definecolor{accent}{HTML}{" + accent + "}");
+        tex.AppendLine(@"\definecolor{SlideNavy}{HTML}{243750}");
+        tex.AppendLine(@"\definecolor{SlideCream}{HTML}{E4DAD3}");
+        tex.AppendLine(@"\definecolor{SlideCard}{HTML}{EFECE7}");
+        tex.AppendLine(@"\definecolor{SlideGold}{HTML}{E6AA68}");
+        tex.AppendLine(@"\definecolor{SlideTeal}{HTML}{2C6467}");
+        tex.AppendLine(@"\definecolor{SlideRow}{HTML}{EAF2F2}");
+        tex.AppendLine(@"\definecolor{SlideInk}{HTML}{1E2328}");
+        tex.AppendLine(@"\definecolor{SlideMuted}{HTML}{526068}");
+        tex.AppendLine(@"\newcolumntype{Y}{>{\raggedright\arraybackslash}X}");
+        tex.AppendLine(@"\begin{document}");
+
+        void BeginSlide(string bgColor = "SlideCream", string? bgImage = null, double bgOpacity = 0.17)
+        {
+            tex.AppendLine(@"\noindent\begin{tikzpicture}[remember picture,overlay]");
+            tex.AppendLine(@"\begin{scope}[shift={(current page.north west)},x=1bp,y=-1bp]");
+            tex.AppendLine(@"\clip (0,0) rectangle (960,540);");
+            tex.AppendLine(@"\fill[" + bgColor + @"] (0,0) rectangle (960,540);");
+            if (!string.IsNullOrEmpty(bgImage))
+            {
+                copyImage(bgImage);
+                tex.AppendLine(@"\begin{scope}[opacity=" + F(bgOpacity) + @"]");
+                tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (480,270) {\includegraphics[width=960bp,height=540bp]{media/" + bgImage + @"}};");
+                tex.AppendLine(@"\end{scope}");
+            }
+            tex.AppendLine(@"\fill[SlideNavy] (0,0) rectangle (960,6);");
+            tex.AppendLine(@"\fill[SlideGold] (0,536) rectangle (960,540);");
+        }
+
+        void EndSlide()
+        {
+            tex.AppendLine(@"\end{scope}");
+            tex.AppendLine(@"\end{tikzpicture}\par\null\clearpage");
+        }
+
+        void RenderCoverSlide(string titleText, string subtitleText, string authorText, string metaText, string? coverKey)
+        {
+            tex.AppendLine(@"\noindent\begin{tikzpicture}[remember picture,overlay]");
+            tex.AppendLine(@"\begin{scope}[shift={(current page.north west)},x=0.96bp,y=-0.72bp]");
+            tex.AppendLine(@"\clip (0,0) rectangle (1000,750);");
+            tex.AppendLine(@"\fill[SlideNavy] (0,0) rectangle (1000,750);");
+            if (!string.IsNullOrEmpty(coverKey))
+            {
+                copyImage(coverKey);
+                tex.AppendLine(@"\node[anchor=north west,inner sep=0pt] at (0,0) {\includegraphics[width=960bp,height=540bp]{media/" + coverKey + @"}};");
+            }
+            tex.AppendLine(@"\fill[SlideNavy,opacity=0.68] (0,0) rectangle (1000,750);");
+            tex.AppendLine(@"\fill[SlideNavy] (0,0) -- (380,0) .. controls (310,120) and (210,130) .. (140,210) .. controls (95,260) and (60,340) .. (0,375) -- cycle;");
+            tex.AppendLine(@"\fill[SlideCream] (0,0) -- (285,0) .. controls (235,88) and (150,96) .. (98,162) .. controls (64,205) and (42,262) .. (0,292) -- cycle;");
+            tex.AppendLine(@"\fill[SlideNavy] (0,0) -- (195,0) .. controls (165,58) and (105,64) .. (66,112) .. controls (40,145) and (24,185) .. (0,210) -- cycle;");
+            tex.AppendLine(@"\fill[SlideNavy] (1000,0) -- (620,0) .. controls (690,120) and (790,130) .. (860,210) .. controls (905,260) and (940,340) .. (1000,375) -- cycle;");
+            tex.AppendLine(@"\fill[SlideCream] (1000,0) -- (715,0) .. controls (765,88) and (850,96) .. (902,162) .. controls (936,205) and (958,262) .. (1000,292) -- cycle;");
+            tex.AppendLine(@"\fill[SlideNavy] (1000,0) -- (805,0) .. controls (835,58) and (895,64) .. (934,112) .. controls (960,145) and (976,185) .. (1000,210) -- cycle;");
+            tex.AppendLine(@"\fill[SlideNavy] (0,750) -- (0,415) .. controls (65,450) and (110,535) .. (175,585) .. controls (250,645) and (360,645) .. (430,750) -- cycle;");
+            tex.AppendLine(@"\fill[SlideCream] (0,750) -- (0,500) .. controls (50,530) and (82,595) .. (132,635) .. controls (190,680) and (270,680) .. (325,750) -- cycle;");
+            tex.AppendLine(@"\fill[SlideNavy] (0,750) -- (0,575) .. controls (35,595) and (58,642) .. (95,672) .. controls (138,705) and (195,705) .. (235,750) -- cycle;");
+            tex.AppendLine(@"\fill[SlideNavy] (1000,750) -- (1000,415) .. controls (935,450) and (890,535) .. (825,585) .. controls (750,645) and (640,645) .. (570,750) -- cycle;");
+            tex.AppendLine(@"\fill[SlideCream] (1000,750) -- (1000,500) .. controls (950,530) and (918,595) .. (868,635) .. controls (810,680) and (730,680) .. (675,750) -- cycle;");
+            tex.AppendLine(@"\fill[SlideNavy] (1000,750) -- (1000,575) .. controls (965,595) and (942,642) .. (905,672) .. controls (862,705) and (805,705) .. (765,750) -- cycle;");
+            tex.AppendLine(@"\draw[SlideGold,line width=1.6bp] (325,0) .. controls (265,105) and (175,112) .. (115,186) .. controls (78,232) and (48,298) .. (0,330);");
+            tex.AppendLine(@"\draw[SlideGold,line width=1.6bp] (675,0) .. controls (735,105) and (825,112) .. (885,186) .. controls (922,232) and (952,298) .. (1000,330);");
+            tex.AppendLine(@"\draw[SlideGold,line width=1.6bp] (0,460) .. controls (58,492) and (96,565) .. (152,612) .. controls (218,665) and (312,665) .. (375,750);");
+            tex.AppendLine(@"\draw[SlideGold,line width=1.6bp] (1000,460) .. controls (942,492) and (904,565) .. (848,612) .. controls (782,665) and (688,665) .. (625,750);");
+            tex.AppendLine(@"\node[anchor=center] at (500,375) {\parbox{620bp}{\centering\color{white}");
+            tex.AppendLine(@"{\fontsize{33}{38}\selectfont\bfseries " + Escape(titleText) + @"\par}");
+            if (!string.IsNullOrWhiteSpace(subtitleText))
+                tex.AppendLine(@"\vspace{12bp}{\fontsize{15}{20}\selectfont\color{SlideCream} " + Escape(subtitleText) + @"\par}");
+            tex.AppendLine(@"\vspace{14bp}{\color{SlideGold}\rule{240bp}{2bp}\par}");
+            if (!string.IsNullOrWhiteSpace(authorText))
+                tex.AppendLine(@"\vspace{14bp}{\fontsize{16}{21}\selectfont\bfseries " + Escape(authorText) + @"\par}");
+            if (!string.IsNullOrWhiteSpace(metaText))
+                tex.AppendLine(@"\vspace{8bp}{\fontsize{12}{16}\selectfont\color{SlideCream} " + Escape(metaText) + @"\par}");
+            tex.AppendLine(@"}};");
+            tex.AppendLine(@"\end{scope}");
+            tex.AppendLine(@"\end{tikzpicture}\par\null\clearpage");
+        }
+
+        string FormatSlideCell(string raw, Chapter slide, HashSet<int> usedImages, double maxImgH = 44)
+        {
+            var matches = Regex.Matches(raw, @"\[\[Imagen\s+([1-9][0-9]*)\]\]");
+            var parts = new List<string>();
+            foreach (Match m in matches)
+            {
+                int idx = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture) - 1;
+                if (idx >= 0 && idx < slide.Images.Count)
+                {
+                    usedImages.Add(idx);
+                    copyImage(slide.Images[idx]);
+                    parts.Add(@"\raisebox{-.35\height}{\includegraphics[width=76bp,height=" + F(maxImgH) + @"bp,keepaspectratio]{media/" + slide.Images[idx] + @"}}");
+                }
+            }
+            var clean = Regex.Replace(raw, @"\[\[Imagen\s+[1-9][0-9]*\]\]", "").Trim();
+            if (clean != "") parts.Add(InlineParagraphs(clean));
+            return string.Join(" ", parts);
+        }
+
+        string SlideRichText(string value, Chapter slide, HashSet<int> usedImages, double boxWidthBp)
+        {
+            var output = new StringBuilder();
+            output.AppendLine(@"\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright");
+            var lines = value.ReplaceLineEndings("\n").Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i].TrimEnd();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (Regex.IsMatch(line.Trim(), @"^(\[\[Imagen\s+[1-9][0-9]*\]\]\s*)+$")) continue;
+                if (line.StartsWith('|') && line.EndsWith('|') && line.Length > 2)
+                {
+                    var rows = new List<string[]>();
+                    do
+                    {
+                        var cells = lines[i].Trim().Trim('|').Split('|');
+                        if (!cells.All(c => Regex.IsMatch(c.Trim(), @"^:?-+:?$")))
+                            rows.Add(cells);
+                        i++;
+                    } while (i < lines.Length && lines[i].Trim().StartsWith('|') && lines[i].Trim().EndsWith('|'));
+                    i--;
+                    if (rows.Count == 0) continue;
+                    int columns = rows.Max(r => r.Length);
+                    string fontCmd = rows.Count >= 6 ? @"\footnotesize" : @"\small";
+                    string stretch = rows.Count >= 6 ? "1.14" : "1.24";
+                    output.AppendLine(@"\par\smallskip\noindent{" + fontCmd + @"\renewcommand{\arraystretch}{" + stretch + @"}\setlength{\tabcolsep}{6pt}\begin{tabularx}{\linewidth}{|" + string.Join("|", Enumerable.Repeat("Y", columns)) + @"|}\hline");
+                    for (int r = 0; r < rows.Count; r++)
+                    {
+                        var row = rows[r];
+                        bool header = r == 0 && rows.Count > 1;
+                        if (header) output.Append(@"\rowcolor{SlideTeal}");
+                        else if (r % 2 == 1) output.Append(@"\rowcolor{SlideRow}");
+                        else output.Append(@"\rowcolor{white}");
+                        output.AppendLine(string.Join(" & ", Enumerable.Range(0, columns).Select(c =>
+                        {
+                            var cell = c < row.Length ? FormatSlideCell(row[c].Trim(), slide, usedImages, rows.Count >= 6 ? 34 : 44) : "";
+                            if (header) return @"{\color{white}\bfseries " + cell + "}";
+                            return c == 0 && !cell.Contains(@"\includegraphics") && !cell.Contains(@"\textbf{") ? @"{\bfseries\color{SlideNavy} " + cell + "}" : cell;
+                        })) + @"\\\hline");
+                    }
+                    output.AppendLine(@"\end{tabularx}}\par\smallskip");
+                }
+                else if (line.StartsWith("[[Paleta:") && line.EndsWith("]]")) output.Append(RenderPalette(line[9..^2]));
+                else if (line.StartsWith("[[Firmas:") && line.EndsWith("]]")) output.Append(RenderSignatures(line[9..^2]));
+                else if (line.StartsWith("- ")) output.AppendLine(@"\noindent{\color{SlideGold}\textbullet}\enspace " + FormatSlideCell(line[2..], slide, usedImages) + @"\par\vspace{3bp}");
+                else if (Regex.Match(line, @"^([1-9][0-9]*)\.\s+(.*)$") is { Success: true } num)
+                    output.AppendLine(@"\noindent{\bfseries\color{SlideTeal}" + num.Groups[1].Value + @".}\enspace " + FormatSlideCell(num.Groups[2].Value, slide, usedImages) + @"\par\vspace{3bp}");
+                else if (line.StartsWith("> "))
+                {
+                    output.AppendLine(@"\par\smallskip\noindent\colorbox{SlideCard}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{\itshape\color{SlideNavy}");
+                    do { output.AppendLine(FormatSlideCell(lines[i][2..], slide, usedImages) + @"\par"); i++; }
+                    while (i < lines.Length && lines[i].StartsWith("> "));
+                    i--; output.AppendLine(@"}}\par\smallskip");
+                }
+                else if (line.StartsWith("### ")) output.AppendLine(@"\par\smallskip\noindent{\normalsize\bfseries\color{SlideTeal} " + Escape(line[4..]) + @"}\par\vspace{2bp}");
+                else if (line.StartsWith("## ")) output.AppendLine(@"\par\medskip\noindent{\large\bfseries\color{SlideNavy} " + Escape(line[3..]) + @"}\par\vspace{3bp}");
+                else output.AppendLine(FormatSlideCell(line, slide, usedImages) + @"\par\vspace{3bp}");
+            }
+            return output.ToString();
+        }
+
+        var ordered = WorldModel.Ordered(work).ToList();
+        var metaLine = string.Join(" · ", new[]
+        {
+            work.DocumentFacts.GetValueOrDefault("Institución", ""),
+            work.DocumentFacts.GetValueOrDefault("Evento", ""),
+            work.DocumentFacts.GetValueOrDefault("Fecha", "")
+        }.Where(v => !string.IsNullOrWhiteSpace(v)));
+
+        if (ordered.Count == 0 || ordered[0].Layout != "Portada")
+        {
+            RenderCoverSlide(work.Title, work.Subtitle, work.Author, metaLine, work.CoverImage);
+        }
+
+        foreach (var chapter in ordered)
+        {
+            var layout = string.IsNullOrWhiteSpace(chapter.Layout) ? "Texto e imagen" : chapter.Layout;
+            if (layout == "Portada")
+            {
+                var coverImg = chapter.Images.Count > 0 ? chapter.Images[0] : work.CoverImage;
+                var sub = chapter.Detail != "" ? chapter.Detail : (chapter.Summary != "" ? chapter.Summary : work.Subtitle);
+                var bodyExtra = string.Join(" · ", new[] { chapter.PlainText.Replace('\n', ' ').Trim(), metaLine }.Where(s => s != ""));
+                RenderCoverSlide(chapter.Title != "" ? chapter.Title : work.Title, sub, work.Author, bodyExtra, coverImg);
+                continue;
+            }
+
+            if (layout == "Ficha de concepto")
+            {
+                var map = MapSlideConceptImages(chapter);
+                var (refs, keys, extra) = ParseSlideConceptLists(chapter.PlainText);
+                string? bgKey = map.TryGetValue("Fondo de diapositiva", out var bgSlot) ? bgSlot.Key : null;
+                BeginSlide("SlideCream", bgKey, 0.17);
+
+                tex.AppendLine(@"\node[anchor=north west,text=SlideNavy] at (32,26) {\parbox{320bp}{\raggedright\fontsize{25}{28}\selectfont\bfseries " + Escape(chapter.Title) + @"}};");
+                if (chapter.Detail != "")
+                    tex.AppendLine(@"\node[anchor=north west,text=SlideTeal] at (32,76) {\parbox{320bp}{\raggedright\fontsize{13.5}{16}\selectfont\bfseries (" + Escape(chapter.Detail) + @")}};");
+
+                var conceptBody = chapter.Summary != "" ? chapter.Summary : string.Join(" ", extra);
+                tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (365,28) {\parbox{563bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{12}{15.2}\selectfont{\bfseries\color{SlideNavy}Concepto:} " + InlineParagraphs(conceptBody) + @"}};");
+                tex.AppendLine(@"\draw[SlideGold,line width=1.6bp] (32,112) -- (928,112);");
+
+                tex.AppendLine(@"\node[anchor=north,text=SlideNavy,font=\fontsize{10.5}{12}\selectfont\bfseries] at (74,132) {Plataforma};");
+                tex.AppendLine(@"\fill[white,rounded corners=4bp,draw=SlideGold,line width=0.6bp] (35,148) rectangle (113,205);");
+                if (map.TryGetValue("Plataforma", out var plat))
+                {
+                    copyImage(plat.Key);
+                    tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (74,176.5) {\includegraphics[width=68bp,height=48bp,keepaspectratio]{media/" + plat.Key + @"}};");
+                }
+
+                tex.AppendLine(@"\node[anchor=north,text=SlideNavy,font=\fontsize{10.5}{12}\selectfont\bfseries] at (74,222) {Target \& ESRB};");
+                tex.AppendLine(@"\fill[white,rounded corners=4bp,draw=SlideGold,line width=0.6bp] (35,238) rectangle (113,295);");
+                if (map.TryGetValue("Target & ESRB", out var esrb))
+                {
+                    copyImage(esrb.Key);
+                    tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (74,266.5) {\includegraphics[width=68bp,height=48bp,keepaspectratio]{media/" + esrb.Key + @"}};");
+                }
+
+                tex.AppendLine(@"\node[anchor=north,text=SlideNavy,font=\fontsize{10.5}{12}\selectfont\bfseries] at (256,132) {Referencias visuales};");
+                (string Role, double X, double Y)[] refGrid =
+                [
+                    ("Referencia visual 1", 136, 152),
+                    ("Referencia visual 2", 260, 152),
+                    ("Referencia visual 3", 136, 228),
+                    ("Referencia visual 4", 260, 228)
+                ];
+                foreach (var (role, rx, ry) in refGrid)
+                {
+                    tex.AppendLine(@"\fill[SlideCard,draw=SlideNavy!30,line width=0.5bp] (" + F(rx) + "," + F(ry) + ") rectangle (" + F(rx + 116) + "," + F(ry + 66) + ");");
+                    if (map.TryGetValue(role, out var rimg))
+                    {
+                        copyImage(rimg.Key);
+                        tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (" + F(rx + 58) + "," + F(ry + 33) + @") {\includegraphics[width=114bp,height=64bp,keepaspectratio]{media/" + rimg.Key + @"}};");
+                    }
+                }
+
+                tex.AppendLine(@"\node[anchor=north west,text=SlideNavy,font=\fontsize{11}{13}\selectfont\bfseries] at (402,130) {Referencias:};");
+                for (int i = 0; i < Math.Min(6, refs.Count); i++)
+                {
+                    double ry = 154 + i * 24.5;
+                    tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (402," + F(ry) + @") {\parbox{340bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{10.5}{12.5}\selectfont{\bfseries\color{SlideTeal}" + (i + 1) + @".} " + InlineParagraphs(refs[i]) + @"}};");
+                }
+
+                tex.AppendLine(@"\node[anchor=north west,text=SlideNavy,font=\fontsize{11}{13}\selectfont\bfseries] at (758,130) {Key Words:};");
+                for (int i = 0; i < Math.Min(6, keys.Count); i++)
+                {
+                    double ky = 154 + i * 24.5;
+                    tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (758," + F(ky) + @") {\parbox{175bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{10.5}{12.5}\selectfont{\bfseries\color{SlideGold}" + (i + 1) + @".} " + InlineParagraphs(keys[i]) + @"}};");
+                }
+
+                double[] gx = [32, 336, 640];
+                for (int g = 0; g < 3; g++)
+                {
+                    var role = "Gameplay " + (g + 1);
+                    double x = gx[g];
+                    tex.AppendLine(@"\fill[SlideNavy!90,draw=SlideNavy,line width=0.8bp] (" + F(x) + ",314) rectangle (" + F(x + 288) + ",502);");
+                    if (map.TryGetValue(role, out var gimg))
+                    {
+                        copyImage(gimg.Key);
+                        tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (" + F(x + 144) + @",408) {\includegraphics[width=286bp,height=186bp,keepaspectratio]{media/" + gimg.Key + @"}};");
+                        var cap = gimg.Caption != "" ? gimg.Caption : role;
+                        tex.AppendLine(@"\node[anchor=north,text=SlideNavy] at (" + F(x + 144) + @",508) {\parbox{284bp}{\centering\fontsize{10}{12}\selectfont\bfseries " + Escape(cap) + @"}};");
+                    }
+                }
+                EndSlide();
+                continue;
+            }
+
+            BeginSlide("SlideCream");
+            tex.AppendLine(@"\node[anchor=north west,text=SlideNavy] at (38,24) {\parbox{884bp}{\raggedright\fontsize{24}{28}\selectfont\bfseries " + Escape(chapter.Title) + @"}};");
+            if (chapter.Detail != "")
+                tex.AppendLine(@"\node[anchor=north east,text=SlideTeal] at (922,30) {\parbox{360bp}{\raggedleft\fontsize{11.5}{14}\selectfont\bfseries " + Escape(chapter.Detail) + @"}};");
+            tex.AppendLine(@"\draw[SlideGold,line width=1.6bp] (38,66) -- (922,66);");
+
+            var used = new HashSet<int>();
+            if (layout == "Tabla visual")
+            {
+                var bodyTex = SlideRichText(chapter.PlainText, chapter, used, 884);
+                tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (38,80) {\parbox{884bp}{" + bodyTex + @"}};");
+                if (chapter.Summary != "")
+                {
+                    tex.AppendLine(@"\fill[SlideCard,rounded corners=4bp,draw=SlideGold,line width=0.6bp] (38,484) rectangle (922,522);");
+                    tex.AppendLine(@"\node[anchor=west,text=SlideNavy] at (50,503) {\parbox{860bp}{\raggedright\fontsize{10.5}{13}\selectfont{\bfseries\color{SlideTeal}Nota clave:} " + InlineParagraphs(chapter.Summary) + @"}};");
+                }
+                EndSlide();
+                continue;
+            }
+
+            if (layout == "Imagen protagonista" && chapter.Images.Count > 0)
+            {
+                used.Add(0);
+                copyImage(chapter.Images[0]);
+                tex.AppendLine(@"\fill[SlideNavy!92,rounded corners=5bp,draw=SlideGold,line width=1bp] (38,78) rectangle (922,458);");
+                tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (480,268) {\includegraphics[width=876bp,height=372bp,keepaspectratio]{media/" + chapter.Images[0] + @"}};");
+                var cap = chapter.ImageCaptions.GetValueOrDefault(0, "");
+                var footer = string.Join(" — ", new[] { cap, chapter.PlainText.Replace('\n', ' ').Trim(), chapter.Summary }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                if (footer != "")
+                    tex.AppendLine(@"\node[anchor=north,text=SlideNavy] at (480,468) {\parbox{860bp}{\centering\fontsize{11.5}{14.5}\selectfont\bfseries " + InlineParagraphs(footer) + @"}};");
+                EndSlide();
+                continue;
+            }
+
+            if (layout == "Texto" || (chapter.Images.Count == 0 && layout != "Dos columnas"))
+            {
+                var bodyTex = SlideRichText(chapter.PlainText, chapter, used, 884);
+                tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (38,82) {\parbox{884bp}{" + bodyTex + @"}};");
+                if (chapter.Summary != "")
+                {
+                    tex.AppendLine(@"\fill[SlideCard,rounded corners=4bp,draw=SlideGold,line width=0.6bp] (38,476) rectangle (922,520);");
+                    tex.AppendLine(@"\node[anchor=west,text=SlideNavy] at (50,498) {\parbox{860bp}{\raggedright\fontsize{10.5}{13}\selectfont{\bfseries\color{SlideTeal}Síntesis:} " + InlineParagraphs(chapter.Summary) + @"}};");
+                }
+                EndSlide();
+                continue;
+            }
+
+            var leftTex = SlideRichText(chapter.PlainText, chapter, used, 424);
+            tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (38,82) {\parbox{424bp}{" + leftTex + @"}};");
+
+            var remainingImages = Enumerable.Range(0, chapter.Images.Count).Where(i => !used.Contains(i)).ToList();
+            if (layout is "Moodboard y paleta" or "Moodboard y landmark" && remainingImages.Count > 1)
+            {
+                int cols = remainingImages.Count >= 5 ? 3 : 2;
+                int rows = (int)Math.Ceiling(remainingImages.Count / (double)cols);
+                double areaW = 436;
+                double areaH = chapter.Summary != "" ? 344 : 404;
+                double gap = 10;
+                double cellW = (areaW - gap * (cols - 1)) / cols;
+                double cellH = (areaH - gap * (rows - 1)) / rows;
+                for (int idx = 0; idx < remainingImages.Count; idx++)
+                {
+                    int imgIdx = remainingImages[idx];
+                    copyImage(chapter.Images[imgIdx]);
+                    int r = idx / cols;
+                    int c = idx % cols;
+                    double cx = 486 + c * (cellW + gap);
+                    double cy = 82 + r * (cellH + gap);
+                    var cap = chapter.ImageCaptions.GetValueOrDefault(imgIdx, "");
+                    double imgBoxH = cap != "" ? cellH - 18 : cellH - 4;
+                    tex.AppendLine(@"\fill[white,rounded corners=3bp,draw=SlideNavy!25,line width=0.5bp] (" + F(cx) + "," + F(cy) + ") rectangle (" + F(cx + cellW) + "," + F(cy + cellH) + ");");
+                    tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (" + F(cx + cellW / 2) + "," + F(cy + imgBoxH / 2 + 2) + @") {\includegraphics[width=" + F(cellW - 6) + @"bp,height=" + F(imgBoxH - 4) + @"bp,keepaspectratio]{media/" + chapter.Images[imgIdx] + @"}};");
+                    if (cap != "")
+                        tex.AppendLine(@"\node[anchor=north,text=SlideMuted] at (" + F(cx + cellW / 2) + "," + F(cy + imgBoxH + 2) + @") {\parbox{" + F(cellW - 4) + @"bp}{\centering\fontsize{8.5}{10}\selectfont\bfseries " + Escape(cap) + @"}};");
+                }
+            }
+            else if (remainingImages.Count > 0)
+            {
+                int imgIdx = remainingImages[0];
+                copyImage(chapter.Images[imgIdx]);
+                double boxH = chapter.Summary != "" ? 324 : 384;
+                var cap = chapter.ImageCaptions.GetValueOrDefault(imgIdx, "");
+                tex.AppendLine(@"\fill[white,rounded corners=5bp,draw=SlideGold,line width=0.8bp] (486,82) rectangle (922," + F(82 + boxH) + ");");
+                tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (704," + F(82 + (boxH - (cap != "" ? 24 : 8)) / 2) + @") {\includegraphics[width=424bp,height=" + F(boxH - (cap != "" ? 32 : 14)) + @"bp,keepaspectratio]{media/" + chapter.Images[imgIdx] + @"}};");
+                if (cap != "")
+                    tex.AppendLine(@"\node[anchor=south,text=SlideMuted] at (704," + F(82 + boxH - 5) + @") {\parbox{420bp}{\centering\fontsize{9.5}{11.5}\selectfont\itshape " + Escape(cap) + @"}};");
+            }
+
+            if (chapter.Summary != "")
+            {
+                double sumY = remainingImages.Count > 0 ? 444 : 82;
+                double sumH = remainingImages.Count > 0 ? 74 : 420;
+                tex.AppendLine(@"\fill[SlideCard,rounded corners=4bp,draw=SlideGold,line width=0.7bp] (486," + F(sumY) + ") rectangle (922," + F(sumY + sumH) + ");");
+                tex.AppendLine(@"\node[anchor=north west,text=SlideNavy] at (498," + F(sumY + 10) + @") {\parbox{412bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{10.5}{13.5}\selectfont{\bfseries\color{SlideTeal}Síntesis visual:}\par\vspace{2bp}" + InlineParagraphs(chapter.Summary) + @"}};");
+            }
+            EndSlide();
+        }
+        tex.AppendLine(@"\end{document}");
+    }
+
     public static async Task Export(Work work, string media, string output, bool pdf, bool glossary = false, string? engine = null,string? nodeId=null,IReadOnlySet<string>? selection=null)
     {
         var temp = Directory.CreateTempSubdirectory("nimbo-").FullName;
@@ -126,6 +576,15 @@ public static class Publisher
             var format=Format.All.FirstOrDefault(f=>f.Name==work.Type);
             var style=format==null?"Clásica":EditorialTemplate.For(format).FirstOrDefault(t=>t.Name==work.Template)?.Style??"Clásica";
             var paper=work.Publication.Paper switch {"Bolsillo" when novel=>"paperwidth=110mm,paperheight=175mm","A5"=>"a5paper","Carta"=>"letterpaper","A4"=>"a4paper",_=>novel?"a5paper":"a4paper"};
+            var accent = work.Type switch { "CV" => "65455B", "Informe" => "315671", "Artículo" => "4E476E", "Carta" => "784F3E", "Acta" => "5C634F", "Apuntes" => "506C46", "Propuesta" => "474F76", _ => "365E64" };
+            accent=work.PrintAccent switch {"Petróleo"=>"245966","Vino"=>"843B59","Oliva"=>"51683C","Grafito"=>"414650",_=>accent};
+            void CopyImage(string key)
+            {
+                if (Path.GetFileName(key) != key || !Regex.IsMatch(key, @"\A[0-9a-f]{64}\.(?:png|jpe?g)\z")) throw new InvalidDataException("Imagen no migrada: " + key);
+                Directory.CreateDirectory(Path.Combine(temp, "media"));
+                var dest=Path.Combine(temp,"media",key);
+                if(!File.Exists(dest))File.Copy(Path.Combine(media,key),dest);
+            }
             if(!glossary && work.UseTexSource){
                 if(string.IsNullOrWhiteSpace(work.TexSource))throw new InvalidDataException("El proyecto LaTeX está vacío.");
                 foreach(var (relative,key) in work.TexResources){
@@ -135,16 +594,18 @@ public static class Publisher
                     Directory.CreateDirectory(Path.GetDirectoryName(path)!);File.Copy(Path.Combine(media,key),path);
                 }
                 tex.Append(work.TexSource);
-            }else{
-            tex.AppendLine(slide ? @"\documentclass[aspectratio=169]{beamer}" :
-                novel ? @"\documentclass[11pt,a5paper,openany]{book}" : glossary ? @"\documentclass[11pt,twoside]{article}" : @"\documentclass[11pt]{article}");
+            }
+            else if (slide)
+            {
+                BuildPresentationTex(tex, work, accent, CopyImage);
+            }
+            else{
+            tex.AppendLine(novel ? @"\documentclass[11pt,a5paper,openany]{book}" : glossary ? @"\documentclass[11pt,twoside]{article}" : @"\documentclass[11pt]{article}");
             tex.AppendLine(@"\usepackage{fontspec,graphicx,xcolor,colortbl,tabularx}");
             var (leafWidth,leafHeight)=Dossiers.Size(work.GlossaryPaper);
-            if (!slide) tex.AppendLine(glossary ? $@"\usepackage[paperwidth={leafWidth}mm,paperheight={leafHeight}mm,inner=12mm,outer=10mm,top=12mm,bottom=15mm,footskip=8mm]{{geometry}}" :
+            tex.AppendLine(glossary ? $@"\usepackage[paperwidth={leafWidth}mm,paperheight={leafHeight}mm,inner=12mm,outer=10mm,top=12mm,bottom=15mm,footskip=8mm]{{geometry}}" :
                 novel ? @"\usepackage["+paper+@",inner=18mm,outer=15mm]{geometry}" :
                 @"\usepackage[" + paper + @",margin=23mm]{geometry}");
-            var accent = work.Type switch { "CV" => "65455B", "Informe" => "315671", "Artículo" => "4E476E", "Carta" => "784F3E", "Acta" => "5C634F", "Apuntes" => "506C46", "Propuesta" => "474F76", _ => "365E64" };
-            accent=work.PrintAccent switch {"Petróleo"=>"245966","Vino"=>"843B59","Oliva"=>"51683C","Grafito"=>"414650",_=>accent};
             if(!glossary && style=="Moderna")tex.AppendLine(@"\renewcommand{\familydefault}{\sfdefault}");
             tex.AppendLine(@"\definecolor{accent}{HTML}{" + accent + "}");
             if(glossary){
@@ -152,47 +613,33 @@ public static class Publisher
                 using var copy=File.Create(Path.Combine(temp,"fichas.tex"));template.CopyTo(copy);
                 tex.AppendLine(@"\input{fichas.tex}");
             }
-            if (slide) tex.AppendLine(@"\setbeamercolor{structure}{fg=accent}\setbeamercolor{frametitle}{bg=accent,fg=white}\setbeamertemplate{navigation symbols}{}");
             if (novel) tex.AppendLine(@"\renewcommand{\chaptername}{Capítulo}\renewcommand{\partname}{Parte}\renewcommand{\contentsname}{Contenido}");
-            if (!slide && !glossary && work.Chapters.Any(c => Enumerable.Range(0,c.Images.Count).Any(i=>Illustrations.Layout(c,i).StartsWith("Ajustar"))))
+            if (!glossary && work.Chapters.Any(c => Enumerable.Range(0,c.Images.Count).Any(i=>Illustrations.Layout(c,i).StartsWith("Ajustar"))))
                 tex.AppendLine(@"\usepackage{wrapfig}\newsavebox{\nimbofigure}");
             if(!glossary && work.Type=="CV")tex.AppendLine(@"\setlength{\parindent}{0pt}");
             var title = glossary ? "Glosario de " + work.Title : work.Title;
-            if(slide){
-                var affiliation=string.Join(" · ",new[]{"Institución","Evento"}.Select(k=>work.DocumentFacts.GetValueOrDefault(k,"")).Where(v=>v!=""));
-                tex.AppendLine(@"\institute{"+Escape(affiliation)+@"}\subtitle{"+Escape(work.Subtitle)+"}");
-            }
-            var date=slide?work.DocumentFacts.GetValueOrDefault("Fecha",""):"";
-            tex.AppendLine(@"\title{" + Escape(title) + @"}\author{" + Escape(work.Author) + @"}\date{"+Escape(date)+@"}\begin{document}");
-            if(!slide && !glossary){
+            tex.AppendLine(@"\title{" + Escape(title) + @"}\author{" + Escape(work.Author) + @"}\date{}\begin{document}");
+            if(!glossary){
                 var leading=work.PrintSpacing switch {"Abierto"=>"1.2","Amplio"=>"1.5",_=>"1"};
                 tex.AppendLine(@"\linespread{"+leading+@"}\selectfont");
                 var indent=work.PrintIndent switch {"Sin sangría"=>"0mm","5 mm"=>"5mm","8 mm"=>"8mm",_=>null};
                 if(indent!=null)tex.AppendLine(@"\setlength{\parindent}{"+indent+"}");
-            }
-            void CopyImage(string key)
-            {
-                if (Path.GetFileName(key) != key || !Regex.IsMatch(key, @"\A[0-9a-f]{64}\.(?:png|jpe?g)\z")) throw new InvalidDataException("Imagen no migrada: " + key);
-                Directory.CreateDirectory(Path.Combine(temp, "media"));
-                var dest=Path.Combine(temp,"media",key);
-                if(!File.Exists(dest))File.Copy(Path.Combine(media,key),dest);
             }
             string Caption(string? text)=>string.IsNullOrWhiteSpace(text)?"":@"\par\smallskip{\small\itshape "+Escape(text)+@"\par}";
             void Image(string key, string layout = "Centrada",string? legend=null)
             {
                 if(string.IsNullOrEmpty(key))return;
                 CopyImage(key);var caption=Caption(legend);
-                if (layout.StartsWith("Ajustar") && !slide)
+                if (layout.StartsWith("Ajustar"))
                 {
                     var side = layout.EndsWith("izquierda") ? "l" : "r";
-                    // Measure the actual illustration and its caption before wrapping on a small page.
                     tex.AppendLine(@"\par\sbox{\nimbofigure}{\begin{minipage}{.36\linewidth}\centering\includegraphics[width=\linewidth,height=.35\textheight,keepaspectratio]{media/" + key + "}" + caption + @"\end{minipage}}");
                     tex.AppendLine(@"\ifdim\dimexpr\pagegoal-\pagetotal\relax<\dimexpr\ht\nimbofigure+\dp\nimbofigure+2\intextsep+\baselineskip\relax\newpage\fi");
                     tex.AppendLine(@"\begin{wrapfigure}{" + side + @"}{.36\linewidth}\usebox{\nimbofigure}\end{wrapfigure}");
                 }
-                else if(layout == "Lámina ilustrada" && !slide)
+                else if(layout == "Lámina ilustrada")
                     tex.AppendLine(@"\vspace*{\fill}\noindent\includegraphics[width=\linewidth,height=.52\textheight,keepaspectratio]{media/" + key + "}"+caption+@"\par\medskip");
-                else if (layout == "Página completa" && !slide)
+                else if (layout == "Página completa")
                     tex.AppendLine(@"\clearpage\thispagestyle{empty}\vspace*{\fill}\begin{center}\includegraphics[width=\linewidth,height="+(caption==""?".88":".76")+@"\textheight,keepaspectratio]{media/" + key + "}"+caption+@"\end{center}\vspace*{\fill}\clearpage");
                 else tex.AppendLine(@"\begin{center}\includegraphics[width=.84\linewidth,height=.47\textheight,keepaspectratio]{media/" + key + "}"+caption+@"\end{center}");
             }
@@ -218,12 +665,12 @@ public static class Publisher
                 if(centered || work.CoverStyle=="Cabecera")tex.AppendLine(@"\vfill\null");
                 tex.AppendLine(@"\clearpage");
             }
-            if(!slide && !glossary && work.FrameStyle is "Filete" or "Doble filete" or "Esquinas"){
+            if(!glossary && work.FrameStyle is "Filete" or "Doble filete" or "Esquinas"){
                 tex.AppendLine(@"\newcommand{\nimboframe}[1]{\put(#1,-\dimexpr\paperheight-#1\relax){\framebox(\dimexpr\paperwidth-#1-#1\relax,\dimexpr\paperheight-#1-#1\relax){}}}");
                 string lines=work.FrameStyle=="Esquinas"?@"\put(6mm,-6mm){\line(1,0){18mm}}\put(6mm,-6mm){\line(0,-1){18mm}}\put(\dimexpr\paperwidth-6mm\relax,-\dimexpr\paperheight-6mm\relax){\line(-1,0){18mm}}\put(\dimexpr\paperwidth-6mm\relax,-\dimexpr\paperheight-6mm\relax){\line(0,1){18mm}}":@"\nimboframe{5mm}"+(work.FrameStyle=="Doble filete"?@"\nimboframe{6mm}":"");
                 tex.AppendLine(@"\AddToHook{shipout/foreground}{\color{accent}\linethickness{.45pt}"+lines+"}");
             }
-            bool designedCover=!slide && !glossary && (novel || work.CoverStyle!="Por formato");
+            bool designedCover=!glossary && (novel || work.CoverStyle!="Por formato");
             if(designedCover)Cover(work.CoverImage,false);
             if(!glossary && work.Type=="CV"){
                 string Contact(string key)=>work.Contact.GetValueOrDefault(key,"").Trim();
@@ -271,17 +718,10 @@ public static class Publisher
                 }
             }
             else if(!designedCover){
-                if(slide && work.CoverImage!=""){
-                    CopyImage(work.CoverImage);
-                    tex.AppendLine(@"\begin{frame}[plain]\vspace*{2mm}\begin{center}\includegraphics[width=.72\linewidth,height=.42\textheight,keepaspectratio]{media/"+work.CoverImage+@"}\end{center}");
-                    tex.AppendLine(@"\begin{center}{\Large\bfseries\color{accent}"+Escape(work.Title)+@"\par}");
-                    if(work.Subtitle!="")tex.AppendLine(@"{\normalsize "+Escape(work.Subtitle)+@"\par}");
-                    if(work.Author!="")tex.AppendLine(@"\smallskip{\small "+Escape(work.Author)+@"\par}");
-                    tex.AppendLine(@"\end{center}\end{frame}");
-                }else tex.AppendLine(slide ? @"\begin{frame}\titlepage\end{frame}" : @"\maketitle");
+                tex.AppendLine(@"\maketitle");
             }
             var facts=EditorialTemplate.FrontMatter(work.Type).Where(k=>!string.IsNullOrWhiteSpace(work.DocumentFacts.GetValueOrDefault(k))).ToArray();
-            if(!slide && !glossary && work.Type!="Carta" && facts.Length>0){
+            if(!glossary && work.Type!="Carta" && facts.Length>0){
                 tex.AppendLine(@"\par\smallskip\noindent{\renewcommand{\arraystretch}{1.2}\begin{tabularx}{\linewidth}{|>{\columncolor{accent!12}\bfseries}p{4.2cm}|X|}\hline");
                 foreach(var key in facts)tex.AppendLine(Escape(key)+@" & "+Escape(work.DocumentFacts[key])+@"\\\hline");
                 tex.AppendLine(@"\end{tabularx}}\par\medskip");
@@ -319,25 +759,23 @@ public static class Publisher
                 {
                     if(omitEmpty && !HasContent(chapter))continue;
                     var heading = Escape(chapter.Title);
-                    tex.AppendLine(slide ? @"\begin{frame}[allowframebreaks]{" + heading + "}" : novel ?
+                    tex.AppendLine(novel ?
                         (chapter.Level == "Arc" ? @"\part{" : chapter.Level == "Subchapter" ? @"\section{" : @"\chapter{") + heading + "}" :
                         work.Type is "Informe" or "Artículo" or "Propuesta" ? @"\section{" + heading + "}" : work.Type == "Carta" ? @"\medskip" : @"\section*{\color{accent}" + heading + "}");
                     if (work.Type == "Apuntes" && chapter.Detail != "")
                         tex.AppendLine(@"\par\smallskip\noindent\colorbox{accent!10}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{\small{\bfseries\color{accent}Conceptos y preguntas}\par " + Paragraphs(chapter.Detail) + @"}}\par\smallskip");
                     else if (chapter.Detail != "")
                         tex.AppendLine(@"\par\smallskip\noindent{\small\bfseries\color{accent}" + Escape(EditorialTemplate.DetailLabel(work.Type)) + @": }\emph{" + Escape(chapter.Detail) + @"}\par\smallskip");
-                    bool columns = slide && chapter.Layout is "Texto e imagen" or "Dos columnas" or "Plano y leyenda" or "Moodboard y paleta" or "Moodboard y landmark";
-                    if (columns) tex.AppendLine(@"\begin{columns}[T,onlytextwidth]\begin{column}{.48\textwidth}");
-                    var rows = slide ? [] : Illustrations.Rows(chapter).ToList();
+                    var rows = Illustrations.Rows(chapter).ToList();
                     var used = new HashSet<int>();
                     int start = 0;
-                    if (rows.Count == 0 && !slide && chapter.Images.Count > 0 && Illustrations.Layout(chapter,0).StartsWith("Ajustar"))
+                    if (rows.Count == 0 && chapter.Images.Count > 0 && Illustrations.Layout(chapter,0).StartsWith("Ajustar"))
                     {
                         Image(chapter.Images[0], Illustrations.Layout(chapter,0),chapter.ImageCaptions.GetValueOrDefault(0)); used.Add(0);
                     }
                     foreach (var row in rows)
                     {
-                        tex.AppendLine(Paragraphs(chapter.PlainText[start..row[0].Start],!slide));
+                        tex.AppendLine(Paragraphs(chapter.PlainText[start..row[0].Start],true));
                         if(row.Count>1)tex.AppendLine(@"\begin{center}");
                         for(int col=0;col<row.Count;col++){
                             int index=row[col].Image;var key=chapter.Images[index];used.Add(index);
@@ -350,29 +788,7 @@ public static class Publisher
                         if(row.Count>1)tex.AppendLine(@"\end{center}");
                         start=row[^1].End;
                     }
-                    tex.AppendLine(Paragraphs(chapter.PlainText[start..],!slide));
-                    if (columns) tex.AppendLine(@"\end{column}\begin{column}{.48\textwidth}");
-                    if (slide && chapter.Images.Count > 1 && chapter.Layout is "Moodboard y paleta" or "Moodboard y landmark")
-                    {
-                        int perRow = chapter.Images.Count >= 3 ? 3 : 2;
-                        string cellW = perRow == 3 ? ".31" : ".47";
-                        string cellH = chapter.Images.Count > 3 ? ".20" : ".30";
-                        tex.AppendLine(@"\begin{center}");
-                        for (int i = 0; i < chapter.Images.Count; i++)
-                        {
-                            used.Add(i);
-                            CopyImage(chapter.Images[i]);
-                            if (i > 0 && i % perRow == 0) tex.AppendLine(@"\par\smallskip");
-                            else if (i > 0) tex.AppendLine(@"\hfill%");
-                            tex.AppendLine(@"\begin{minipage}[t]{" + cellW + @"\linewidth}\centering\vspace{0pt}\includegraphics[width=\linewidth,height=" + cellH + @"\textheight,keepaspectratio]{media/" + chapter.Images[i] + "}" + Caption(chapter.ImageCaptions.GetValueOrDefault(i)) + @"\end{minipage}%");
-                        }
-                        tex.AppendLine(@"\end{center}");
-                    }
-                    else if (slide && chapter.Layout == "Imagen protagonista" && chapter.Images.Count > 0)
-                    {
-                        used.Add(0); CopyImage(chapter.Images[0]);
-                        tex.AppendLine(@"\begin{center}\includegraphics[width=.92\linewidth,height=.64\textheight,keepaspectratio]{media/" + chapter.Images[0] + "}" + Caption(chapter.ImageCaptions.GetValueOrDefault(0)) + @"\end{center}");
-                    }
+                    tex.AppendLine(Paragraphs(chapter.PlainText[start..],true));
                     for (int i = 0; i < chapter.Images.Count; i++) if (!used.Contains(i)) Image(chapter.Images[i], Illustrations.Layout(chapter,i),chapter.ImageCaptions.GetValueOrDefault(i));
                     if(work.Type=="CV"){
                         foreach(var entry in chapter.Entries){
@@ -385,13 +801,9 @@ public static class Publisher
                     {
                         if (work.Type == "Apuntes")
                             tex.AppendLine(@"\par\medskip\noindent\fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\small{\bfseries\color{accent}Síntesis}\par " + Paragraphs(chapter.Summary) + @"}}\par");
-                        else if (slide && columns)
-                            tex.AppendLine(@"\par\smallskip{\small " + Paragraphs(chapter.Summary) + @"}");
                         else
                             tex.AppendLine(@"\par\medskip\textit{" + Escape(chapter.Summary) + "}");
                     }
-                    if (columns) tex.AppendLine(@"\end{column}\end{columns}");
-                    if (slide) tex.AppendLine(@"\end{frame}");
                 }
             }
             if(novel && work.Publication.BackCover && (work.Description!="" || work.BackImage!=""))Cover(work.BackImage,true);
@@ -440,14 +852,3 @@ public static class Publisher
         finally { File.Delete(pending); Directory.Delete(temp, true); }
     }
 }
-
-
-
-
-
-
-
-
-
-
-

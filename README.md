@@ -1,6 +1,6 @@
 # Nimbo
 
-Estudio de escritura de escritorio para Windows y Linux. Nimbo 0.5.4 usa C# y .NET 10, Avalonia, SQLite y XeLaTeX.
+Estudio de escritura de escritorio para Windows y Linux. Nimbo 0.5.5 usa C# y .NET 10, Avalonia, SQLite y XeLaTeX.
 
 ## Primera sesión
 
@@ -64,4 +64,4 @@ En el manuscrito, **Ctrl+F** busca en la sección abierta. **F3** avanza y **May
 
 En **Nueva obra** elige el formato y la plantilla. En un CV, **Perfil y diseño** reúne los datos de contacto y el estilo impreso. Cada sección admite varias entradas con puesto, institución, fechas y resultados. Cambiar el estilo desde la ficha conserva los apartados que ya escribiste.
 
-**Leer** abre la sección sin herramientas de edición. **Vista previa** compone el PDF con XeLaTeX y lo abre en el lector del sistema. En **Ficha y diseño** puedes elegir papel, tinta, interlineado y sangría. Las preferencias de pantalla se guardan aparte, en **Preferencias → Apariencia y escritura**.
+**Leer** abre la sección sin herramientas de edición; en **Presentación** despliega un visor panorámico 16:9 (`960 × 540`) con escenario escalable, navegación por diapositiva y tira inferior de miniaturas, mientras que su **Manuscrito** integra vista previa en vivo 16:9, asignación de ranuras visuales (`Plataforma`, `Target & ESRB`, `Referencia visual 1..4`, `Gameplay 1..3`, `Fondo de diapositiva`) e inserción de iconos dentro de celdas de tabla (`[[Imagen N]]`). La pestaña **Glosario** se muestra exclusivamente en obras de tipo **Novela**. **Vista previa** compone el PDF con XeLaTeX y lo abre en el lector del sistema. En **Ficha y diseño** puedes elegir papel, tinta, interlineado y sangría. Las preferencias de pantalla se guardan aparte, en **Preferencias → Apariencia y escritura**.

@@ -10,16 +10,43 @@ public sealed record EditorialTemplate(string Name, string Style, string[] Secti
         {
             "CV" => [new("Trayectoria profesional","Cronológica",["Perfil","Experiencia laboral","Formación","Competencias","Idiomas","Certificaciones"]),
                     new("Primera experiencia","Moderna",["Perfil","Formación","Proyectos","Prácticas y voluntariado","Competencias","Idiomas"]),
-                    new("Currículum académico","Académica",["Perfil investigador","Formación","Docencia","Investigación","Publicaciones","Ponencias","Becas y reconocimientos"])],
-            "Informe" => [standard, new("Informe ejecutivo", "Moderna", ["Resumen ejecutivo", "Objetivos", "Indicadores", "Hallazgos", "Recomendaciones", "Próximos pasos"])],
-            "Artículo" => [standard, new("Artículo de revisión", "Académica", ["Resumen", "Pregunta de revisión", "Criterios de selección", "Síntesis de evidencia", "Limitaciones", "Referencias"])],
-            "Apuntes" => [standard, new("Cuaderno de prácticas", "Moderna", ["Objetivo", "Materiales", "Procedimiento", "Observaciones", "Reflexión"])],
-            "Acta" => [standard, new("Comité de proyecto", "Moderna", ["Participantes", "Revisión de compromisos", "Decisiones", "Acciones y fechas"])],
-            "Carta" => [standard, new("Solicitud formal", "Clásica", ["Saludo", "Motivo", "Solicitud", "Despedida"])],
-            "Propuesta" => [standard, new("Oferta de servicios", "Moderna", ["Necesidad", "Solución", "Entregables", "Calendario", "Inversión", "Condiciones"])],
-            "Presentación" => [standard, new("Presentación de proyecto", "Moderna", ["Portada", "Problema", "Propuesta", "Evidencias", "Calendario", "Cierre"])],
-            "Documento" => [standard, new("Guía de trabajo", "Moderna", ["Finalidad", "Preparación", "Instrucciones", "Comprobación"])],
-            _ => [standard, new("Novela por arcos", "Clásica", ["Primer arco", "Capítulo 1"])]
+                    new("Currículum académico","Académica",["Perfil investigador","Formación","Docencia","Investigación","Publicaciones","Ponencias","Becas y reconocimientos"]),
+                    new("Perfil creativo y técnico","Moderna",["Perfil profesional","Proyectos","Experiencia laboral","Formación","Herramientas y tecnologías", "Certificaciones"])],
+            "Informe" => [standard,
+                    new("Informe ejecutivo", "Moderna", ["Resumen ejecutivo", "Objetivos", "Indicadores", "Hallazgos", "Recomendaciones", "Próximos pasos"]),
+                    new("Dossier de arte conceptual", "Moderna", ["Diseño conceptual del mundo", "Landmarks y regiones", "Moodboards y paletas", "Arte conceptual final", "Control de entrega"]),
+                    new("Reporte técnico experimental", "Académica", ["Resumen", "Arquitectura y topología", "Desarrollo experimental", "Pruebas y resultados", "Conclusión", "Bibliografía"])],
+            "Artículo" => [standard,
+                    new("Artículo de revisión", "Académica", ["Resumen", "Pregunta de revisión", "Criterios de selección", "Síntesis de evidencia", "Limitaciones", "Referencias"]),
+                    new("Estudio técnico aplicado", "Moderna", ["Resumen", "Introducción", "Arquitectura del sistema", "Evaluación experimental", "Conclusiones", "Referencias"]),
+                    new("Ensayo crítico", "Clásica", ["Planteamiento", "Marco conceptual", "Análisis comparativo", "Conclusiones", "Fuentes"])],
+            "Apuntes" => [standard,
+                    new("Cuaderno de prácticas", "Moderna", ["Objetivo", "Materiales", "Procedimiento", "Observaciones", "Reflexión"]),
+                    new("Libreta Cornell de cátedra", "Académica", ["Encuadre y criterios", "Principios fundamentales", "Análisis de referentes", "Síntesis de unidad"]),
+                    new("Bitácora de taller", "Moderna", ["Sesión 1: Fundamentos", "Sesión 2: Exploración visual", "Sesión 3: Retroalimentación y ajustes"])],
+            "Acta" => [standard,
+                    new("Comité de proyecto", "Moderna", ["Participantes", "Revisión de compromisos", "Decisiones", "Acciones y fechas"]),
+                    new("Dictamen de revisión técnica", "Académica", ["Quórum y apertura", "Entregables evaluados", "Observaciones técnicas", "Acuerdos y firmas"]),
+                    new("Minuta de seguimiento", "Moderna", ["Contexto de la reunión", "Avances por área", "Bloqueos detectados", "Compromisos"])],
+            "Carta" => [standard,
+                    new("Solicitud formal", "Clásica", ["Saludo", "Motivo", "Solicitud", "Despedida"]),
+                    new("Oficio institucional", "Moderna", ["Antecedentes", "Exposición de motivos", "Petición formal", "Cierre y firmas"]),
+                    new("Carta de presentación", "Clásica", ["Apertura", "Trayectoria y aportación", "Propuesta de colaboración", "Despedida"])],
+            "Propuesta" => [standard,
+                    new("Oferta de servicios", "Moderna", ["Necesidad", "Solución", "Entregables", "Calendario", "Inversión", "Condiciones"]),
+                    new("Documento de diseño (GDD)", "Moderna", ["Contexto de la IP y USP", "Mecánicas base", "Cartografía y nivel", "Walkthrough táctico", "Jefe o prueba principal"]),
+                    new("Proyecto de ingeniería", "Académica", ["Definición del problema", "Arquitectura propuesta", "Plan de implementación", "Matriz de riesgos", "Presupuesto"])],
+            "Presentación" => [standard,
+                    new("Presentación de proyecto", "Moderna", ["Portada", "Problema", "Propuesta", "Evidencias", "Calendario", "Cierre"]),
+                    new("Catálogo de fichas de concepto", "Moderna", ["Portada", "Concepto 1", "Concepto 2", "Concepto 3"]),
+                    new("Arquitectura visual y HUD", "Moderna", ["Portada", "Matriz de interfaz (HUD)", "Moodboard y paleta", "Plano y leyenda", "Escena protagonista"])],
+            "Documento" => [standard,
+                    new("Guía de trabajo", "Moderna", ["Finalidad", "Preparación", "Instrucciones", "Comprobación"]),
+                    new("Manual de estándares", "Moderna", ["Alcance y objetivos", "Especificaciones técnicas", "Criterios de validación", "Anexos"]),
+                    new("Memoria descriptiva", "Clásica", ["Introducción", "Descripción general", "Desarrollo por componentes", "Conclusiones"])],
+            _ => [standard,
+                    new("Novela por arcos", "Clásica", ["Primer arco", "Capítulo 1"]),
+                    new("Estructura en tres actos", "Clásica", ["Acto I: El umbral", "Capítulo 1", "Acto II: El descenso", "Acto III: El retorno"])]
         };
     }
     public Work Create(Format format, string title)
@@ -27,7 +54,24 @@ public sealed record EditorialTemplate(string Name, string Style, string[] Secti
         var work = format.Create(title);
         work.Template = Name;
         work.Chapters = Sections.Select((s, i) => new Chapter { Title = s, Order = i }).ToList();
-        if (Name == "Novela por arcos") { work.Chapters[0].Level = "Arc"; work.Chapters[1].ParentId = work.Chapters[0].Id; }
+        if (Name is "Novela por arcos" or "Estructura en tres actos") { work.Chapters[0].Level = "Arc"; if (work.Chapters.Count > 1) work.Chapters[1].ParentId = work.Chapters[0].Id; }
+        if (format.Name == "Presentación")
+        {
+            if (Name == "Catálogo de fichas de concepto")
+            {
+                work.Chapters[0].Layout = "Portada";
+                for (int i = 1; i < work.Chapters.Count; i++) work.Chapters[i].Layout = "Ficha de concepto";
+            }
+            else if (Name == "Arquitectura visual y HUD")
+            {
+                string[] layouts = ["Portada", "Tabla visual", "Moodboard y paleta", "Plano y leyenda", "Imagen protagonista"];
+                for (int i = 0; i < work.Chapters.Count && i < layouts.Length; i++) work.Chapters[i].Layout = layouts[i];
+            }
+            else if (work.Chapters.Count > 0 && work.Chapters[0].Title == "Portada")
+            {
+                work.Chapters[0].Layout = "Portada";
+            }
+        }
         return work;
     }
     public static string[] FrontMatter(string type) => type switch
@@ -62,4 +106,3 @@ public sealed class ResumeEntry
     public string Period { get; set; } = "";
     public string Description { get; set; } = "";
 }
-

@@ -116,18 +116,54 @@ public sealed partial class Studio
             void FitMargin(double width){margin.IsVisible=!work.FocusWriting && width>=1260;pocket.IsVisible=!margin.IsVisible;}
             FitMargin(Bounds.Width-130);root.SizeChanged+=(_,e)=>FitMargin(e.NewSize.Width);
             var heading=new TextBox{Text=c.Title,Watermark="Título",FontFamily=WritingFamily,FontSize=43,Padding=new Thickness(0,4),Background=Brushes.Transparent,BorderThickness=new Thickness(0)};
-            heading.TextChanged+=(_,_)=>{if(heading.Text==c.Title)return;c.Title=heading.Text??"";titles[c].Text=c.Title;Changed();};body.Children.Add(heading);
+            Action? refreshSlidePreview=null;
+            heading.TextChanged+=(_,_)=>{if(heading.Text==c.Title)return;c.Title=heading.Text??"";titles[c].Text=c.Title;Changed();refreshSlidePreview?.Invoke();};body.Children.Add(heading);
             if (!work.IsNovel && work.Type!="Presentación") Field(body,EditorialTemplate.DetailLabel(work.Type),c.Detail,v=>c.Detail=v);
             if (work.Type == "Presentación")
             {
-                var options = new[] { "Portada", "Texto", "Texto e imagen", "Plano y leyenda", "Moodboard y paleta", "Moodboard y landmark", "Imagen protagonista", "Dos columnas" };
-                body.Children.Add(Label("Composición de diapositiva"));
-                var layouts = new ComboBox { ItemsSource = options, SelectedItem = options.Contains(c.Layout) ? c.Layout : "Texto" };
-                layouts.SelectionChanged += (_, _) => { if (layouts.SelectedItem is string choice) { c.Layout = choice; Changed(); } };
-                body.Children.Add(layouts); Field(body, "Texto secundario", c.Summary, v => c.Summary = v, true);
+                var previewHost = new ContentControl { HorizontalAlignment = HorizontalAlignment.Stretch };
+                refreshSlidePreview = () =>
+                {
+                    previewHost.Content = new Viewbox
+                    {
+                        Stretch = Stretch.Uniform,
+                        MaxHeight = 250,
+                        Child = BuildSlideCanvas(work, c, 480)
+                    };
+                };
+                refreshSlidePreview();
+                var previewHeader = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
+                var openStage = QuietAction("Abrir vista de presentación 16:9 →", () => ReadSection(c));
+                DockPanel.SetDock(openStage, Dock.Right);
+                previewHeader.Children.Add(openStage);
+                previewHeader.Children.Add(Kicker("Vista previa en vivo de la diapositiva (16:9)"));
+                var previewCard = Column(6);
+                previewCard.Children.Add(previewHeader);
+                previewCard.Children.Add(previewHost);
+                body.Children.Add(Card(previewCard));
+
+                var options = SlideLayouts;
+                var metaGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 12 };
+                var leftMeta = Column(6);
+                leftMeta.Children.Add(Label("Composición de diapositiva"));
+                var layouts = new ComboBox { ItemsSource = options, SelectedItem = options.Contains(c.Layout) ? c.Layout : "Texto e imagen", HorizontalAlignment = HorizontalAlignment.Stretch };
+                layouts.SelectionChanged += (_, _) => { if (layouts.SelectedItem is string choice && choice != c.Layout) { c.Layout = choice; Changed(); Editor(); } };
+                leftMeta.Children.Add(layouts);
+                metaGrid.Children.Add(leftMeta);
+
+                var rightMeta = Column(6);
+                var detailLabel = c.Layout == "Ficha de concepto" ? "Género o clasificación (ej. Terror psicológico)" : c.Layout == "Portada" ? "Materia o encabezado superior" : "Subtítulo o encabezado secundario";
+                var detailBox = Field(rightMeta, detailLabel, c.Detail, v => { c.Detail = v; refreshSlidePreview?.Invoke(); });
+                Grid.SetColumn(rightMeta, 1);
+                metaGrid.Children.Add(rightMeta);
+                body.Children.Add(metaGrid);
+
+                var summaryLabel = c.Layout == "Ficha de concepto" ? "Concepto principal (esquina superior derecha)" : c.Layout == "Portada" ? "Actividad o subtítulo de portada (ej. ACT 2)" : "Texto secundario, resumen o leyenda lateral";
+                Field(body, summaryLabel, c.Summary, v => { c.Summary = v; refreshSlidePreview?.Invoke(); }, c.Layout != "Portada");
             }
             bool illustrated=!continuousDraft && work.Type!="Presentación";
             var draft=new DraftSurface(this,c,illustrated);
+            if(refreshSlidePreview!=null)draft.Edited+=refreshSlidePreview;
             var bar = new WrapPanel();
             void Wrap(string marker)
             {
@@ -179,6 +215,10 @@ public sealed partial class Studio
             var insert=new MenuFlyout();
             if(work.Type!="Presentación")insert.Items.Add(MenuAction("Salto de página",()=>Insert("\n[[Página]]\n")));
             insert.Items.Add(MenuAction("Tabla",()=>Insert("\n| Columna 1 | Columna 2 |\n| Dato | Dato |\n")));
+            if(work.Type=="Presentación"){
+                insert.Items.Add(MenuAction("Listas de Ficha de concepto (Referencias y Key Words)",()=>Insert("\n| Referencias | Key Words |\n| Referencia 1 | Explorar |\n| Referencia 2 | Combatir |\n| Referencia 3 | Mejorar |\n| Referencia 4 | Investigar |\n| Referencia 5 | Sobrevivir |\n| Referencia 6 | Escapar |\n")));
+                insert.Items.Add(MenuAction("Tabla de HUD con imágenes",()=>Insert("\n| Imagen | Elemento | Uso y función | Estado o respuesta visual |\n| [[Imagen 1]] | Retrato | Identifica al personaje y su condición | Cambia según salud o estado |\n| [[Imagen 2]] | Indicador | Muestra el recurso principal en pantalla | Se consume gradualmente al usarse |\n")));
+            }
             insert.Items.Add(MenuAction("Paleta cromática",()=>Insert("\n[[Paleta: #E4D1A5 Luz cálida | #D99442 Ámbar | #7B8581 Piedra | #55705C Musgo | #182A27 Sombra]]\n")));
             if(!work.IsNovel && work.Type!="Presentación")insert.Items.Add(MenuAction("Bloque de firmas",()=>Insert("\n[[Firmas: Responsable 1 | Responsable 2]]\n")));
             async Task InsertPictures(bool gallery){
@@ -207,7 +247,10 @@ public sealed partial class Studio
             if(work.FocusWriting)top.Children.Add(QuietAction("Formato",()=>barFrame.IsVisible=!barFrame.IsVisible));
             var fixedTools=Column(0);fixedTools.Name="HerramientasDeEscritura";fixedTools.MaxWidth=body.MaxWidth;fixedTools.HorizontalAlignment=HorizontalAlignment.Stretch;
             fixedTools.Children.Add(barFrame);DockPanel.SetDock(fixedTools,Dock.Top);root.Children.Add(fixedTools);
-            AddSearch(root,fixedTools,bar,draft);body.Children.Add(draft.View);
+            AddSearch(root,fixedTools,bar,draft);
+            if(work.Type=="Presentación")
+                body.Children.Add(Label(c.Layout=="Ficha de concepto"?"Listas de Referencias y Key Words (tabla de 2 columnas o bloques ### Referencias / ### Key Words)":c.Layout=="Tabla visual"?"Tabla de elementos (puedes usar [[Imagen N]] en la primera columna para incrustar cada icono)":"Contenido principal de la diapositiva (admite tablas, listas y [[Paleta: ...]])"));
+            body.Children.Add(draft.View);
             var count=Label("",12);void Count(){var clean=System.Text.RegularExpressions.Regex.Replace(Illustrations.Marker().Replace(c.PlainText," "),@"\[\[(?:Página|Índice|Paleta:[^\]]+|Firmas:[^\]]+)\]\]"," ");var words=System.Text.RegularExpressions.Regex.Count(clean, @"[\p{L}\p{N}]+");count.Text=$"{words:N0} palabras   ·   {Math.Max(1,(int)Math.Ceiling(words/210d))} min de lectura";}Count();draft.Edited+=Count;body.Children.Add(count);
             if(c.Images.Count!=0 && !illustrated){
                 var assets=new Expander{Header=$"Ilustraciones de la sección  ·  {c.Images.Count}",HorizontalAlignment=HorizontalAlignment.Stretch};
@@ -220,10 +263,22 @@ public sealed partial class Studio
                         var card=Column(5);card.Margin=new Thickness(0,0,12,8);
                         if(Thumbnail(Path.Combine(shelf.Media,Path.GetFileName(key)),180,90) is {} thumb)card.Children.Add(thumb);
                         card.Children.Add(Label("Imagen "+(index+1),13));
-                        var cap=new TextBox{Watermark="Pie de imagen",Text=c.ImageCaptions.GetValueOrDefault(index,""),Width=180};
-                        cap.TextChanged+=(_,_)=>{var val=cap.Text??"";if(val=="")c.ImageCaptions.Remove(index);else c.ImageCaptions[index]=val;Changed();};
+                        if(work.Type=="Presentación" && c.Layout=="Ficha de concepto"){
+                            var slotBox=new ComboBox{ItemsSource=ConceptSlotOptions,SelectedItem=ConceptSlotOptions.Contains(c.ImageLayouts.GetValueOrDefault(index,"Automática"))?c.ImageLayouts.GetValueOrDefault(index,"Automática"):"Automática",Width=180};
+                            slotBox.SelectionChanged+=(_,_)=>{
+                                if(slotBox.SelectedItem is not string role)return;
+                                if(role=="Automática")c.ImageLayouts.Remove(index);else c.ImageLayouts[index]=role;
+                                Changed();refreshSlidePreview?.Invoke();
+                            };
+                            card.Children.Add(slotBox);
+                        }
+                        var cap=new TextBox{Watermark=work.Type=="Presentación"?"Pie o etiqueta Gameplay":"Pie de imagen",Text=c.ImageCaptions.GetValueOrDefault(index,""),Width=180};
+                        cap.TextChanged+=(_,_)=>{var val=cap.Text??"";if(val=="")c.ImageCaptions.Remove(index);else c.ImageCaptions[index]=val;Changed();refreshSlidePreview?.Invoke();};
                         card.Children.Add(cap);
-                        card.Children.Add(QuietAction("Quitar",()=>{Illustrations.Remove(c,index);Changed();Editor();}));cards.Children.Add(card);
+                        var rowActions=Row();
+                        if(work.Type=="Presentación")rowActions.Children.Add(QuietAction("En celda",()=>Insert(Illustrations.At(index))));
+                        rowActions.Children.Add(QuietAction("Quitar",()=>{Illustrations.Remove(c,index);Changed();Editor();}));
+                        card.Children.Add(rowActions);cards.Children.Add(card);
                     }
                     shelfContent.Children.Add(cards);assets.Content=shelfContent;
                 }

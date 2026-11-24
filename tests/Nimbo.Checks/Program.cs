@@ -392,24 +392,194 @@ Las tres láminas documentan la estructura de salas (A–I), la distribución am
     ];
     examples.Add((propuesta, "02-Propuesta-GDD-Nivel-Piso85.pdf"));
 
-    var presentacion = EditorialTemplate.For(Format.All.Single(f => f.Name == "Presentación"))[1].Create(Format.All.Single(f => f.Name == "Presentación"), "Diseño de HUD e Interfaces Visuales");
+    var presentacion = EditorialTemplate.For(Format.All.Single(f => f.Name == "Presentación"))[2].Create(Format.All.Single(f => f.Name == "Presentación"), "Diseño de HUD e Interfaces Visuales");
     presentacion.Author = "Taller de Interfaces Interactivas";
-    presentacion.Subtitle = "Arquitectura visual 16:9, tablas de respuesta y moodboards";
+    presentacion.Subtitle = "Fichas de concepto de videojuegos, arquitectura HUD 16:9 y tablas de respuesta";
     presentacion.CollectionId = "Ejemplos de complejidad";
     presentacion.CoverColor = "#1E5B88";
     presentacion.CoverImage = slideCover;
-    presentacion.Description = "Presentación panorámica 16:9 con 5 composiciones distintas de diapositiva: portada ilustrada, tabla de componentes HUD, moodboard multipanel con paleta, plano con leyenda y lámina protagonista.";
+    presentacion.Description = "Presentación panorámica 16:9 con portada orgánica estilo Fichas de Juegos, 3 fichas completas de concepto con 10 recursos visuales cada una, tabla visual de componentes HUD con sprites integrados, moodboard con paleta, plano táctico con leyenda y lámina 1920x1080.";
     presentacion.DocumentFacts["Institución"] = "Estudio de Arte Conceptual y Diseño de Interfaces";
-    presentacion.DocumentFacts["Evento"] = "Revisión de Sistemas Visuales 16:9";
+    presentacion.DocumentFacts["Evento"] = "Revisión de Fichas de Concepto y Sistemas HUD 16:9";
     presentacion.DocumentFacts["Fecha"] = "Noviembre 2026";
+
+    var steamLogo = Asset("output/Fichas_Juegos_LaTeX/imagenes/steam.png");
+    var esrb1 = Asset("output/Fichas_Juegos_LaTeX/imagenes/Clasificación_1.png");
+    var esrb2 = Asset("output/Fichas_Juegos_LaTeX/imagenes/Clasificación_2.png");
+    var v1Ref1 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/Pocket-Mirror.jpg");
+    var v1Ref2 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/Little-Goody-Two-Shoes.jpg");
+    var v1Ref3 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/Omori.jpg");
+    var v1Ref4 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/Corpse-Party.jpg");
+    var v1Game1 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/V1_Gameplay_1.jpg");
+    var v1Game2 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/V1_Gameplay_2.jpg");
+    var v1Game3 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/V1_Gameplay_3.jpg");
+    var v1Fondo = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/Fondo_V1.png");
+    var v1Rosas = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/Bases/ai-generated-black-rose-isolated-on-transparent-background-free-png-2936538963.png");
+    var v1Vela = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/Bases/candle-pixel-art-png-2988415674.png");
+    var v1Corazon = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/Bases/red-heart-pixel-art-png-2654343113.png");
+    var v1Marco = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/Bases/gold-circle-frame-texture-and-gradients-free-png-2179328681.png");
+    var v1Niebla = Asset("output/Fichas_Juegos_LaTeX/imagenes/V1/Bases/pngtree-mist-transparant-png-png-image_8396343-2845193954.png");
+
+    var v2Ref1 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V2/Core-Keeper.jpg");
+    var v2Ref2 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V2/Travellers-Rest.jpg");
+    var v2Ref3 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V2/Graveyard-Keeper.jpg");
+    var v2Ref4 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V2/Moonlighter.jpg");
+    var v2Game1 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V2/V2_Gameplay_1.jpg");
+    var v2Game2 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V2/V2_Gameplay_2.jpg");
+    var v2Game3 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V2/V2_Gameplay_3.jpg");
+    var v2Fondo = Asset("output/Fichas_Juegos_LaTeX/imagenes/V2/Fondo_V2.png");
+
+    var v3Ref1 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V3/XCOM.jpg");
+    var v3Ref2 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V3/9-Kings.jpg");
+    var v3Ref3 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V3/Darkest-Dungeon.jpg");
+    var v3Ref4 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V3/The-Last-Spell.jpg");
+    var v3Game1 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V3/V3_Gameplay_1.jpg");
+    var v3Game2 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V3/V3_Gameplay_2.jpg");
+    var v3Game3 = Asset("output/Fichas_Juegos_LaTeX/imagenes/V3/V3_Gameplay_3.jpg");
+    var v3Fondo = Asset("output/Fichas_Juegos_LaTeX/imagenes/V3/Fondo_V3.png");
+
+    Chapter MakeConceptSlide(string title, int order, string genre, string concept, string[] images, string[] captions, string lists)
+    {
+        string[] roles =
+        [
+            "Plataforma",
+            "Target & ESRB",
+            "Referencia visual 1",
+            "Referencia visual 2",
+            "Referencia visual 3",
+            "Referencia visual 4",
+            "Gameplay 1",
+            "Gameplay 2",
+            "Gameplay 3",
+            "Fondo de diapositiva"
+        ];
+        var slide = new Chapter
+        {
+            Title = title,
+            Order = order,
+            Layout = "Ficha de concepto",
+            Detail = genre,
+            Summary = concept,
+            Images = [.. images],
+            PlainText = lists
+        };
+        for (int i = 0; i < images.Length && i < roles.Length; i++)
+            slide.ImageLayouts[i] = roles[i];
+        slide.ImageCaptions[6] = captions[0];
+        slide.ImageCaptions[7] = captions[1];
+        slide.ImageCaptions[8] = captions[2];
+        return slide;
+    }
+
     presentacion.Chapters = [
         new Chapter
         {
-            Title = "Arquitectura de HUD: Claridad y Diegesis",
+            Title = "Fichas de Concepto y Arquitectura HUD",
             Order = 0,
+            Layout = "Portada",
+            Detail = "Sistemas de interfaz diegética, fichas comparativas y dirección visual 16:9",
+            Images = [slideCover],
+            PlainText = "Catálogo ejecutivo de propuestas interactivas y matrices de respuesta visual"
+        },
+        MakeConceptSlide(
+            "Mansión de las Velas",
+            1,
+            "Terror psicológico",
+            "Un juego de aventura narrativa, similar a Pocket Mirror, con una joven de 14 años que resuelve puzles en una mansión en su memoria mientras conserva la luz de sus velas frente a la oscuridad.",
+            [steamLogo, esrb1, v1Ref1, v1Ref2, v1Ref3, v1Ref4, v1Game1, v1Game2, v1Game3, v1Fondo],
+            ["Explorar", "Encender", "Dialogar"],
+            """
+### Referencias
+1. Pocket Mirror ~ GoldenerTraum
+2. Little Goody Two Shoes
+3. Mad Father
+4. Corpse Party
+5. Omori
+6. The Witch's House
+
+### Key Words
+1. Explorar
+2. Encender
+3. Dialogar
+4. Recordar
+5. Sobrevivir
+6. Escapar
+"""),
+        MakeConceptSlide(
+            "Chaos Tavern",
+            2,
+            "Simulación de gestión",
+            "Un juego de gestión, similar a Graveyard Keeper, con una joven que debe administrar y mantener en funcionamiento la taberna de su difunto tío en un mundo de fantasía oscura lleno de misterios.",
+            [steamLogo, esrb2, v2Ref1, v2Ref2, v2Ref3, v2Ref4, v2Game1, v2Game2, v2Game3, v2Fondo],
+            ["Atender", "Disparar", "Mejorar"],
+            """
+### Referencias
+1. Travellers Rest
+2. Core Keeper
+3. Graveyard Keeper
+4. Moonlighter
+5. Bear and Breakfast
+6. Strange Horticulture
+
+### Key Words
+1. Atender
+2. Disparar
+3. Mejorar
+4. Investigar
+5. Preparar
+6. Abastecer
+"""),
+        MakeConceptSlide(
+            "Frenzied Dungeon",
+            3,
+            "Estrategia táctica por turnos",
+            "Un juego de estrategia táctica por turnos, similar a XCOM: Enemy Unknown, con un grupo de aventureros que debe combatir y alcanzar el piso número 100 de una mazmorra en un mundo de fantasía medieval.",
+            [steamLogo, esrb2, v3Ref1, v3Ref2, v3Ref3, v3Ref4, v3Game1, v3Game2, v3Game3, v3Fondo],
+            ["Explorar", "Combatir", "Mejorar"],
+            """
+### Referencias
+1. XCOM: Enemy Unknown
+2. 9 Kings
+3. Into the Breach
+4. The Last Spell
+5. Darkest Dungeon
+6. Dungeon of the Endless
+
+### Key Words
+1. Explorar
+2. Combatir
+3. Mejorar
+4. Planificar
+5. Defender
+6. Atacar
+"""),
+        new Chapter
+        {
+            Title = "Matriz de Componentes HUD 1: Mansión de las Velas",
+            Order = 4,
+            Layout = "Tabla visual",
+            Detail = "Jerarquía periférica y respuesta reactiva sin cortes",
+            Images = [portraitAvatar, v1Rosas, v1Corazon, v1Vela, v1Marco, v1Niebla],
+            Summary = "La vela actúa como temporizador diegético: al consumirse la cera, las rosas negras aceleran su desgaste en la penumbra.",
+            PlainText = """
+| Componente visual | Elemento del HUD | Uso y función en pantalla | Respuesta reactiva al jugador |
+|---|---|---|---|
+| [[Imagen 1]] | Retrato noble | Identifica la condición física y emocional | Cambia de expresión según el nivel de peligro |
+| [[Imagen 2]] | Rosas negras | Representan los puntos de salud mental | Se marchitan y pierden pétalos en la oscuridad |
+| [[Imagen 3]] | Pulso vital | Indica la resistencia disponible al huir | Parpadea en carmesí antes de agotarse por completo |
+| [[Imagen 4]] | Vela activa | Muestra el tiempo restante de iluminación | La cera desciende y la llama tiembla con corrientes |
+| [[Imagen 5]] | Medallón dorado | Marco de reliquia equipada y llaves activas | Resalta con brillo áureo el objeto en uso |
+| [[Imagen 6]] | Velo de penumbra | Señala el grado de exposición ante espectros | Envuelve los bordes cuando una amenaza se aproxima |
+"""
+        },
+        new Chapter
+        {
+            Title = "Arquitectura de HUD: Boceto a Composición Final",
+            Order = 5,
             Layout = "Texto e imagen",
+            Detail = "Flujo de diseño de interfaz 16:9",
             Images = [hudSketch],
-            ImageCaptions = new() { [0] = "Boceto estructural de jerarquía de lectura en pantalla 16:9." },
+            ImageCaptions = new() { [0] = "Boceto preliminar de lectura periférica y zonas libres en proporción 16:9." },
             Summary = "Toda interfaz debe informar el estado crítico del personaje en menos de un segundo sin ocultar la acción principal.",
             PlainText = """
 - **Prioridad periférica:** Agrupar retrato, salud mental y energía en la esquina superior izquierda.
@@ -419,29 +589,13 @@ Las tres láminas documentan la estructura de salas (A–I), la distribución am
         },
         new Chapter
         {
-            Title = "HUD 1: Mansión de las Velas",
-            Order = 1,
-            Layout = "Dos columnas",
-            Images = [hudScene1],
-            ImageCaptions = new() { [0] = "Composición final del HUD gótico durante la exploración del pasillo." },
-            Summary = "La vela actúa como temporizador diegético: al consumirse, las rosas negras aceleran su desgaste.",
-            PlainText = """
-| Elemento | Uso y función | Respuesta visual |
-|---|---|---|
-| Retrato | Identifica condición emocional | Cambia de expresión según salud |
-| Rosas negras | Muestran la salud mental | Se marchitan en la oscuridad |
-| Barra verde | Indica estamina al correr | Parpadea al agotarse |
-| Vela activa | Tiempo de luz disponible | La cera baja gradualmente |
-"""
-        },
-        new Chapter
-        {
-            Title = "Moodboard y paleta: Fosa del Juramento",
-            Order = 2,
+            Title = "Moodboard y Paleta: Fosa del Juramento",
+            Order = 6,
             Layout = "Moodboard y paleta",
+            Detail = "Contraste térmico de iluminación guía",
             Images = [l01Refs[0], l01Refs[1], l01Refs[3], l01Refs[4]],
             ImageCaptions = new() { [0] = "R01 Niebla", [1] = "R02 Antorcha", [2] = "R04 Escalinata", [3] = "R05 Faroles" },
-            Summary = "Seis referencias de piedra húmeda y faroles de hierro forjado definen el contraste térmico del acceso.",
+            Summary = "Cuatro referencias de piedra húmeda y faroles de hierro forjado definen el contraste térmico del acceso.",
             PlainText = """
 ### Contraste entre piedra fría y luz guía
 - La arquitectura emplea grises verdosos y musgo profundo.
@@ -451,26 +605,28 @@ Las tres láminas documentan la estructura de salas (A–I), la distribución am
         },
         new Chapter
         {
-            Title = "Plano táctico y leyenda: Cámara del Sol",
-            Order = 3,
+            Title = "Plano Táctico y Leyenda: Cámara del Sol",
+            Order = 7,
             Layout = "Plano y leyenda",
+            Detail = "Nivel N01 · Piso 85",
             Images = [mapDist],
             ImageCaptions = new() { [0] = "Layout N01-D del Piso 85 con rutas de patrullaje en naranja." },
-            Summary = "La simetría de los accesos E–I y H–I invita a dividir al clan y sincronizar la entrada final.",
+            Summary = "La simetría de los accesos norte y sur invita a dividir al clan y sincronizar la entrada final.",
             PlainText = """
-| Color | Función en el mapa |
+| Color en plano | Función espacial en el mapa |
 |---|---|
-| Celeste | Sala inicial (A) |
-| Café | Pasillos transitables |
-| Naranja | Patrullas y jefe GRIM |
-| Verde | Casilla de salida (I) |
+| Celeste | Sala inicial de despliegue del clan (Sala A) |
+| Café | Pasillos transitables y puentes sobre agua roja |
+| Naranja | Rutas cíclicas de patrullas y recorrido de GRIM |
+| Verde | Casilla de victoria detrás del altar solar (Sala I) |
 """
         },
         new Chapter
         {
-            Title = "Integración táctica en motor (1920x1080)",
-            Order = 4,
+            Title = "Integración Táctica en Motor (1920x1080)",
+            Order = 8,
             Layout = "Imagen protagonista",
+            Detail = "Render final 16:9 con HUD en acción",
             Images = [hudScene3],
             ImageCaptions = new() { [0] = "Frenzied Dungeon: cuadrícula de alcance táctico, retrato de cristal y barra de acciones." },
             PlainText = "Vista final de combate por turnos con lectura simultánea de alcance azul/rojo y panel de habilidades."

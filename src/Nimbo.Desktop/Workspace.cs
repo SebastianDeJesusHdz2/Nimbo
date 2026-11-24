@@ -35,7 +35,8 @@ public sealed partial class Studio
         nav.Children.Add(Link("Biblioteca",Library));
         if(current!=null){
             nav.Children.Add(Link("Manuscrito",Editor));nav.Children.Add(Link("Lectura",()=>ReadSection(chapter)));
-            nav.Children.Add(Link("Glosario",()=>Glossary(null)));nav.Children.Add(Link("Ficha",Details));
+            if(current.IsNovel)nav.Children.Add(Link("Glosario",()=>Glossary(null)));
+            nav.Children.Add(Link("Ficha",Details));
         }
         var prefs=Link("Preferencias",Preferences);DockPanel.SetDock(prefs,Dock.Bottom);dock.Children.Add(prefs);
         dock.Children.Add(new ScrollViewer{Content=nav});

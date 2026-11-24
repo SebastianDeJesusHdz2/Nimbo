@@ -27,7 +27,7 @@ public sealed partial class Studio
             })));
             back.Children.Add(QuietAction("Quitar fondo",()=>{work.BackImage="";Changed();ShowBack();}));
         }
-        var scope=new ComboBox{ItemsSource=work.Glossary.Count>0?new[]{"Manuscrito completo","Glosario completo","Elegir fichas…"}:new[]{"Documento completo"},SelectedIndex=0};
+        var scope=new ComboBox{ItemsSource=work.IsNovel && work.Glossary.Count>0?new[]{"Manuscrito completo","Glosario completo","Elegir fichas…"}:new[]{work.IsNovel?"Manuscrito completo":"Documento completo"},SelectedIndex=0};
         var export=Row();export.Children.Add(scope);export.Children.Add(Action("Crear PDF…",async()=>{
             if(scope.SelectedIndex==2)await ChooseCards(work);else await Export(true,scope.SelectedIndex==1);
         }));panel.Children.Add(export);
