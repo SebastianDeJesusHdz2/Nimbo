@@ -117,7 +117,7 @@ public sealed partial class Studio
         }
         Library();Layout();Capture("Estantería");
         var books=page.GetVisualDescendants().OfType<BookCover>().ToArray();
-        if(books.Length!=10 || !page.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="MiniDocumento"))return Fail();
+        if(books.Length<10 || !page.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="MiniDocumento"))return Fail();
         if(!page.GetVisualDescendants().OfType<Button>().Any(b=>b.Name=="MiniDiapositiva"))return Fail();
         var sheets=page.GetVisualDescendants().OfType<TurningSheet>().ToArray();
         if(sheets.Select(s=>s.Tag as string).Distinct().Count()<9)return Fail();

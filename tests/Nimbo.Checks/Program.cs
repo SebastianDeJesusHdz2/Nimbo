@@ -163,6 +163,26 @@ try
     Check(shelf.Open(old.Id).Work.Chapters[1].Images.Single()==image,"migrar ilustración ya posicionada");
     var savedEdition = shelf.Open(old.Id).Work.Editions.Single(); Check(File.ReadAllBytes(previous).SequenceEqual(File.ReadAllBytes(Path.Combine(shelf.Media, savedEdition.Key))), "edición anterior idéntica");
     Check(WorldModel.Effective(shelf.Open(old.Id).Work, elf).Single().Value == "8 cm", "herencia");
+    var traversalWork = Format.All[0].Create("Prueba de seguridad");
+    traversalWork.UseTexSource = true;
+    traversalWork.TexSource = @"\documentclass{article}\begin{document}Seguro\end{document}";
+    traversalWork.TexResources["../escape.tex"] = image;
+    try { await Publisher.Export(traversalWork, shelf.Media, Path.Combine(root, "inseguro.zip"), false); throw new Exception("No bloqueó ruta fuera de caja."); } catch (InvalidDataException) { }
+    var badImageWork = Format.All[0].Create("Imagen no válida");
+    badImageWork.Chapters[0].Images.Add("../../secreto.png");
+    try { await Publisher.Export(badImageWork, shelf.Media, Path.Combine(root, "inseguro2.zip"), false); throw new Exception("No bloqueó clave de imagen manipulada."); } catch (InvalidDataException) { }
+    var denseSlide = Format.All.Single(f => f.Name == "Presentación").Create("Prueba anti-desborde");
+    denseSlide.Chapters[0].Layout = "Matriz de riesgos y seguridad";
+    denseSlide.Chapters[0].Summary = "Síntesis extensa de prueba para validar que el contenedor nimbofitbox escale proporcionalmente sin desbordar jamás la diapositiva.";
+    denseSlide.Chapters[0].PlainText = "| Fila | Riesgo | Mitigación |\n|---|---|---|\n" + string.Join("\n", Enumerable.Range(1, 14).Select(n => $"| {n} | Condición de estrés con texto amplio en la fila {n} | Control activo de escalado proporcional en 960x540 pt |"));
+    var denseZip = Path.Combine(root, "dense-slides.zip");
+    await Publisher.Export(denseSlide, shelf.Media, denseZip, false);
+    using (var zip = ZipFile.OpenRead(denseZip))
+    {
+        using var reader = new StreamReader(zip.GetEntry("obra.tex")!.Open());
+        var denseTex = reader.ReadToEnd();
+        Check(denseTex.Contains(@"\newcommand{\nimbofitbox}") && denseTex.Contains(@"\clip (0,0) rectangle (960,540);"), "confinamiento geométrico 16:9");
+    }
     if (args.Contains("--pdf"))
     {
         old = shelf.Open(old.Id).Work;
@@ -764,6 +784,169 @@ Las tres láminas documentan la estructura de salas (A–I), la distribución am
             Detail = "Conclusión ejecutiva",
             Summary = "Estudio de Arte Conceptual y Diseño de Interfaces · Revisión 16:9",
             PlainText = "Toda interfaz y composición espacial debe comunicar el riesgo, la ruta y el estado del jugador en un solo vistazo, convirtiendo la luz y el color en mecánicas vivas dentro del mundo."
+        },
+        new Chapter
+        {
+            Title = "Arquitectura de Seguridad y Confinamiento Visual",
+            Order = 16,
+            Layout = "Divisor de sección / Impacto",
+            Detail = "Módulo II · Garantías técnicas y anti-desborde",
+            Summary = "Capas de protección para asegurar que ninguna diapositiva desborde su marco 16:9 y que toda compilación sea segura.",
+            PlainText = """
+- Geometría estricta 960x540 pt
+- Auto-escala tipográfica y de tablas
+- Compilación aislada (-no-shell-escape)
+- Integridad de recursos SHA-256
+"""
+        },
+        new Chapter
+        {
+            Title = "Matriz de Riesgos, Seguridad y Anti-Desborde",
+            Order = 17,
+            Layout = "Matriz de riesgos y seguridad",
+            Detail = "Controles activos de plataforma",
+            Summary = "Cada diapositiva mide dinámicamente la altura de tablas, tarjetas y textos largos mediante \\nimbofitbox y Viewbox DownOnly.",
+            PlainText = """
+| Vector o condición | Nivel | Mecanismo de protección activo | Garantía de salida |
+|---|---|---|---|
+| Tablas extensas (8 a 14 filas) | Crítico | Escalado proporcional automático en caja de 884x384 pt | Cero recortes inferiores en diapositiva |
+| Títulos o párrafos extensos | Alto | Recorte elíptico y contenedor Viewbox DownOnly en UI y PDF | Ningún texto invade márgenes ni pie |
+| Inyección en compilación TeX | Crítico | Ejecución con bandera -no-shell-escape y escape estricto | Aislamiento total del sistema operativo |
+| Rutas maliciosas (Path Traversal) | Alto | Verificación de prefijo en directorio temporal y hash SHA-256 | Bloqueo inmediato de rutas fuera de caja |
+| Escritura concurrente o fallo | Medio | Archivo temporal atómico y control de revisión en SQLite | Ningún PDF o manuscrito queda corrupto |
+"""
+        },
+        new Chapter
+        {
+            Title = "Arquitectura en Capas del Motor de Presentaciones",
+            Order = 18,
+            Layout = "Arquitectura en capas",
+            Detail = "Stack técnico de 4 niveles",
+            Summary = "Separación limpia entre modelo de dominio, vista interactiva 16:9, almacenamiento transaccional y motor de publicación.",
+            PlainText = """
+### Capa 1: Escenario Interactivo 16:9 | Avalonia UI · 960x540
+- Vista en vivo en Manuscrito, escenario de Lectura con tira de miniaturas y 26 plantillas de diapositiva.
+
+### Capa 2: Motor de Auto-Ajuste Geométrico | FitBox & nimbofitbox
+- Medición automática de altura/anchura para escalar contenidos densos sin salirse jamás del lienzo.
+
+### Capa 3: Compilación Vectorial Segura | XeLaTeX & TikZ
+- Lienzo exacto de 960x540 bp sin guiones de ruptura silábica y sin ejecución de comandos externos.
+
+### Capa 4: Persistencia Transaccional | SQLite & Almacén SHA-256
+- Detección de conflictos de revisión, copias de recuperación y validación criptográfica de imágenes.
+"""
+        },
+        new Chapter
+        {
+            Title = "Pipeline de Validación y Publicación 16:9",
+            Order = 19,
+            Layout = "Flujo de proceso (Pipeline)",
+            Detail = "Flujo automatizado en 4 etapas",
+            Summary = "Todo documento pasa por validación de recursos, ajuste geométrico y compilación aislada antes de entregarse.",
+            PlainText = """
+### Ingesta Segura | Hash SHA-256
+- Verificación de formato PNG/JPG.
+- Aislamiento en almacén local.
+- Bloqueo de rutas externas.
+
+### Composición | 26 Plantillas
+- Asignación de ranuras visuales.
+- Vista previa instantánea 16:9.
+- Tablas con iconos en celda.
+
+### Auto-Ajuste | Cero Desbordes
+- Cálculo de caja máxima por zona.
+- Reducción proporcional si excede.
+- Supresión de cortes de palabra.
+
+### Exportación | Reemplazo Atómico
+- Compilación XeLaTeX sin shell.
+- Verificación de referencias.
+- Entrega atómica del PDF final.
+"""
+        },
+        new Chapter
+        {
+            Title = "Perfil de Personaje: Capitana Mara Vélez",
+            Order = 20,
+            Layout = "Ficha de personaje / Equipo",
+            Detail = "Líder del Sexto Escuadrón de Miramar",
+            Images = [portraitAvatar],
+            ImageCaptions = new() { [0] = "Mara Vélez · Guardia del Norte" },
+            Summary = "Plantilla especializada para presentar integrantes de equipo, personajes principales o responsables de área.",
+            PlainText = """
+### Rol Táctico y Liderazgo
+- Coordina la división simultánea del clan entre la Ruta Norte (Salas A–C–E) y la Ruta Sur (Salas A–F–H).
+- Especialista en mantener el radio de iluminación de la linterna frente a la penumbra del piso 85.
+
+### Atributos y Equipamiento Clave
+| Atributo | Especificación |
+|---|---|
+| Clase y rango | Capitana de Vanguardia · Nivel de estrato 85 |
+| Reliquia activa | Farol de bronce consagrado y escudo de caliza |
+| Sinergia de grupo | Activa Decisiones Tácticas con clérigos adyacentes |
+"""
+        },
+        new Chapter
+        {
+            Title = "Checklist de Calidad y Seguridad Pre-Entrega",
+            Order = 21,
+            Layout = "Checklist de validación",
+            Detail = "Auditoría en 4 cuadrantes",
+            Summary = "Verificación final superada al 100 % en las pruebas automatizadas de interfaz y exportación PDF.",
+            PlainText = """
+### Confinamiento Geométrico | Verificado
+- Recorte estricto en el borde de 960x540 puntos.
+- Ninguna tabla ni tarjeta rebasa la barra inferior dorada.
+
+### Tipografía y Lectura | Verificado
+- Cero palabras cortadas con guion en tablas o tarjetas.
+- Contraste alto sobre fondo crema, blanco y azul marino.
+
+### Seguridad de Compilación | Verificado
+- Proceso XeLaTeX con timeout de 3 minutos y sin shell-escape.
+- Validación contra Path Traversal en recursos adjuntos.
+
+### Variedad Editorial | Verificado
+- 26 composiciones de diapositiva y 12 plantillas de presentación.
+- Sincronía visual entre Manuscrito, Lectura y PDF.
+"""
+        },
+        new Chapter
+        {
+            Title = "Pirámide de Prioridades Visuales y Técnicas",
+            Order = 22,
+            Layout = "Embudo o pirámide estratégica",
+            Detail = "Jerarquía en 4 niveles",
+            Summary = "Estructura escalonada para presentaciones estratégicas, embudos de conversión o arquitectura de diseño.",
+            PlainText = """
+### 1. Identidad y Dirección de Arte | Nivel Superior
+- Coherencia estética inmediata entre portada, fichas y láminas técnicas.
+
+### 2. Claridad Funcional del HUD | Segundo Nivel
+- Lectura periférica en menos de un segundo durante la acción.
+
+### 3. Confinamiento y Auto-Ajuste | Tercer Nivel
+- Adaptación automática de densidad informativa sin desbordes.
+
+### 4. Seguridad y Persistencia | Base Operativa
+- Compilación aislada, integridad SHA-256 y guardado atómico.
+"""
+        },
+        new Chapter
+        {
+            Title = "Cierre Ejecutivo y Siguientes Pasos",
+            Order = 23,
+            Layout = "Cierre y contacto",
+            Detail = "Revisión de Sistemas Visuales 16:9 · Nimbo 0.5.7",
+            Summary = "Catálogo completo de 26 plantillas de diapositiva y 12 estructuras de presentación listas para producción.",
+            PlainText = """
+- 26 Plantillas de Diapositiva
+- 12 Plantillas de Presentación
+- Auto-Ajuste Anti-Desborde
+- Seguridad XeLaTeX & SHA-256
+"""
         }
     ];
     examples.Add((presentacion, "03-Presentacion-Arquitectura-HUD-16x9.pdf"));

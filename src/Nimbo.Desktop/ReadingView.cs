@@ -16,21 +16,30 @@ public sealed partial class Studio
     internal static readonly string[] SlideLayouts =
     [
         "Portada",
+        "Divisor de sección / Impacto",
         "Ficha de concepto",
+        "Ficha de personaje / Equipo",
         "Tabla visual",
+        "Matriz de riesgos y seguridad",
         "Texto e imagen",
         "Dos columnas",
         "Tres columnas",
+        "Cuatro columnas",
         "Cuadrícula 2x2",
         "Métricas e indicadores (KPIs)",
         "Línea de tiempo / Roadmap",
+        "Flujo de proceso (Pipeline)",
+        "Arquitectura en capas",
+        "Embudo o pirámide estratégica",
         "Comparativa (Antes / Después)",
+        "Checklist de validación",
         "Moodboard y paleta",
         "Moodboard y landmark",
         "Plano y leyenda",
         "Galería triple",
         "Imagen protagonista",
         "Cita o conclusión destacada",
+        "Cierre y contacto",
         "Texto"
     ];
 
@@ -408,20 +417,36 @@ public sealed partial class Studio
         }
 
         AddTopBottomBars();
-        var slideGrid = new DockPanel { Margin = new Thickness(38, 22, 38, 18) };
+        var slideGrid = new DockPanel { Margin = new Thickness(38, 20, 38, 16), ClipToBounds = true };
         var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 0, 0, 4) };
-        header.Children.Add(new TextBlock { Text = slide.Title, FontSize = 25, FontWeight = FontWeight.Bold, Foreground = navyBrush, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Bottom });
+        double titleFontSize = slide.Title.Length > 54 ? 20.5 : slide.Title.Length > 40 ? 22.5 : 25;
+        header.Children.Add(new TextBlock { Text = slide.Title, FontSize = titleFontSize, FontWeight = FontWeight.Bold, Foreground = navyBrush, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Bottom });
         if (slide.Detail != "")
         {
-            var detailTb = new TextBlock { Text = slide.Detail, FontSize = 13.5, FontWeight = FontWeight.Bold, Foreground = tealBrush, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(16, 0, 0, 2) };
+            var detailTb = new TextBlock { Text = slide.Detail, FontSize = 13, FontWeight = FontWeight.Bold, Foreground = tealBrush, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, MaxWidth = 340, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(16, 0, 0, 2) };
             Grid.SetColumn(detailTb, 1);
             header.Children.Add(detailTb);
         }
-        var headerStack = Column(6);
+        var headerStack = Column(5);
         headerStack.Children.Add(header);
-        headerStack.Children.Add(new Border { Height = 1.6, Background = goldBrush, Margin = new Thickness(0, 2, 0, 8) });
+        headerStack.Children.Add(new Border { Height = 1.6, Background = goldBrush, Margin = new Thickness(0, 2, 0, 6) });
         DockPanel.SetDock(headerStack, Dock.Top);
         slideGrid.Children.Add(headerStack);
+
+        Control FitBox(Control content, double maxWidth, double maxHeight, VerticalAlignment vAlign = VerticalAlignment.Top) => new Border
+        {
+            Width = maxWidth,
+            Height = maxHeight,
+            ClipToBounds = true,
+            Child = new Viewbox
+            {
+                Stretch = Stretch.Uniform,
+                StretchDirection = StretchDirection.DownOnly,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = vAlign,
+                Child = new Border { Width = maxWidth, Child = content }
+            }
+        };
 
         var usedInTables = new HashSet<int>();
 
@@ -560,10 +585,12 @@ public sealed partial class Studio
         {
             var tb = new TextBlock
             {
-                FontSize = 13,
-                LineHeight = 17.5,
+                FontSize = 12.5,
+                LineHeight = 16.5,
                 Foreground = navyBrush,
-                TextWrapping = TextWrapping.Wrap
+                TextWrapping = TextWrapping.Wrap,
+                MaxLines = 2,
+                TextTrimming = TextTrimming.CharacterEllipsis
             };
             tb.Inlines!.Add(new Run(labelText + ": ") { FontWeight = FontWeight.Bold, Foreground = tealBrush });
             tb.Inlines.Add(new Run(bodyText));
@@ -573,9 +600,105 @@ public sealed partial class Studio
                 BorderBrush = goldBrush,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(5),
-                Padding = new Thickness(14, 9),
+                Padding = new Thickness(12, 7),
+                MaxHeight = 52,
+                ClipToBounds = true,
                 Child = tb
             };
+        }
+
+        if (layout is "Divisor de sección / Impacto" or "Cierre y contacto")
+        {
+            var impactCard = new Border
+            {
+                Background = navyBrush,
+                BorderBrush = goldBrush,
+                BorderThickness = new Thickness(2),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(34, 24),
+                Margin = new Thickness(0, 6)
+            };
+            var iStack = Column(10);
+            iStack.VerticalAlignment = VerticalAlignment.Center;
+            if (slide.Detail != "")
+                iStack.Children.Add(new TextBlock { Text = slide.Detail.ToUpperInvariant(), FontSize = 13, FontWeight = FontWeight.Bold, Foreground = goldBrush, TextAlignment = TextAlignment.Center });
+            iStack.Children.Add(new TextBlock { Text = slide.Title, FontSize = 31, FontWeight = FontWeight.Bold, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
+            iStack.Children.Add(new Border { Width = 200, Height = 2, Background = goldBrush, HorizontalAlignment = HorizontalAlignment.Center });
+            if (slide.Summary != "")
+                iStack.Children.Add(new TextBlock { Text = slide.Summary, FontSize = 15, Foreground = creamBrush, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
+            var bodyLines = slide.PlainText.ReplaceLineEndings("\n").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (bodyLines.Length > 0)
+            {
+                var pillWrap = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 0) };
+                foreach (var rawLine in bodyLines.Take(6))
+                {
+                    var clean = rawLine.TrimStart('-', '#', ' ').Replace("**", "");
+                    pillWrap.Children.Add(new Border
+                    {
+                        Background = tealBrush,
+                        BorderBrush = goldBrush,
+                        BorderThickness = new Thickness(0.8),
+                        CornerRadius = new CornerRadius(14),
+                        Padding = new Thickness(14, 5),
+                        Margin = new Thickness(5, 4),
+                        Child = new TextBlock { Text = clean, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White }
+                    });
+                }
+                iStack.Children.Add(pillWrap);
+            }
+            impactCard.Child = FitBox(iStack, 810, 355, VerticalAlignment.Center);
+            slideGrid.Children.Add(impactCard);
+            root.Children.Add(slideGrid);
+            return new Border { Child = root, BorderBrush = Edge, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), ClipToBounds = true };
+        }
+
+        if (layout == "Ficha de personaje / Equipo")
+        {
+            if (slide.Summary != "")
+            {
+                var bottomNote = SummaryBanner("Perfil", slide.Summary);
+                bottomNote.Margin = new Thickness(0, 8, 0, 0);
+                DockPanel.SetDock(bottomNote, Dock.Bottom);
+                slideGrid.Children.Add(bottomNote);
+            }
+            double availH = slide.Summary != "" ? 360 : 418;
+            var pCols = new Grid { ColumnDefinitions = new ColumnDefinitions("260,*"), ColumnSpacing = 20 };
+            var leftCard = new Border
+            {
+                Background = navyBrush,
+                BorderBrush = goldBrush,
+                BorderThickness = new Thickness(1.2),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(14),
+                ClipToBounds = true
+            };
+            var lStack = Column(8);
+            lStack.HorizontalAlignment = HorizontalAlignment.Center;
+            lStack.VerticalAlignment = VerticalAlignment.Center;
+            if (slide.Images.Count > 0 && SlidePicture(0, 224, availH - 86, false, "#FFFFFF", 1) is { } portrait)
+                lStack.Children.Add(portrait);
+            else
+                lStack.Children.Add(new Border { Width = 224, Height = availH - 86, Background = Brush.Parse("#18293D"), BorderBrush = goldBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4) });
+            var roleCap = slide.ImageCaptions.GetValueOrDefault(0, slide.Detail != "" ? slide.Detail : slide.Title);
+            lStack.Children.Add(new TextBlock { Text = roleCap, FontSize = 13, FontWeight = FontWeight.Bold, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+            leftCard.Child = lStack;
+            pCols.Children.Add(leftCard);
+
+            var rightHost = new Border
+            {
+                Background = Brushes.White,
+                BorderBrush = frameBorderBrush,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(16, 12),
+                ClipToBounds = true,
+                Child = FitBox(RenderRichBlocks(slide.PlainText, availH - 36), 572, availH - 26)
+            };
+            Grid.SetColumn(rightHost, 1);
+            pCols.Children.Add(rightHost);
+            slideGrid.Children.Add(pCols);
+            root.Children.Add(slideGrid);
+            return new Border { Child = root, BorderBrush = Edge, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), ClipToBounds = true };
         }
 
         if (layout == "Cita o conclusión destacada")
@@ -586,8 +709,8 @@ public sealed partial class Studio
                 BorderBrush = goldBrush,
                 BorderThickness = new Thickness(2),
                 CornerRadius = new CornerRadius(8),
-                Padding = new Thickness(38, 32),
-                Margin = new Thickness(0, 12)
+                Padding = new Thickness(38, 28),
+                Margin = new Thickness(0, 10)
             };
             var qStack = Column(14);
             qStack.VerticalAlignment = VerticalAlignment.Center;
@@ -597,21 +720,22 @@ public sealed partial class Studio
             qStack.Children.Add(new Border { Width = 160, Height = 2, Background = goldBrush, HorizontalAlignment = HorizontalAlignment.Center });
             if (slide.Summary != "" && slide.PlainText.Trim() != "")
                 qStack.Children.Add(new TextBlock { Text = slide.Summary, FontSize = 14.5, Foreground = creamBrush, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
-            quoteCard.Child = qStack;
+            quoteCard.Child = FitBox(qStack, 804, 345, VerticalAlignment.Center);
             slideGrid.Children.Add(quoteCard);
             root.Children.Add(slideGrid);
             return new Border { Child = root, BorderBrush = Edge, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), ClipToBounds = true };
         }
 
-        if (layout is "Tres columnas" or "Cuadrícula 2x2" or "Métricas e indicadores (KPIs)" or "Línea de tiempo / Roadmap" or "Comparativa (Antes / Después)")
+        if (layout is "Tres columnas" or "Cuatro columnas" or "Cuadrícula 2x2" or "Métricas e indicadores (KPIs)" or "Línea de tiempo / Roadmap" or "Flujo de proceso (Pipeline)" or "Arquitectura en capas" or "Embudo o pirámide estratégica" or "Checklist de validación" or "Comparativa (Antes / Después)")
         {
             if (slide.Summary != "")
             {
                 var bottomNote = SummaryBanner("Síntesis", slide.Summary);
-                bottomNote.Margin = new Thickness(0, 10, 0, 0);
+                bottomNote.Margin = new Thickness(0, 8, 0, 0);
                 DockPanel.SetDock(bottomNote, Dock.Bottom);
                 slideGrid.Children.Add(bottomNote);
             }
+            double areaH = slide.Summary != "" ? 358 : 418;
             var cards = ParseStructuredCards(slide.PlainText);
             if (cards.Count == 0)
             {
@@ -622,6 +746,7 @@ public sealed partial class Studio
             if (layout == "Métricas e indicadores (KPIs)")
             {
                 int kCount = Math.Clamp(cards.Count, 1, 4);
+                double cardW = (884 - 14 * (kCount - 1)) / kCount - 28;
                 var kGrid = new Grid { ColumnDefinitions = new ColumnDefinitions(string.Join(",", Enumerable.Repeat("*", kCount))), ColumnSpacing = 14 };
                 for (int i = 0; i < kCount; i++)
                 {
@@ -632,60 +757,123 @@ public sealed partial class Studio
                     var cardStack = Column(8);
                     cardStack.VerticalAlignment = VerticalAlignment.Center;
                     cardStack.Children.Add(new TextBlock { Text = label.ToUpperInvariant(), FontSize = 12, FontWeight = FontWeight.Bold, Foreground = tealBrush, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
-                    cardStack.Children.Add(new TextBlock { Text = bigValue, FontSize = 36, FontWeight = FontWeight.Bold, Foreground = navyBrush, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
+                    cardStack.Children.Add(new TextBlock { Text = bigValue, FontSize = 34, FontWeight = FontWeight.Bold, Foreground = navyBrush, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
                     cardStack.Children.Add(new Border { Width = 64, Height = 2, Background = goldBrush, HorizontalAlignment = HorizontalAlignment.Center });
                     if (desc != "")
-                        cardStack.Children.Add(new TextBlock { Text = desc, FontSize = 12.5, Foreground = mutedBrush, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
+                        cardStack.Children.Add(new TextBlock { Text = desc, FontSize = 12, Foreground = mutedBrush, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
                     var kBorder = new Border
                     {
                         Background = Brushes.White,
                         BorderBrush = goldBrush,
                         BorderThickness = new Thickness(1.2),
                         CornerRadius = new CornerRadius(6),
-                        Padding = new Thickness(14, 18),
-                        Child = cardStack
+                        Padding = new Thickness(12, 14),
+                        ClipToBounds = true,
+                        Child = FitBox(cardStack, cardW, areaH - 32, VerticalAlignment.Center)
                     };
                     Grid.SetColumn(kBorder, i);
                     kGrid.Children.Add(kBorder);
                 }
                 slideGrid.Children.Add(kGrid);
             }
-            else if (layout == "Línea de tiempo / Roadmap")
+            else if (layout is "Línea de tiempo / Roadmap" or "Flujo de proceso (Pipeline)")
             {
+                bool isPipeline = layout == "Flujo de proceso (Pipeline)";
                 int tCount = Math.Clamp(cards.Count, 1, 5);
+                double cardW = (884 - 12 * (tCount - 1)) / tCount - 24;
                 var tGrid = new Grid { ColumnDefinitions = new ColumnDefinitions(string.Join(",", Enumerable.Repeat("*", tCount))), ColumnSpacing = 12 };
                 for (int i = 0; i < tCount; i++)
                 {
                     var item = cards[i];
                     var stepStack = Column(6);
+                    var prefix = isPipeline ? $"PASO {i + 1} ▸ " : $"{i + 1:D2} · ";
                     var badge = new Border
                     {
                         Background = i % 2 == 0 ? navyBrush : tealBrush,
                         CornerRadius = new CornerRadius(4),
                         Padding = new Thickness(10, 6),
-                        Child = new TextBlock { Text = $"{i + 1:D2} · {item.Title}", FontSize = 13, FontWeight = FontWeight.Bold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis }
+                        Child = new TextBlock { Text = prefix + item.Title, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis }
                     };
                     stepStack.Children.Add(badge);
                     if (item.Subtitle != "")
-                        stepStack.Children.Add(new TextBlock { Text = item.Subtitle, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = goldBrush, Margin = new Thickness(2, 2, 0, 0) });
-                    foreach (var l in item.Lines.Take(4))
-                        stepStack.Children.Add(new TextBlock { Text = "▪ " + l, FontSize = 12.5, LineHeight = 17, Foreground = inkBrush, TextWrapping = TextWrapping.Wrap });
+                        stepStack.Children.Add(new TextBlock { Text = item.Subtitle, FontSize = 12, FontWeight = FontWeight.Bold, Foreground = goldBrush, Margin = new Thickness(2, 2, 0, 0) });
+                    foreach (var l in item.Lines)
+                        stepStack.Children.Add(new TextBlock { Text = "▪ " + l, FontSize = 12, LineHeight = 16.5, Foreground = inkBrush, TextWrapping = TextWrapping.Wrap });
                     var stepCard = new Border
                     {
                         Background = Brushes.White,
-                        BorderBrush = frameBorderBrush,
-                        BorderThickness = new Thickness(1),
+                        BorderBrush = isPipeline ? goldBrush : frameBorderBrush,
+                        BorderThickness = new Thickness(isPipeline ? 1.2 : 1),
                         CornerRadius = new CornerRadius(6),
-                        Padding = new Thickness(12),
-                        Child = stepStack
+                        Padding = new Thickness(10),
+                        ClipToBounds = true,
+                        Child = FitBox(stepStack, cardW, areaH - 24)
                     };
                     Grid.SetColumn(stepCard, i);
                     tGrid.Children.Add(stepCard);
                 }
                 slideGrid.Children.Add(tGrid);
             }
-            else if (layout == "Cuadrícula 2x2")
+            else if (layout is "Arquitectura en capas" or "Embudo o pirámide estratégica")
             {
+                bool isFunnel = layout == "Embudo o pirámide estratégica";
+                int lCount = Math.Clamp(cards.Count, 1, 5);
+                var lGrid = new Grid { RowDefinitions = new RowDefinitions(string.Join(",", Enumerable.Repeat("*", lCount))), RowSpacing = 8 };
+                double rowH = (areaH - 8 * (lCount - 1)) / lCount;
+                for (int i = 0; i < lCount; i++)
+                {
+                    var item = cards[i];
+                    double widthFactor = isFunnel ? (1.0 - i * 0.11) : 1.0;
+                    double barW = Math.Round(884 * widthFactor);
+                    var rowInner = new Grid { ColumnDefinitions = new ColumnDefinitions("250,*"), ColumnSpacing = 14 };
+                    var leftBadge = new Border
+                    {
+                        Background = i % 2 == 0 ? navyBrush : tealBrush,
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(12, 6),
+                        VerticalAlignment = VerticalAlignment.Stretch,
+                        Child = new StackPanel
+                        {
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Children =
+                            {
+                                new TextBlock { Text = item.Title, FontSize = 13.5, FontWeight = FontWeight.Bold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis },
+                                new TextBlock { Text = item.Subtitle, FontSize = 11, Foreground = goldBrush, IsVisible = item.Subtitle != "", TextTrimming = TextTrimming.CharacterEllipsis }
+                            }
+                        }
+                    };
+                    rowInner.Children.Add(leftBadge);
+                    var descText = string.Join("   ·   ", item.Lines);
+                    var rightDesc = new TextBlock
+                    {
+                        Text = descText != "" ? descText : item.Subtitle,
+                        FontSize = 12.5,
+                        Foreground = inkBrush,
+                        TextWrapping = TextWrapping.Wrap,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    Grid.SetColumn(rightDesc, 1);
+                    rowInner.Children.Add(rightDesc);
+                    var layerCard = new Border
+                    {
+                        Width = barW,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        Background = Brushes.White,
+                        BorderBrush = goldBrush,
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(6),
+                        Padding = new Thickness(10, 6),
+                        ClipToBounds = true,
+                        Child = FitBox(rowInner, barW - 24, rowH - 14, VerticalAlignment.Center)
+                    };
+                    Grid.SetRow(layerCard, i);
+                    lGrid.Children.Add(layerCard);
+                }
+                slideGrid.Children.Add(lGrid);
+            }
+            else if (layout is "Cuadrícula 2x2" or "Checklist de validación")
+            {
+                bool isCheck = layout == "Checklist de validación";
                 var qGrid = new Grid
                 {
                     ColumnDefinitions = new ColumnDefinitions("*,*"),
@@ -693,24 +881,29 @@ public sealed partial class Studio
                     ColumnSpacing = 14,
                     RowSpacing = 12
                 };
+                double cellW = (884 - 14) / 2 - 28;
+                double cellH = (areaH - 12) / 2 - 20;
                 for (int i = 0; i < Math.Min(4, cards.Count); i++)
                 {
                     var item = cards[i];
-                    var qStack = Column(5);
-                    qStack.Children.Add(new TextBlock { Text = item.Title, FontSize = 16, FontWeight = FontWeight.Bold, Foreground = i % 2 == 0 ? navyBrush : tealBrush });
+                    var qStack = Column(4);
+                    var headPrefix = isCheck ? "✔  " : "";
+                    qStack.Children.Add(new TextBlock { Text = headPrefix + item.Title, FontSize = 15.5, FontWeight = FontWeight.Bold, Foreground = i % 2 == 0 ? navyBrush : tealBrush });
                     if (item.Subtitle != "")
-                        qStack.Children.Add(new TextBlock { Text = item.Subtitle, FontSize = 12.5, FontWeight = FontWeight.SemiBold, Foreground = mutedBrush });
+                        qStack.Children.Add(new TextBlock { Text = item.Subtitle, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = mutedBrush });
                     qStack.Children.Add(new Border { Height = 1.2, Background = goldBrush });
-                    foreach (var l in item.Lines.Take(3))
-                        qStack.Children.Add(new TextBlock { Text = "▪ " + l, FontSize = 12.5, Foreground = inkBrush, TextWrapping = TextWrapping.Wrap });
+                    var bulletPrefix = isCheck ? "☑ " : "▪ ";
+                    foreach (var l in item.Lines)
+                        qStack.Children.Add(new TextBlock { Text = bulletPrefix + l, FontSize = 12, Foreground = inkBrush, TextWrapping = TextWrapping.Wrap });
                     var qCard = new Border
                     {
                         Background = Brushes.White,
-                        BorderBrush = frameBorderBrush,
+                        BorderBrush = isCheck ? tealBrush : frameBorderBrush,
                         BorderThickness = new Thickness(1),
                         CornerRadius = new CornerRadius(6),
                         Padding = new Thickness(14, 10),
-                        Child = qStack
+                        ClipToBounds = true,
+                        Child = FitBox(qStack, cellW, cellH)
                     };
                     Grid.SetRow(qCard, i / 2);
                     Grid.SetColumn(qCard, i % 2);
@@ -720,34 +913,37 @@ public sealed partial class Studio
             }
             else
             {
-                int colCount = layout == "Comparativa (Antes / Después)" ? 2 : 3;
-                var cGrid = new Grid { ColumnDefinitions = new ColumnDefinitions(string.Join(",", Enumerable.Repeat("*", colCount))), ColumnSpacing = 16 };
+                int colCount = layout == "Comparativa (Antes / Después)" ? 2 : (layout == "Cuatro columnas" ? 4 : 3);
+                double gap = colCount == 4 ? 12 : 16;
+                double cardW = (884 - gap * (colCount - 1)) / colCount - 24;
+                var cGrid = new Grid { ColumnDefinitions = new ColumnDefinitions(string.Join(",", Enumerable.Repeat("*", colCount))), ColumnSpacing = gap };
                 for (int i = 0; i < Math.Min(colCount, cards.Count); i++)
                 {
                     var item = cards[i];
                     var cStack = Column(6);
                     var headBar = new Border
                     {
-                        Background = i == 0 ? navyBrush : (i == 1 ? tealBrush : Brush.Parse("#3A4F66")),
+                        Background = i % 2 == 0 ? navyBrush : tealBrush,
                         CornerRadius = new CornerRadius(4),
-                        Padding = new Thickness(12, 7),
-                        Child = new TextBlock { Text = item.Title, FontSize = 15, FontWeight = FontWeight.Bold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis }
+                        Padding = new Thickness(10, 6),
+                        Child = new TextBlock { Text = item.Title, FontSize = colCount == 4 ? 13 : 14.5, FontWeight = FontWeight.Bold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis }
                     };
                     cStack.Children.Add(headBar);
                     if (item.Subtitle != "")
-                        cStack.Children.Add(new TextBlock { Text = item.Subtitle, FontSize = 13, FontWeight = FontWeight.Bold, Foreground = tealBrush });
-                    if (i < slide.Images.Count && SlidePicture(i, colCount == 2 ? 390 : 250, 120) is { } colPic)
+                        cStack.Children.Add(new TextBlock { Text = item.Subtitle, FontSize = 12, FontWeight = FontWeight.Bold, Foreground = tealBrush });
+                    if (i < slide.Images.Count && SlidePicture(i, cardW, colCount == 2 ? 120 : 96) is { } colPic)
                         cStack.Children.Add(colPic);
-                    foreach (var l in item.Lines.Take(5))
-                        cStack.Children.Add(new TextBlock { Text = "▪ " + l, FontSize = 13, LineHeight = 18, Foreground = inkBrush, TextWrapping = TextWrapping.Wrap });
+                    foreach (var l in item.Lines)
+                        cStack.Children.Add(new TextBlock { Text = "▪ " + l, FontSize = 12, LineHeight = 16.5, Foreground = inkBrush, TextWrapping = TextWrapping.Wrap });
                     var cCard = new Border
                     {
                         Background = Brushes.White,
                         BorderBrush = frameBorderBrush,
                         BorderThickness = new Thickness(1),
                         CornerRadius = new CornerRadius(6),
-                        Padding = new Thickness(14, 12),
-                        Child = cStack
+                        Padding = new Thickness(12, 10),
+                        ClipToBounds = true,
+                        Child = FitBox(cStack, cardW, areaH - 22)
                     };
                     Grid.SetColumn(cCard, i);
                     cGrid.Children.Add(cCard);
@@ -763,20 +959,21 @@ public sealed partial class Studio
             if (slide.Summary != "")
             {
                 var bottomNote = SummaryBanner("Síntesis visual", slide.Summary);
-                bottomNote.Margin = new Thickness(0, 10, 0, 0);
+                bottomNote.Margin = new Thickness(0, 8, 0, 0);
                 DockPanel.SetDock(bottomNote, Dock.Bottom);
                 slideGrid.Children.Add(bottomNote);
             }
+            double picH = slide.Summary != "" ? 290 : 350;
             var gGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,*"), ColumnSpacing = 16 };
             for (int i = 0; i < 3; i++)
             {
-                var gCard = Column(8);
-                if (i < slide.Images.Count && SlidePicture(i, 272, 240, false, "#FFFFFF", 1) is { } pic)
+                var gCard = Column(6);
+                if (i < slide.Images.Count && SlidePicture(i, 272, picH, false, "#FFFFFF", 1) is { } pic)
                     gCard.Children.Add(pic);
                 else
-                    gCard.Children.Add(new Border { Width = 272, Height = 240, Background = Brushes.White, BorderBrush = frameBorderBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4) });
+                    gCard.Children.Add(new Border { Width = 272, Height = picH, Background = Brushes.White, BorderBrush = frameBorderBrush, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4) });
                 var cap = slide.ImageCaptions.GetValueOrDefault(i, $"Lámina {i + 1}");
-                gCard.Children.Add(new TextBlock { Text = cap, FontSize = 13.5, FontWeight = FontWeight.Bold, Foreground = navyBrush, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap });
+                gCard.Children.Add(new TextBlock { Text = cap, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = navyBrush, TextAlignment = TextAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
                 Grid.SetColumn(gCard, i);
                 gGrid.Children.Add(gCard);
             }
@@ -785,36 +982,37 @@ public sealed partial class Studio
             return new Border { Child = root, BorderBrush = Edge, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), ClipToBounds = true };
         }
 
-        var richBlocks = RenderRichBlocks(slide.PlainText, 360);
+        double maxBodyH = slide.Summary != "" ? 356 : 418;
+        var richBlocks = RenderRichBlocks(slide.PlainText, maxBodyH - 12);
         var remainingImages = Enumerable.Range(0, slide.Images.Count).Where(i => !usedInTables.Contains(i)).ToList();
 
         if (layout == "Imagen protagonista" && remainingImages.Count > 0)
         {
-            var stage = Column(8);
+            var stage = Column(6);
             int idx = remainingImages[0];
             if (SlidePicture(idx, 884, 372, false, "#243750", 1.2) is { } heroPic)
                 stage.Children.Add(heroPic);
             var cap = slide.ImageCaptions.GetValueOrDefault(idx, "");
             var footer = string.Join(" — ", new[] { cap, slide.PlainText.Replace('\n', ' ').Trim(), slide.Summary }.Where(s => !string.IsNullOrWhiteSpace(s)));
             if (footer != "")
-                stage.Children.Add(new TextBlock { Text = footer, FontSize = 13, FontWeight = FontWeight.Bold, Foreground = navyBrush, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center });
+                stage.Children.Add(new TextBlock { Text = footer, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = navyBrush, TextAlignment = TextAlignment.Center, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center });
             slideGrid.Children.Add(stage);
         }
-        else if (layout == "Tabla visual")
+        else if (layout is "Tabla visual" or "Matriz de riesgos y seguridad")
         {
             if (slide.Summary != "")
             {
-                var note = SummaryBanner("Nota clave", slide.Summary);
+                var note = SummaryBanner(layout == "Matriz de riesgos y seguridad" ? "Protocolo de seguridad" : "Nota clave", slide.Summary);
                 note.Margin = new Thickness(0, 8, 0, 0);
                 DockPanel.SetDock(note, Dock.Bottom);
                 slideGrid.Children.Add(note);
             }
-            slideGrid.Children.Add(richBlocks);
+            slideGrid.Children.Add(FitBox(richBlocks, 884, maxBodyH));
         }
         else if (layout is "Moodboard y paleta" or "Moodboard y landmark")
         {
             var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("0.95*,1.05*"), ColumnSpacing = 22 };
-            cols.Children.Add(richBlocks);
+            cols.Children.Add(FitBox(richBlocks, 424, 418));
 
             var rightCol = new DockPanel();
             if (slide.Summary != "")
@@ -861,6 +1059,7 @@ public sealed partial class Studio
                     BorderThickness = new Thickness(0.8),
                     CornerRadius = new CornerRadius(4),
                     Padding = new Thickness(2),
+                    ClipToBounds = true,
                     Child = tileStack
                 };
                 Grid.SetRow(tileBorder, i / gCols);
@@ -875,7 +1074,7 @@ public sealed partial class Studio
         else if (layout == "Plano y leyenda" || remainingImages.Count > 0 || (layout == "Dos columnas" && slide.Summary != ""))
         {
             var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("0.96*,1.04*"), ColumnSpacing = 22 };
-            cols.Children.Add(richBlocks);
+            cols.Children.Add(FitBox(richBlocks, 424, 418));
             var rightCol = new DockPanel();
             if (slide.Summary != "")
             {
@@ -904,6 +1103,7 @@ public sealed partial class Studio
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(5),
                     Padding = new Thickness(4),
+                    ClipToBounds = true,
                     Child = imgStack
                 };
                 rightCol.Children.Add(imgFrame);
@@ -921,7 +1121,7 @@ public sealed partial class Studio
                 DockPanel.SetDock(syn, Dock.Bottom);
                 slideGrid.Children.Add(syn);
             }
-            slideGrid.Children.Add(richBlocks);
+            slideGrid.Children.Add(FitBox(richBlocks, 884, maxBodyH));
         }
 
         root.Children.Add(slideGrid);

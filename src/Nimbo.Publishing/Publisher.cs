@@ -273,6 +273,15 @@ public static class Publisher
         tex.AppendLine(@"\definecolor{SlideInk}{HTML}{1E2328}");
         tex.AppendLine(@"\definecolor{SlideMuted}{HTML}{526068}");
         tex.AppendLine(@"\newcolumntype{Y}{>{\raggedright\arraybackslash}X}");
+        tex.AppendLine(@"\newsavebox{\nimboslidebox}");
+        tex.AppendLine(@"\newcommand{\nimbofitbox}[3]{%");
+        tex.AppendLine(@"  \sbox{\nimboslidebox}{\parbox{#1}{#3}}%");
+        tex.AppendLine(@"  \ifdim\dimexpr\ht\nimboslidebox+\dp\nimboslidebox\relax>#2\relax");
+        tex.AppendLine(@"    \resizebox{!}{#2}{\usebox{\nimboslidebox}}%");
+        tex.AppendLine(@"  \else");
+        tex.AppendLine(@"    \usebox{\nimboslidebox}%");
+        tex.AppendLine(@"  \fi");
+        tex.AppendLine(@"}");
         tex.AppendLine(@"\begin{document}");
 
         void BeginSlide(string bgColor = "SlideCream", string? bgImage = null, double bgOpacity = 0.17)
@@ -326,7 +335,7 @@ public static class Publisher
             tex.AppendLine(@"\draw[SlideGold,line width=1.6bp] (675,0) .. controls (735,105) and (825,112) .. (885,186) .. controls (922,232) and (952,298) .. (1000,330);");
             tex.AppendLine(@"\draw[SlideGold,line width=1.6bp] (0,460) .. controls (58,492) and (96,565) .. (152,612) .. controls (218,665) and (312,665) .. (375,750);");
             tex.AppendLine(@"\draw[SlideGold,line width=1.6bp] (1000,460) .. controls (942,492) and (904,565) .. (848,612) .. controls (782,665) and (688,665) .. (625,750);");
-            tex.AppendLine(@"\node[anchor=center] at (500,375) {\parbox{620bp}{\centering\color{white}");
+            tex.AppendLine(@"\node[anchor=center] at (500,375) {\nimbofitbox{620bp}{340bp}{\centering\color{white}");
             tex.AppendLine(@"{\fontsize{33}{38}\selectfont\bfseries " + Escape(titleText) + @"\par}");
             if (!string.IsNullOrWhiteSpace(subtitleText))
                 tex.AppendLine(@"\vspace{12bp}{\fontsize{15}{20}\selectfont\color{SlideCream} " + Escape(subtitleText) + @"\par}");
@@ -452,12 +461,12 @@ public static class Publisher
                 string? bgKey = map.TryGetValue("Fondo de diapositiva", out var bgSlot) ? bgSlot.Key : null;
                 BeginSlide("SlideCream", bgKey, 0.17);
 
-                tex.AppendLine(@"\node[anchor=north west,text=SlideNavy] at (32,26) {\parbox{320bp}{\raggedright\fontsize{25}{28}\selectfont\bfseries " + Escape(chapter.Title) + @"}};");
+                tex.AppendLine(@"\node[anchor=north west,text=SlideNavy] at (32,26) {\nimbofitbox{320bp}{48bp}{\raggedright\fontsize{25}{28}\selectfont\bfseries " + Escape(chapter.Title) + @"}};");
                 if (chapter.Detail != "")
-                    tex.AppendLine(@"\node[anchor=north west,text=SlideTeal] at (32,76) {\parbox{320bp}{\raggedright\fontsize{13.5}{16}\selectfont\bfseries (" + Escape(chapter.Detail) + @")}};");
+                    tex.AppendLine(@"\node[anchor=north west,text=SlideTeal] at (32,76) {\nimbofitbox{320bp}{28bp}{\raggedright\fontsize{13.5}{16}\selectfont\bfseries (" + Escape(chapter.Detail) + @")}};");
 
                 var conceptBody = chapter.Summary != "" ? chapter.Summary : string.Join(" ", extra);
-                tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (365,28) {\parbox{563bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{12}{15.2}\selectfont{\bfseries\color{SlideNavy}Concepto:} " + InlineParagraphs(conceptBody) + @"}};");
+                tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (365,26) {\nimbofitbox{563bp}{78bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{12}{15.2}\selectfont{\bfseries\color{SlideNavy}Concepto:} " + InlineParagraphs(conceptBody) + @"}};");
                 tex.AppendLine(@"\draw[SlideGold,line width=1.6bp] (32,112) -- (928,112);");
 
                 tex.AppendLine(@"\node[anchor=north,text=SlideNavy,font=\fontsize{10.5}{12}\selectfont\bfseries] at (74,132) {Plataforma};");
@@ -527,18 +536,69 @@ public static class Publisher
             }
 
             BeginSlide("SlideCream");
-            tex.AppendLine(@"\node[anchor=north west,text=SlideNavy] at (38,24) {\parbox{884bp}{\raggedright\fontsize{24}{28}\selectfont\bfseries " + Escape(chapter.Title) + @"}};");
+            int titleLen = chapter.Title.Length;
+            string titleFont = titleLen > 48 ? @"\fontsize{18}{21}\selectfont" : titleLen > 36 ? @"\fontsize{20.5}{23.5}\selectfont" : @"\fontsize{24}{27}\selectfont";
+            double headerTitleW = chapter.Detail != "" ? 575 : 884;
+            tex.AppendLine(@"\node[anchor=north west,text=SlideNavy] at (38,24) {\nimbofitbox{" + F(headerTitleW) + @"bp}{32bp}{\raggedright" + titleFont + @"\bfseries " + Escape(chapter.Title) + @"}};");
             if (chapter.Detail != "")
-                tex.AppendLine(@"\node[anchor=north east,text=SlideTeal] at (922,30) {\parbox{360bp}{\raggedleft\fontsize{11.5}{14}\selectfont\bfseries " + Escape(chapter.Detail) + @"}};");
+                tex.AppendLine(@"\node[anchor=north east,text=SlideTeal] at (922,28) {\nimbofitbox{295bp}{26bp}{\raggedleft\fontsize{11}{13.5}\selectfont\bfseries " + Escape(chapter.Detail) + @"}};");
             tex.AppendLine(@"\draw[SlideGold,line width=1.6bp] (38,66) -- (922,66);");
 
+            void RenderBottomSummary(string label, string text)
+            {
+                tex.AppendLine(@"\fill[SlideCard,rounded corners=4bp,draw=SlideGold,line width=0.7bp] (38,476) rectangle (922,520);");
+                tex.AppendLine(@"\node[anchor=west,text=SlideNavy] at (50,498) {\nimbofitbox{860bp}{34bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{10.5}{13}\selectfont{\bfseries\color{SlideTeal}" + Escape(label) + @":} " + InlineParagraphs(text) + @"}};");
+            }
+
             var used = new HashSet<int>();
+            if (layout is "Divisor de sección / Impacto" or "Cierre y contacto")
+            {
+                tex.AppendLine(@"\fill[SlideNavy,rounded corners=8bp,draw=SlideGold,line width=1.8bp] (38,84) rectangle (922,498);");
+                var bodyLines = chapter.PlainText.ReplaceLineEndings("\n").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var pills = string.Join(@" \enspace$\cdot$\enspace ", bodyLines.Take(6).Select(l => Escape(l.TrimStart('-', '#', ' ').Replace("**", ""))));
+                tex.AppendLine(@"\node[anchor=center,text=white] at (480,291) {\nimbofitbox{780bp}{360bp}{\centering\hyphenpenalty=10000\exhyphenpenalty=10000");
+                if (chapter.Detail != "")
+                    tex.AppendLine(@"{\fontsize{13}{16}\selectfont\bfseries\color{SlideGold} " + Escape(chapter.Detail.ToUpperInvariant()) + @"\par}\vspace{10bp}");
+                tex.AppendLine(@"{\fontsize{30}{35}\selectfont\bfseries\color{white} " + Escape(chapter.Title) + @"\par}\vspace{12bp}");
+                tex.AppendLine(@"{\color{SlideGold}\rule{200bp}{2bp}\par}");
+                if (chapter.Summary != "")
+                    tex.AppendLine(@"\vspace{12bp}{\fontsize{14.5}{19}\selectfont\color{SlideCream} " + InlineParagraphs(chapter.Summary) + @"\par}");
+                if (pills != "")
+                    tex.AppendLine(@"\vspace{14bp}{\fontsize{11.5}{15}\selectfont\bfseries\color{SlideGold} " + pills + @"\par}");
+                tex.AppendLine(@"}};");
+                EndSlide();
+                continue;
+            }
+
+            if (layout == "Ficha de personaje / Equipo")
+            {
+                double areaBottom = chapter.Summary != "" ? 464 : 512;
+                double areaH = areaBottom - 82;
+                tex.AppendLine(@"\fill[SlideNavy,rounded corners=6bp,draw=SlideGold,line width=1.1bp] (38,82) rectangle (300," + F(areaBottom) + ");");
+                if (chapter.Images.Count > 0)
+                {
+                    used.Add(0);
+                    copyImage(chapter.Images[0]);
+                    tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (169," + F(82 + (areaH - 42) / 2) + @") {\includegraphics[width=236bp,height=" + F(areaH - 58) + @"bp,keepaspectratio]{media/" + chapter.Images[0] + @"}};");
+                }
+                var roleCap = chapter.ImageCaptions.GetValueOrDefault(0, chapter.Detail != "" ? chapter.Detail : chapter.Title);
+                tex.AppendLine(@"\node[anchor=south,text=white] at (169," + F(areaBottom - 10) + @") {\nimbofitbox{236bp}{26bp}{\centering\fontsize{11.5}{14}\selectfont\bfseries " + Escape(roleCap) + @"}};");
+
+                var rightTex = SlideRichText(chapter.PlainText, chapter, used, 574);
+                tex.AppendLine(@"\fill[white,rounded corners=6bp,draw=SlideNavy!30,line width=0.7bp] (318,82) rectangle (922," + F(areaBottom) + ");");
+                tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (334,94) {\nimbofitbox{572bp}{" + F(areaH - 24) + @"bp}{" + rightTex + @"}};");
+                if (chapter.Summary != "")
+                    RenderBottomSummary("Perfil", chapter.Summary);
+                EndSlide();
+                continue;
+            }
+
             if (layout == "Cita o conclusión destacada")
             {
                 var mainQuote = chapter.PlainText.Replace("> ", "").Trim();
                 if (mainQuote == "") mainQuote = chapter.Summary != "" ? chapter.Summary : chapter.Title;
                 tex.AppendLine(@"\fill[SlideNavy,rounded corners=8bp,draw=SlideGold,line width=1.6bp] (38,88) rectangle (922,474);");
-                tex.AppendLine(@"\node[anchor=center,text=white] at (480,260) {\parbox{780bp}{\centering\hyphenpenalty=10000\exhyphenpenalty=10000{\fontsize{21}{28}\selectfont\itshape\bfseries ``" + InlineParagraphs(mainQuote) + @"''\par}");
+                tex.AppendLine(@"\node[anchor=center,text=white] at (480,281) {\nimbofitbox{780bp}{340bp}{\centering\hyphenpenalty=10000\exhyphenpenalty=10000{\fontsize{21}{28}\selectfont\itshape\bfseries ``" + InlineParagraphs(mainQuote) + @"''\par}");
                 tex.AppendLine(@"\vspace{14bp}{\color{SlideGold}\rule{180bp}{2bp}\par}");
                 if (chapter.Summary != "" && chapter.PlainText.Trim() != "")
                     tex.AppendLine(@"\vspace{12bp}{\fontsize{13}{17}\selectfont\color{SlideCream} " + InlineParagraphs(chapter.Summary) + @"\par}");
@@ -547,7 +607,7 @@ public static class Publisher
                 continue;
             }
 
-            if (layout is "Tres columnas" or "Cuadrícula 2x2" or "Métricas e indicadores (KPIs)" or "Línea de tiempo / Roadmap" or "Comparativa (Antes / Después)")
+            if (layout is "Tres columnas" or "Cuatro columnas" or "Cuadrícula 2x2" or "Métricas e indicadores (KPIs)" or "Línea de tiempo / Roadmap" or "Flujo de proceso (Pipeline)" or "Arquitectura en capas" or "Embudo o pirámide estratégica" or "Checklist de validación" or "Comparativa (Antes / Después)")
             {
                 var cards = ParseSlideCards(chapter.PlainText);
                 if (cards.Count == 0)
@@ -568,7 +628,7 @@ public static class Publisher
                         var desc = item.Subtitle != "" ? string.Join(" · ", item.Lines) : string.Join(" · ", item.Lines.Skip(1));
                         double x = 38 + i * (cardW + gap);
                         tex.AppendLine(@"\fill[white,rounded corners=6bp,draw=SlideGold,line width=1bp] (" + F(x) + ",84) rectangle (" + F(x + cardW) + "," + F(areaBottom) + ");");
-                        tex.AppendLine(@"\node[anchor=center,text=SlideInk] at (" + F(x + cardW / 2) + "," + F(84 + areaH / 2) + @") {\parbox{" + F(cardW - 22) + @"bp}{\centering\hyphenpenalty=10000\exhyphenpenalty=10000");
+                        tex.AppendLine(@"\node[anchor=center,text=SlideInk] at (" + F(x + cardW / 2) + "," + F(84 + areaH / 2) + @") {\nimbofitbox{" + F(cardW - 22) + @"bp}{" + F(areaH - 28) + @"bp}{\centering\hyphenpenalty=10000\exhyphenpenalty=10000");
                         tex.AppendLine(@"{\fontsize{11}{14}\selectfont\bfseries\color{SlideTeal} " + Escape(lbl.ToUpperInvariant()) + @"\par}\vspace{10bp}");
                         tex.AppendLine(@"{\fontsize{31}{35}\selectfont\bfseries\color{SlideNavy} " + Escape(bigVal) + @"\par}\vspace{10bp}");
                         tex.AppendLine(@"{\color{SlideGold}\rule{64bp}{1.6bp}\par}");
@@ -577,8 +637,9 @@ public static class Publisher
                         tex.AppendLine(@"}};");
                     }
                 }
-                else if (layout == "Línea de tiempo / Roadmap")
+                else if (layout is "Línea de tiempo / Roadmap" or "Flujo de proceso (Pipeline)")
                 {
+                    bool isPipeline = layout == "Flujo de proceso (Pipeline)";
                     int tCount = Math.Clamp(cards.Count, 1, 5);
                     double gap = 12;
                     double cardW = (884 - gap * (tCount - 1)) / tCount;
@@ -587,19 +648,43 @@ public static class Publisher
                         var item = cards[i];
                         double x = 38 + i * (cardW + gap);
                         string badgeCol = i % 2 == 0 ? "SlideNavy" : "SlideTeal";
-                        tex.AppendLine(@"\fill[white,rounded corners=6bp,draw=SlideNavy!30,line width=0.7bp] (" + F(x) + ",84) rectangle (" + F(x + cardW) + "," + F(areaBottom) + ");");
+                        string prefix = isPipeline ? $"PASO {i + 1} · " : $"{i + 1:D2} · ";
+                        tex.AppendLine(@"\fill[white,rounded corners=6bp,draw=" + (isPipeline ? "SlideGold" : "SlideNavy!30") + @",line width=0.8bp] (" + F(x) + ",84) rectangle (" + F(x + cardW) + "," + F(areaBottom) + ");");
                         tex.AppendLine(@"\fill[" + badgeCol + @",rounded corners=4bp] (" + F(x + 8) + ",92) rectangle (" + F(x + cardW - 8) + ",126);");
-                        tex.AppendLine(@"\node[anchor=west,text=white] at (" + F(x + 14) + @",109) {\parbox{" + F(cardW - 28) + @"bp}{\raggedright\fontsize{10.5}{12.5}\selectfont\bfseries " + $"{i + 1:D2} · " + Escape(item.Title) + @"}};");
+                        tex.AppendLine(@"\node[anchor=west,text=white] at (" + F(x + 14) + @",109) {\nimbofitbox{" + F(cardW - 28) + @"bp}{24bp}{\raggedright\fontsize{10.5}{12.5}\selectfont\bfseries " + Escape(prefix + item.Title) + @"}};");
                         var bodySb = new StringBuilder();
                         if (item.Subtitle != "")
                             bodySb.AppendLine(@"{\fontsize{10.5}{13}\selectfont\bfseries\color{SlideGold} " + Escape(item.Subtitle) + @"\par}\vspace{4bp}");
-                        foreach (var l in item.Lines.Take(5))
+                        foreach (var l in item.Lines)
                             bodySb.AppendLine(@"\noindent{\color{SlideTeal}\textbullet}\enspace " + InlineParagraphs(l) + @"\par\vspace{3bp}");
-                        tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (" + F(x + 10) + @",136) {\parbox{" + F(cardW - 20) + @"bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{10.5}{13.5}\selectfont " + bodySb + @"}};");
+                        tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (" + F(x + 10) + @",136) {\nimbofitbox{" + F(cardW - 20) + @"bp}{" + F(areaBottom - 146) + @"bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{10.5}{13.5}\selectfont " + bodySb + @"}};");
                     }
                 }
-                else if (layout == "Cuadrícula 2x2")
+                else if (layout is "Arquitectura en capas" or "Embudo o pirámide estratégica")
                 {
+                    bool isFunnel = layout == "Embudo o pirámide estratégica";
+                    int lCount = Math.Clamp(cards.Count, 1, 5);
+                    double gap = 8;
+                    double rowH = (areaH - gap * (lCount - 1)) / lCount;
+                    for (int i = 0; i < lCount; i++)
+                    {
+                        var item = cards[i];
+                        double widthFactor = isFunnel ? (1.0 - i * 0.11) : 1.0;
+                        double barW = Math.Round(884 * widthFactor);
+                        double x = 480 - barW / 2;
+                        double y = 84 + i * (rowH + gap);
+                        string badgeCol = i % 2 == 0 ? "SlideNavy" : "SlideTeal";
+                        tex.AppendLine(@"\fill[white,rounded corners=5bp,draw=SlideGold,line width=0.9bp] (" + F(x) + "," + F(y) + ") rectangle (" + F(x + barW) + "," + F(y + rowH) + ");");
+                        tex.AppendLine(@"\fill[" + badgeCol + @",rounded corners=4bp] (" + F(x + 8) + "," + F(y + 6) + ") rectangle (" + F(x + 258) + "," + F(y + rowH - 6) + ");");
+                        tex.AppendLine(@"\node[anchor=west,text=white] at (" + F(x + 16) + "," + F(y + rowH / 2) + @") {\nimbofitbox{234bp}{" + F(rowH - 16) + @"bp}{\raggedright{\fontsize{11.5}{14}\selectfont\bfseries " + Escape(item.Title) + @"}" + (item.Subtitle != "" ? @"\par{\fontsize{9.5}{11.5}\selectfont\color{SlideGold} " + Escape(item.Subtitle) + "}" : "") + @"}};");
+                        var descText = string.Join(" · ", item.Lines);
+                        if (descText == "") descText = item.Subtitle;
+                        tex.AppendLine(@"\node[anchor=west,text=SlideInk] at (" + F(x + 272) + "," + F(y + rowH / 2) + @") {\nimbofitbox{" + F(barW - 286) + @"bp}{" + F(rowH - 14) + @"bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{10.5}{13.5}\selectfont " + InlineParagraphs(descText) + @"}};");
+                    }
+                }
+                else if (layout is "Cuadrícula 2x2" or "Checklist de validación")
+                {
+                    bool isCheck = layout == "Checklist de validación";
                     double gapX = 16, gapY = 14;
                     double cardW = (884 - gapX) / 2;
                     double cardH = (areaH - gapY) / 2;
@@ -609,50 +694,47 @@ public static class Publisher
                         int r = i / 2, c = i % 2;
                         double x = 38 + c * (cardW + gapX);
                         double y = 84 + r * (cardH + gapY);
-                        tex.AppendLine(@"\fill[white,rounded corners=6bp,draw=SlideNavy!30,line width=0.7bp] (" + F(x) + "," + F(y) + ") rectangle (" + F(x + cardW) + "," + F(y + cardH) + ");");
+                        tex.AppendLine(@"\fill[white,rounded corners=6bp,draw=" + (isCheck ? "SlideTeal" : "SlideNavy!30") + @",line width=0.8bp] (" + F(x) + "," + F(y) + ") rectangle (" + F(x + cardW) + "," + F(y + cardH) + ");");
                         var bodySb = new StringBuilder();
-                        bodySb.AppendLine(@"{\fontsize{14}{17}\selectfont\bfseries\color{" + (i % 2 == 0 ? "SlideNavy" : "SlideTeal") + @"} " + Escape(item.Title) + @"\par}");
+                        bodySb.AppendLine(@"{\fontsize{13.5}{16.5}\selectfont\bfseries\color{" + (i % 2 == 0 ? "SlideNavy" : "SlideTeal") + @"} " + Escape((isCheck ? "[OK] " : "") + item.Title) + @"\par}");
                         if (item.Subtitle != "")
                             bodySb.AppendLine(@"\vspace{2bp}{\fontsize{10.5}{13}\selectfont\bfseries\color{SlideMuted} " + Escape(item.Subtitle) + @"\par}");
                         bodySb.AppendLine(@"\vspace{4bp}{\color{SlideGold}\rule{\linewidth}{1bp}\par}\vspace{4bp}");
-                        foreach (var l in item.Lines.Take(4))
-                            bodySb.AppendLine(@"\noindent{\color{SlideGold}\textbullet}\enspace " + InlineParagraphs(l) + @"\par\vspace{2.5bp}");
-                        tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (" + F(x + 14) + "," + F(y + 12) + @") {\parbox{" + F(cardW - 28) + @"bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{11}{14}\selectfont " + bodySb + @"}};");
+                        foreach (var l in item.Lines)
+                            bodySb.AppendLine(@"\noindent{\color{" + (isCheck ? "SlideTeal" : "SlideGold") + @"}\textbullet}\enspace " + InlineParagraphs(l) + @"\par\vspace{2.5bp}");
+                        tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (" + F(x + 14) + "," + F(y + 10) + @") {\nimbofitbox{" + F(cardW - 28) + @"bp}{" + F(cardH - 20) + @"bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{10.5}{13.5}\selectfont " + bodySb + @"}};");
                     }
                 }
                 else
                 {
-                    int colCount = layout == "Comparativa (Antes / Después)" ? 2 : 3;
-                    double gap = 16;
+                    int colCount = layout == "Comparativa (Antes / Después)" ? 2 : (layout == "Cuatro columnas" ? 4 : 3);
+                    double gap = colCount == 4 ? 12 : 16;
                     double cardW = (884 - gap * (colCount - 1)) / colCount;
                     for (int i = 0; i < Math.Min(colCount, cards.Count); i++)
                     {
                         var item = cards[i];
                         double x = 38 + i * (cardW + gap);
-                        string headCol = i == 0 ? "SlideNavy" : "SlideTeal";
+                        string headCol = i % 2 == 0 ? "SlideNavy" : "SlideTeal";
                         tex.AppendLine(@"\fill[white,rounded corners=6bp,draw=SlideNavy!30,line width=0.7bp] (" + F(x) + ",84) rectangle (" + F(x + cardW) + "," + F(areaBottom) + ");");
                         tex.AppendLine(@"\fill[" + headCol + @",rounded corners=4bp] (" + F(x + 10) + ",94) rectangle (" + F(x + cardW - 10) + ",130);");
-                        tex.AppendLine(@"\node[anchor=west,text=white] at (" + F(x + 18) + @",112) {\parbox{" + F(cardW - 36) + @"bp}{\raggedright\fontsize{12.5}{15}\selectfont\bfseries " + Escape(item.Title) + @"}};");
+                        tex.AppendLine(@"\node[anchor=west,text=white] at (" + F(x + 16) + @",112) {\nimbofitbox{" + F(cardW - 32) + @"bp}{26bp}{\raggedright\fontsize{12}{14.5}\selectfont\bfseries " + Escape(item.Title) + @"}};");
                         double contentTop = 140;
                         if (i < chapter.Images.Count)
                         {
                             copyImage(chapter.Images[i]);
-                            tex.AppendLine(@"\node[anchor=north,inner sep=0pt] at (" + F(x + cardW / 2) + @",140) {\includegraphics[width=" + F(cardW - 24) + @"bp,height=110bp,keepaspectratio]{media/" + chapter.Images[i] + @"}};");
-                            contentTop = 258;
+                            tex.AppendLine(@"\node[anchor=north,inner sep=0pt] at (" + F(x + cardW / 2) + @",140) {\includegraphics[width=" + F(cardW - 24) + @"bp,height=105bp,keepaspectratio]{media/" + chapter.Images[i] + @"}};");
+                            contentTop = 252;
                         }
                         var bodySb = new StringBuilder();
                         if (item.Subtitle != "")
                             bodySb.AppendLine(@"{\fontsize{11}{13.5}\selectfont\bfseries\color{SlideTeal} " + Escape(item.Subtitle) + @"\par}\vspace{4bp}");
-                        foreach (var l in item.Lines.Take(5))
+                        foreach (var l in item.Lines)
                             bodySb.AppendLine(@"\noindent{\color{SlideGold}\textbullet}\enspace " + InlineParagraphs(l) + @"\par\vspace{3bp}");
-                        tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (" + F(x + 14) + "," + F(contentTop) + @") {\parbox{" + F(cardW - 28) + @"bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{11}{14.5}\selectfont " + bodySb + @"}};");
+                        tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (" + F(x + 14) + "," + F(contentTop) + @") {\nimbofitbox{" + F(cardW - 28) + @"bp}{" + F(areaBottom - contentTop - 10) + @"bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{10.5}{14}\selectfont " + bodySb + @"}};");
                     }
                 }
                 if (chapter.Summary != "")
-                {
-                    tex.AppendLine(@"\fill[SlideCard,rounded corners=4bp,draw=SlideGold,line width=0.7bp] (38,476) rectangle (922,520);");
-                    tex.AppendLine(@"\node[anchor=west,text=SlideNavy] at (50,498) {\parbox{860bp}{\raggedright\fontsize{10.5}{13}\selectfont{\bfseries\color{SlideTeal}Síntesis:} " + InlineParagraphs(chapter.Summary) + @"}};");
-                }
+                    RenderBottomSummary("Síntesis", chapter.Summary);
                 EndSlide();
                 continue;
             }
@@ -661,7 +743,7 @@ public static class Publisher
             {
                 double gap = 16;
                 double cardW = (884 - gap * 2) / 3;
-                double boxH = chapter.Summary != "" ? 330 : 380;
+                double boxH = chapter.Summary != "" ? 380 : 426;
                 for (int i = 0; i < 3; i++)
                 {
                     double x = 38 + i * (cardW + gap);
@@ -672,26 +754,21 @@ public static class Publisher
                         tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (" + F(x + cardW / 2) + "," + F(84 + boxH / 2 - 12) + @") {\includegraphics[width=" + F(cardW - 14) + @"bp,height=" + F(boxH - 42) + @"bp,keepaspectratio]{media/" + chapter.Images[i] + @"}};");
                     }
                     var cap = chapter.ImageCaptions.GetValueOrDefault(i, $"Lámina {i + 1}");
-                    tex.AppendLine(@"\node[anchor=south,text=SlideNavy] at (" + F(x + cardW / 2) + "," + F(84 + boxH - 6) + @") {\parbox{" + F(cardW - 12) + @"bp}{\centering\fontsize{10.5}{13}\selectfont\bfseries " + Escape(cap) + @"}};");
+                    tex.AppendLine(@"\node[anchor=south,text=SlideNavy] at (" + F(x + cardW / 2) + "," + F(84 + boxH - 6) + @") {\nimbofitbox{" + F(cardW - 12) + @"bp}{24bp}{\centering\fontsize{10.5}{13}\selectfont\bfseries " + Escape(cap) + @"}};");
                 }
                 if (chapter.Summary != "")
-                {
-                    tex.AppendLine(@"\fill[SlideCard,rounded corners=4bp,draw=SlideGold,line width=0.7bp] (38,476) rectangle (922,520);");
-                    tex.AppendLine(@"\node[anchor=west,text=SlideNavy] at (50,498) {\parbox{860bp}{\raggedright\fontsize{10.5}{13}\selectfont{\bfseries\color{SlideTeal}Síntesis visual:} " + InlineParagraphs(chapter.Summary) + @"}};");
-                }
+                    RenderBottomSummary("Síntesis visual", chapter.Summary);
                 EndSlide();
                 continue;
             }
 
-            if (layout == "Tabla visual")
+            if (layout is "Tabla visual" or "Matriz de riesgos y seguridad")
             {
+                double maxTblH = chapter.Summary != "" ? 384 : 434;
                 var bodyTex = SlideRichText(chapter.PlainText, chapter, used, 884);
-                tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (38,80) {\parbox{884bp}{" + bodyTex + @"}};");
+                tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (38,78) {\nimbofitbox{884bp}{" + F(maxTblH) + @"bp}{" + bodyTex + @"}};");
                 if (chapter.Summary != "")
-                {
-                    tex.AppendLine(@"\fill[SlideCard,rounded corners=4bp,draw=SlideGold,line width=0.6bp] (38,484) rectangle (922,522);");
-                    tex.AppendLine(@"\node[anchor=west,text=SlideNavy] at (50,503) {\parbox{860bp}{\raggedright\fontsize{10.5}{13}\selectfont{\bfseries\color{SlideTeal}Nota clave:} " + InlineParagraphs(chapter.Summary) + @"}};");
-                }
+                    RenderBottomSummary(layout == "Matriz de riesgos y seguridad" ? "Protocolo de seguridad" : "Nota clave", chapter.Summary);
                 EndSlide();
                 continue;
             }
@@ -705,40 +782,39 @@ public static class Publisher
                 var cap = chapter.ImageCaptions.GetValueOrDefault(0, "");
                 var footer = string.Join(" — ", new[] { cap, chapter.PlainText.Replace('\n', ' ').Trim(), chapter.Summary }.Where(s => !string.IsNullOrWhiteSpace(s)));
                 if (footer != "")
-                    tex.AppendLine(@"\node[anchor=north,text=SlideNavy] at (480,468) {\parbox{860bp}{\centering\fontsize{11.5}{14.5}\selectfont\bfseries " + InlineParagraphs(footer) + @"}};");
+                    tex.AppendLine(@"\node[anchor=north,text=SlideNavy] at (480,466) {\nimbofitbox{860bp}{52bp}{\centering\fontsize{11.5}{14.5}\selectfont\bfseries " + InlineParagraphs(footer) + @"}};");
                 EndSlide();
                 continue;
             }
 
             if (layout == "Texto" || (chapter.Images.Count == 0 && layout != "Dos columnas"))
             {
+                double maxTxtH = chapter.Summary != "" ? 384 : 434;
                 var bodyTex = SlideRichText(chapter.PlainText, chapter, used, 884);
-                tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (38,82) {\parbox{884bp}{" + bodyTex + @"}};");
+                tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (38,80) {\nimbofitbox{884bp}{" + F(maxTxtH) + @"bp}{" + bodyTex + @"}};");
                 if (chapter.Summary != "")
-                {
-                    tex.AppendLine(@"\fill[SlideCard,rounded corners=4bp,draw=SlideGold,line width=0.6bp] (38,476) rectangle (922,520);");
-                    tex.AppendLine(@"\node[anchor=west,text=SlideNavy] at (50,498) {\parbox{860bp}{\raggedright\fontsize{10.5}{13}\selectfont{\bfseries\color{SlideTeal}Síntesis:} " + InlineParagraphs(chapter.Summary) + @"}};");
-                }
+                    RenderBottomSummary("Síntesis", chapter.Summary);
                 EndSlide();
                 continue;
             }
 
             var leftTex = SlideRichText(chapter.PlainText, chapter, used, 424);
-            tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (38,82) {\parbox{424bp}{" + leftTex + @"}};");
+            tex.AppendLine(@"\node[anchor=north west,text=SlideInk] at (38,80) {\nimbofitbox{424bp}{436bp}{" + leftTex + @"}};");
 
             var remainingImages = Enumerable.Range(0, chapter.Images.Count).Where(i => !used.Contains(i)).ToList();
             if (layout is "Moodboard y paleta" or "Moodboard y landmark" && remainingImages.Count > 1)
             {
-                int cols = remainingImages.Count >= 5 ? 3 : 2;
-                int rows = (int)Math.Ceiling(remainingImages.Count / (double)cols);
+                var mosaicImgs = remainingImages.Take(6).ToList();
+                int cols = mosaicImgs.Count >= 5 ? 3 : 2;
+                int rows = (int)Math.Ceiling(mosaicImgs.Count / (double)cols);
                 double areaW = 436;
-                double areaH = chapter.Summary != "" ? 344 : 404;
+                double areaH = chapter.Summary != "" ? 344 : 420;
                 double gap = 10;
                 double cellW = (areaW - gap * (cols - 1)) / cols;
                 double cellH = (areaH - gap * (rows - 1)) / rows;
-                for (int idx = 0; idx < remainingImages.Count; idx++)
+                for (int idx = 0; idx < mosaicImgs.Count; idx++)
                 {
-                    int imgIdx = remainingImages[idx];
+                    int imgIdx = mosaicImgs[idx];
                     copyImage(chapter.Images[imgIdx]);
                     int r = idx / cols;
                     int c = idx % cols;
@@ -749,27 +825,27 @@ public static class Publisher
                     tex.AppendLine(@"\fill[white,rounded corners=3bp,draw=SlideNavy!25,line width=0.5bp] (" + F(cx) + "," + F(cy) + ") rectangle (" + F(cx + cellW) + "," + F(cy + cellH) + ");");
                     tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (" + F(cx + cellW / 2) + "," + F(cy + imgBoxH / 2 + 2) + @") {\includegraphics[width=" + F(cellW - 6) + @"bp,height=" + F(imgBoxH - 4) + @"bp,keepaspectratio]{media/" + chapter.Images[imgIdx] + @"}};");
                     if (cap != "")
-                        tex.AppendLine(@"\node[anchor=north,text=SlideMuted] at (" + F(cx + cellW / 2) + "," + F(cy + imgBoxH + 2) + @") {\parbox{" + F(cellW - 4) + @"bp}{\centering\fontsize{8.5}{10}\selectfont\bfseries " + Escape(cap) + @"}};");
+                        tex.AppendLine(@"\node[anchor=north,text=SlideMuted] at (" + F(cx + cellW / 2) + "," + F(cy + imgBoxH + 2) + @") {\nimbofitbox{" + F(cellW - 4) + @"bp}{14bp}{\centering\fontsize{8.5}{10}\selectfont\bfseries " + Escape(cap) + @"}};");
                 }
             }
             else if (remainingImages.Count > 0)
             {
                 int imgIdx = remainingImages[0];
                 copyImage(chapter.Images[imgIdx]);
-                double boxH = chapter.Summary != "" ? 324 : 384;
+                double boxH = chapter.Summary != "" ? 344 : 420;
                 var cap = chapter.ImageCaptions.GetValueOrDefault(imgIdx, "");
                 tex.AppendLine(@"\fill[white,rounded corners=5bp,draw=SlideGold,line width=0.8bp] (486,82) rectangle (922," + F(82 + boxH) + ");");
                 tex.AppendLine(@"\node[anchor=center,inner sep=0pt] at (704," + F(82 + (boxH - (cap != "" ? 24 : 8)) / 2) + @") {\includegraphics[width=424bp,height=" + F(boxH - (cap != "" ? 32 : 14)) + @"bp,keepaspectratio]{media/" + chapter.Images[imgIdx] + @"}};");
                 if (cap != "")
-                    tex.AppendLine(@"\node[anchor=south,text=SlideMuted] at (704," + F(82 + boxH - 5) + @") {\parbox{420bp}{\centering\fontsize{9.5}{11.5}\selectfont\itshape " + Escape(cap) + @"}};");
+                    tex.AppendLine(@"\node[anchor=south,text=SlideMuted] at (704," + F(82 + boxH - 5) + @") {\nimbofitbox{420bp}{18bp}{\centering\fontsize{9.5}{11.5}\selectfont\itshape " + Escape(cap) + @"}};");
             }
 
             if (chapter.Summary != "")
             {
-                double sumY = remainingImages.Count > 0 ? 444 : 82;
-                double sumH = remainingImages.Count > 0 ? 74 : 420;
+                double sumY = remainingImages.Count > 0 ? 438 : 82;
+                double sumH = remainingImages.Count > 0 ? 80 : 420;
                 tex.AppendLine(@"\fill[SlideCard,rounded corners=4bp,draw=SlideGold,line width=0.7bp] (486," + F(sumY) + ") rectangle (922," + F(sumY + sumH) + ");");
-                tex.AppendLine(@"\node[anchor=north west,text=SlideNavy] at (498," + F(sumY + 10) + @") {\parbox{412bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{10.5}{13.5}\selectfont{\bfseries\color{SlideTeal}Síntesis visual:}\par\vspace{2bp}" + InlineParagraphs(chapter.Summary) + @"}};");
+                tex.AppendLine(@"\node[anchor=north west,text=SlideNavy] at (498," + F(sumY + 8) + @") {\nimbofitbox{412bp}{" + F(sumH - 16) + @"bp}{\hyphenpenalty=10000\exhyphenpenalty=10000\raggedright\fontsize{10.5}{13.5}\selectfont{\bfseries\color{SlideTeal}Síntesis visual:}\par\vspace{2bp}" + InlineParagraphs(chapter.Summary) + @"}};");
             }
             EndSlide();
         }
