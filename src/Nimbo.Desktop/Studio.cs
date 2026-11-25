@@ -79,7 +79,19 @@ public sealed partial class Studio : Window
     }
     static Border Card(Control child) => new() { Background = PanelColor, BorderBrush=Edge,BorderThickness=new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(18), Child = child };
     async Task Guard(Func<Task> action) { try { await action(); } catch (Exception ex) { status.Text = ex.Message; } }
-    void Run(Action action) { try { action(); } catch (Exception ex) { status.Text = ex.Message; } }
+    void Run(Action action)
+    {
+        if (isAutomatedVerification) { action(); return; }
+        try { action(); }
+        catch (Exception ex)
+        {
+            status.Text = ex.Message;
+            if (ex is not (IOException or InvalidDataException))
+            {
+                try { File.AppendAllText(Path.Combine(shelf.Root, "diagnostico.log"), $"[{DateTime.Now:O}] {ex}\n"); } catch (IOException) { }
+            }
+        }
+    }
     void Changed() { session.MarkChanged(); status.Text = "Cambios pendientes"; timer.Stop(); timer.Start(); }
     bool TrySave()
     {

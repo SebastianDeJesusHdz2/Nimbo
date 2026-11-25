@@ -1951,7 +1951,7 @@ public sealed partial class Studio
                     {
                         var p = Column(0);
                         AddStyledBlocks(p, singleLine, accentHex, ink, isNovel ? 15.5 : 13.8, isNovel);
-                        return p.Children.Count == 1 ? (Control)p.Children[0] : p;
+                        return p;
                     }));
                 }
             }

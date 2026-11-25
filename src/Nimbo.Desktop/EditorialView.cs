@@ -147,6 +147,18 @@ public sealed partial class Studio
         }
         foreach(var book in books.Take(3))book.ShowJacket(true);
         Layout();Capture("Contraportadas");
+        if(Environment.GetEnvironmentVariable("NIMBO_VERIFY_REAL_LIBRARY") is string realLib && Directory.Exists(realLib)){
+            var realShelf=new Nimbo.Storage.Shelf(realLib);
+            foreach(var entry in realShelf.List()){
+                var opened=realShelf.Open(entry.Id);
+                Open(opened.Work,opened.Revision);Layout();
+                foreach(var ch in WorldModel.Ordered(opened.Work)){
+                    chapter=ch;Editor();Layout();
+                    ReadSection(ch);Layout();
+                }
+                Details();Layout();
+            }
+        }
         return true;
     }
     double WritingSize=>int.TryParse(ReadPref("cuerpo","18"),out var size)?Math.Clamp(size,14,28):18;
