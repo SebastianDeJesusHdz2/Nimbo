@@ -75,20 +75,66 @@ public sealed partial class Studio
     static Border Rule(IBrush ink)=>new(){Height=1,Background=ink,Opacity=.5};
     static MenuItem MenuAction(string text,Action action){var item=new MenuItem{Header=text};item.Click+=(_,_)=>action();return item;}
 
-    static Image? Thumbnail(string path,int width,double height)
+    static readonly object BitmapCacheLock = new();
+    static readonly Dictionary<(string Path, int Width, long Ticks), Bitmap> DecodedBitmaps = [];
+    static readonly LinkedList<(string Path, int Width, long Ticks)> DecodedOrder = new();
+    const int MaxCachedBitmaps = 64;
+
+    internal static Bitmap? GetCachedBitmap(string path, int width)
     {
-        try{
-            using var source=File.OpenRead(path);
-            var bitmap=Bitmap.DecodeToWidth(source,width);
-            var image=new Image{Source=bitmap,Height=height,Stretch=Stretch.Uniform,HorizontalAlignment=HorizontalAlignment.Left};
-            image.DetachedFromVisualTree+=(_,_)=>{(image.Source as Bitmap)?.Dispose();image.Source=null;};
-            image.AttachedToVisualTree+=(_,_)=>{
-                if(image.Source!=null)return;
-                try{using var file=File.OpenRead(path);image.Source=Bitmap.DecodeToWidth(file,width);}
-                catch(Exception ex) when(ex is IOException or ArgumentException or UnauthorizedAccessException or NotSupportedException){}
-            };
-            return image;
-        }catch(Exception ex) when(ex is IOException or ArgumentException or UnauthorizedAccessException or NotSupportedException){return null;}
+        try
+        {
+            var full = Path.GetFullPath(path);
+            if (!File.Exists(full)) return null;
+            long ticks = File.GetLastWriteTimeUtc(full).Ticks;
+            int bucketWidth = width <= 240 ? 240 : width <= 480 ? 480 : width <= 780 ? 780 : 1200;
+            var key = (full, bucketWidth, ticks);
+            lock (BitmapCacheLock)
+            {
+                if (DecodedBitmaps.TryGetValue(key, out var existing))
+                {
+                    DecodedOrder.Remove(key);
+                    DecodedOrder.AddLast(key);
+                    return existing;
+                }
+            }
+            using var source = File.OpenRead(full);
+            var decoded = Bitmap.DecodeToWidth(source, bucketWidth);
+            lock (BitmapCacheLock)
+            {
+                if (DecodedBitmaps.TryGetValue(key, out var race))
+                {
+                    decoded.Dispose();
+                    return race;
+                }
+                DecodedBitmaps[key] = decoded;
+                DecodedOrder.AddLast(key);
+                while (DecodedOrder.Count > MaxCachedBitmaps)
+                {
+                    var oldest = DecodedOrder.First!.Value;
+                    DecodedOrder.RemoveFirst();
+                    DecodedBitmaps.Remove(oldest);
+                }
+                return decoded;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    static Image? Thumbnail(string path, int width, double height)
+    {
+        var bitmap = GetCachedBitmap(path, width);
+        if (bitmap == null) return null;
+        return new Image
+        {
+            Source = bitmap,
+            Height = height,
+            Stretch = Stretch.Uniform,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
     }
     static readonly Lazy<CroppedBitmap[]> Emblems=new(()=>{
         using var file=Avalonia.Platform.AssetLoader.Open(new Uri("avares://Nimbo.Desktop/Art/coleccion.jpg"));

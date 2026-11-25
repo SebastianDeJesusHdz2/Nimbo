@@ -863,7 +863,7 @@ public static class Publisher
             if(selection!=null && (!glossary || nodeId!=null || selection.Count==0 || !selection.IsSubsetOf(work.Glossary.Select(n=>n.Id))))throw new ArgumentException("Selecciona fichas existentes de esta obra.");
             var tex = new StringBuilder();
             var format=Format.All.FirstOrDefault(f=>f.Name==work.Type);
-            var style=format==null?"Clásica":EditorialTemplate.For(format).FirstOrDefault(t=>t.Name==work.Template)?.Style??"Clásica";
+            var style=EditorialTemplate.Resolve(format,work.Template).Style;
             var paper=work.Publication.Paper switch {"Bolsillo" when novel=>"paperwidth=110mm,paperheight=175mm","A5"=>"a5paper","Carta"=>"letterpaper","A4"=>"a4paper",_=>novel?"a5paper":"a4paper"};
             var accent = work.Type switch { "CV" => "65455B", "Informe" => "315671", "Artículo" => "4E476E", "Carta" => "784F3E", "Acta" => "5C634F", "Apuntes" => "506C46", "Propuesta" => "474F76", _ => "365E64" };
             accent=work.PrintAccent switch {"Petróleo"=>"245966","Vino"=>"843B59","Oliva"=>"51683C","Grafito"=>"414650",_=>accent};
@@ -893,12 +893,12 @@ public static class Publisher
             tex.AppendLine(@"\usepackage{fontspec,graphicx,xcolor,colortbl,tabularx,array,tikz}");
             tex.AppendLine(@"\newcolumntype{Y}{>{\raggedright\arraybackslash}X}");
             var (leafWidth,leafHeight)=Dossiers.Size(work.GlossaryPaper);
-            bool isLibreta = !glossary && work.Type == "Apuntes" && (style == "LibretaUASLP" || work.CoverStyle == "Libreta universitaria (UASLP)" || !string.IsNullOrWhiteSpace(work.DocumentFacts.GetValueOrDefault("Universidad")));
-            bool isPractica = !glossary && work.Type == "Informe" && (style == "PracticaRedes" || work.CoverStyle == "Portada de Práctica (P3/P4/P5)" || !string.IsNullOrWhiteSpace(work.DocumentFacts.GetValueOrDefault("Materia y ciclo")));
+            bool isLibreta = !glossary && work.Type == "Apuntes" && style == "Libreta";
+            bool isReporte = !glossary && work.Type == "Informe" && style == "Reporte";
             tex.AppendLine(glossary ? $@"\usepackage[paperwidth={leafWidth}mm,paperheight={leafHeight}mm,inner=12mm,outer=10mm,top=12mm,bottom=15mm,footskip=8mm]{{geometry}}" :
                 novel ? @"\usepackage["+paper+@",inner=18mm,outer=15mm]{geometry}" :
                 @"\usepackage[" + paper + @",margin=23mm]{geometry}");
-            if(!glossary && style is "Moderna" or "Ejecutiva" or "BandaLateral" or "LibretaUASLP")tex.AppendLine(@"\renewcommand{\familydefault}{\sfdefault}");
+            if(!glossary && style is "Moderna" or "Ejecutiva" or "BandaLateral" or "Libreta")tex.AppendLine(@"\renewcommand{\familydefault}{\sfdefault}");
             tex.AppendLine(@"\definecolor{accent}{HTML}{" + accent + "}");
             tex.AppendLine(@"\definecolor{UASLPblue}{HTML}{004785}");
             tex.AppendLine(@"\definecolor{UASLPgreen}{HTML}{22714B}");
@@ -992,7 +992,7 @@ public static class Publisher
                     var vpad = (6 + b * 1.8).ToString("0.0", CultureInfo.InvariantCulture);
                     tex.AppendLine(@"\draw[black,opacity=0.06,line width=2.4pt,rounded corners=6pt] ([xshift=-" + pad + @"pt,yshift=-" + vpad + @"pt]box.south west) rectangle ([xshift=" + pad + @"pt,yshift=" + vpad + @"pt]box.north east);");
                 }
-                tex.AppendLine(@"\fill[accent!24!black,opacity=0.62,rounded corners=4pt] ([xshift=-10pt,yshift=-6pt]box.south west) rectangle ([xshift=10pt,yshift=6pt]box.north east);");
+                tex.AppendLine(@"\fill[accent!24!black,opacity=0.56,rounded corners=4pt] ([xshift=-10pt,yshift=-6pt]box.south west) rectangle ([xshift=10pt,yshift=6pt]box.north east);");
                 tex.AppendLine(@"\draw[white!75!yellow,opacity=0.82,line width=0.85pt,rounded corners=4pt] ([xshift=-10pt,yshift=-6pt]box.south west) rectangle ([xshift=10pt,yshift=6pt]box.north east);");
                 tex.AppendLine(@"\draw[white!75!yellow,opacity=0.48,line width=0.45pt,rounded corners=3pt] ([xshift=-7pt,yshift=-3pt]box.south west) rectangle ([xshift=7pt,yshift=3pt]box.north east);");
                 tex.AppendLine(@"\node[inner sep=0pt] at (box.center) {\usebox{\nimbocoverbox}};");
@@ -1007,12 +1007,12 @@ public static class Publisher
                 tex.AppendLine(@"\AddToHook{shipout/foreground}{\color{accent}\linethickness{.45pt}"+lines+"}");
             }
             var facts=EditorialTemplate.FrontMatter(work.Type).Where(k=>!string.IsNullOrWhiteSpace(work.DocumentFacts.GetValueOrDefault(k))).ToArray();
-            bool designedCover=!glossary && (novel || (!isLibreta && !isPractica && work.CoverStyle is "Al pie" or "Centrada" or "Cabecera"));
+            bool designedCover=!glossary && novel;
             if(designedCover)Cover(work.CoverImage,false);
             if(!glossary && isLibreta){
                 string Fact(string k, string def = "") => work.DocumentFacts.TryGetValue(k, out var val) && !string.IsNullOrWhiteSpace(val) ? val.Trim() : def;
-                var univ = Fact("Universidad", "Universidad Autónoma de San Luis Potosí");
-                var fac = Fact("Facultad", "Facultad de Ingeniería");
+                var univ = Fact("Universidad", "");
+                var fac = Fact("Facultad", "");
                 var asig = Fact("Asignatura", work.Subtitle != "" ? work.Subtitle : work.Title);
                 var clave = Fact("Clave de clase", "");
                 var prof = Fact("Docente", "");
@@ -1022,8 +1022,8 @@ public static class Publisher
                 var lugarFecha = Fact("Lugar y fecha", Fact("Periodo", ""));
 
                 tex.AppendLine(@"\begin{titlepage}\centering\vspace*{0.6cm}");
-                tex.AppendLine(@"{\LARGE\bfseries\color{UASLPblue} " + Escape(univ) + @"\par}\vspace{0.25cm}");
-                tex.AppendLine(@"{\Large\color{DarkGray} " + Escape(fac) + @"\par}\vspace{0.35cm}");
+                if (univ != "") tex.AppendLine(@"{\LARGE\bfseries\color{UASLPblue} " + Escape(univ) + @"\par}\vspace{0.25cm}");
+                if (fac != "") tex.AppendLine(@"{\Large\color{DarkGray} " + Escape(fac) + @"\par}\vspace{0.35cm}");
                 tex.AppendLine(@"{\large\bfseries " + Escape(asig) + @"\par}\vspace{0.8cm}");
                 tex.AppendLine(@"\colorbox{UASLPblue!10}{\parbox{0.86\textwidth}{\centering\vspace{0.45cm}");
                 tex.AppendLine(@"{\Large\bfseries\color{UASLPblue} Apuntes:\par}\vspace{0.25cm}");
@@ -1055,12 +1055,12 @@ public static class Publisher
                 tex.AppendLine(@"\vfill");
                 if (lugarFecha != "") tex.AppendLine(@"{\small\color{DarkGray} " + Escape(lugarFecha) + @"\par}");
                 tex.AppendLine(@"\end{titlepage}");
-                if (work.Publication.Contents || work.Chapters.Count > 1)
+                if (work.Publication.Contents || work.Chapters.Count > 0)
                     tex.AppendLine(@"\tableofcontents\newpage");
             }
-            else if(!glossary && isPractica){
+            else if(!glossary && isReporte){
                 string Fact(string k, string def = "") => work.DocumentFacts.TryGetValue(k, out var val) && !string.IsNullOrWhiteSpace(val) ? val.Trim() : def;
-                var materia = Fact("Materia y ciclo", Fact("Departamento", ""));
+                var materia = Fact("Materia o área", Fact("Departamento", Fact("Institución", "")));
                 var realizada = Fact("Realizada por", Fact("Alumno", work.Author));
                 tex.AppendLine(@"\begin{center}");
                 if (materia != "") tex.AppendLine(@"{\large " + Escape(materia) + @"\par}\vspace{0.25cm}");
@@ -1074,7 +1074,7 @@ public static class Publisher
                 tex.AppendLine(@"\vspace{0.35cm}");
                 foreach (var k in facts)
                 {
-                    if (k is "Materia y ciclo" or "Realizada por") continue;
+                    if (k is "Materia o área" or "Realizada por") continue;
                     tex.AppendLine(@"{\normalsize\bfseries " + Escape(k) + @": } " + Escape(work.DocumentFacts[k]) + @"\par\vspace{0.08cm}");
                 }
                 tex.AppendLine(@"\end{center}\medskip");
@@ -1083,8 +1083,6 @@ public static class Publisher
                     CopyImage(work.CoverImage);
                     tex.AppendLine(@"\begin{center}\includegraphics[width=.72\linewidth,height=.26\textheight,keepaspectratio]{media/" + work.CoverImage + @"}\end{center}\medskip");
                 }
-                if (work.Publication.Contents && work.Chapters.Count > 1)
-                    tex.AppendLine(@"\tableofcontents\bigskip");
             }
             else if(!glossary && work.Type=="CV"){
                 string Contact(string key)=>work.Contact.GetValueOrDefault(key,"").Trim();
@@ -1139,12 +1137,13 @@ public static class Publisher
             else if(!designedCover){
                 tex.AppendLine(@"\maketitle");
             }
-            if(!glossary && !isLibreta && !isPractica && work.Type!="Carta" && facts.Length>0){
+            if(!glossary && !isLibreta && !isReporte && work.Type!="Carta" && facts.Length>0){
                 tex.AppendLine(@"\par\smallskip\noindent{\renewcommand{\arraystretch}{1.2}\begin{tabularx}{\linewidth}{|>{\columncolor{accent!12}\bfseries}p{4.2cm}|Y|}\hline");
                 foreach(var key in facts)tex.AppendLine(Escape(key)+@" & "+Escape(work.DocumentFacts[key])+@"\\\hline");
                 tex.AppendLine(@"\end{tabularx}}\par\medskip");
             }
-            if (!glossary && !isLibreta && !isPractica && work.Type is not ("CV" or "Carta" or "Acta") && work.Publication.Contents && work.Chapters.Count > 1) tex.AppendLine(@"\tableofcontents\medskip");
+            if (novel && work.Publication.Contents && work.Chapters.Count > 0) tex.AppendLine(@"\tableofcontents");
+            else if (!glossary && !novel && !isLibreta && !isReporte && work.Type is not ("CV" or "Carta" or "Acta") && work.Publication.Contents && work.Chapters.Count > 1) tex.AppendLine(@"\tableofcontents\medskip");
             if (glossary)
             {
                 foreach (var node in work.Glossary.Where(n=>(nodeId==null || n.Id==nodeId) && (selection==null || selection.Contains(n.Id))).OrderBy(n=>n.Name,StringComparer.CurrentCultureIgnoreCase))
@@ -1173,13 +1172,30 @@ public static class Publisher
             {
                 static bool HasContent(Chapter c)=>c.PlainText!="" || c.Detail!="" || c.Summary!="" || c.Entries.Count>0 || c.Images.Count>0;
                 var omitEmpty=work.Type=="CV" && work.Chapters.Any(HasContent);
-                foreach (var chapter in WorldModel.Ordered(work))
+                var orderedChapters = WorldModel.Ordered(work).ToList();
+                bool reporteTocPrinted = false;
+                if (isReporte && work.Publication.Contents && !orderedChapters.Any(c => c.Title.Equals("Resumen", StringComparison.OrdinalIgnoreCase)))
+                {
+                    tex.AppendLine(@"\tableofcontents\bigskip");
+                    reporteTocPrinted = true;
+                }
+                foreach (var chapter in orderedChapters)
                 {
                     if(omitEmpty && !HasContent(chapter))continue;
                     var heading = Escape(chapter.Title);
+                    bool isResumen = isReporte && chapter.Title.Equals("Resumen", StringComparison.OrdinalIgnoreCase);
+                    bool isUnnumberedTail = isReporte && (chapter.Title.StartsWith("Conclusi", StringComparison.OrdinalIgnoreCase) || chapter.Title.StartsWith("Bibliograf", StringComparison.OrdinalIgnoreCase) || chapter.Title.StartsWith("Referencia", StringComparison.OrdinalIgnoreCase));
                     if (isLibreta)
                     {
                         tex.AppendLine(@"\section{\color{UASLPblue}" + heading + @"}\vspace{-0.22cm}\noindent{\color{UASLPgreen}\rule{\linewidth}{1.5pt}}\par\smallskip");
+                    }
+                    else if (isResumen)
+                    {
+                        tex.AppendLine(@"\section*{\color{accent}" + heading + @"}");
+                    }
+                    else if (isUnnumberedTail)
+                    {
+                        tex.AppendLine(@"\section*{\color{accent}" + heading + @"}\addcontentsline{toc}{section}{" + heading + @"}");
                     }
                     else
                     {
@@ -1229,9 +1245,14 @@ public static class Publisher
                         else
                             tex.AppendLine(@"\par\medskip\textit{" + Escape(chapter.Summary) + "}");
                     }
+                    if (isResumen && work.Publication.Contents && !reporteTocPrinted)
+                    {
+                        tex.AppendLine(@"\par\bigskip\tableofcontents\bigskip");
+                        reporteTocPrinted = true;
+                    }
                 }
             }
-            if(novel && work.Publication.BackCover && (work.Description!="" || work.BackImage!=""))Cover(work.BackImage,true);
+            if(novel && work.Publication.BackCover && (work.Description!="" || work.BackImage!="" || work.CoverImage!=""))Cover(work.BackImage!=""?work.BackImage:work.CoverImage,true);
             tex.AppendLine(@"\end{document}");
             }
             File.WriteAllText(Path.Combine(temp, "obra.tex"), tex.ToString());

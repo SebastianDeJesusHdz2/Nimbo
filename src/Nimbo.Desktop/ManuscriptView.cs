@@ -89,7 +89,7 @@ public sealed partial class Studio
         }
         else if(!work.IsNovel){
             var fmt=Format.All.FirstOrDefault(f=>f.Name==work.Type);
-            var activeTpl=fmt!=null?EditorialTemplate.For(fmt).FirstOrDefault(t=>t.Name==work.Template)??EditorialTemplate.For(fmt)[0]:null;
+            var activeTpl=fmt!=null?EditorialTemplate.Resolve(fmt,work.Template):null;
             if(activeTpl!=null){
                 foreach(var secName in activeTpl.Sections){
                     var targetTitle=secName;
@@ -135,13 +135,16 @@ public sealed partial class Studio
             void FitMargin(double width){margin.IsVisible=!work.FocusWriting && width>=1260;pocket.IsVisible=!margin.IsVisible;}
             FitMargin(Bounds.Width-130);root.SizeChanged+=(_,e)=>FitMargin(e.NewSize.Width);
             var heading=new TextBox{Text=c.Title,Watermark="Título",FontFamily=WritingFamily,FontSize=43,Padding=new Thickness(0,4),Background=Brushes.Transparent,BorderThickness=new Thickness(0)};
-            Action? refreshSlidePreview=null;
-            heading.TextChanged+=(_,_)=>{if(heading.Text==c.Title)return;c.Title=heading.Text??"";titles[c].Text=c.Title;Changed();refreshSlidePreview?.Invoke();};body.Children.Add(heading);
-            if (!work.IsNovel && work.Type!="Presentación") Field(body,EditorialTemplate.DetailLabel(work.Type),c.Detail,v=>{c.Detail=v;refreshSlidePreview?.Invoke();});
+            Action? renderPreviewNow=null;
+            var previewTimer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(150)};
+            previewTimer.Tick+=(_,_)=>{previewTimer.Stop();renderPreviewNow?.Invoke();};
+            Action refreshSlidePreview=()=>{if(isAutomatedVerification)renderPreviewNow?.Invoke();else{previewTimer.Stop();previewTimer.Start();}};
+            heading.TextChanged+=(_,_)=>{if(heading.Text==c.Title)return;c.Title=heading.Text??"";if(titles.TryGetValue(c,out var tb))tb.Text=c.Title;Changed();refreshSlidePreview();};body.Children.Add(heading);
+            if (!work.IsNovel && work.Type!="Presentación") Field(body,EditorialTemplate.DetailLabel(work.Type),c.Detail,v=>{c.Detail=v;refreshSlidePreview();});
             if (work.Type == "Presentación")
             {
                 var previewHost = new ContentControl { HorizontalAlignment = HorizontalAlignment.Stretch };
-                refreshSlidePreview = () =>
+                renderPreviewNow = () =>
                 {
                     previewHost.Content = new Viewbox
                     {
@@ -150,7 +153,7 @@ public sealed partial class Studio
                         Child = BuildSlideCanvas(work, c, 480)
                     };
                 };
-                refreshSlidePreview();
+                renderPreviewNow();
                 var previewHeader = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
                 var openStage = QuietAction("Abrir vista de presentación 16:9 →", () => ReadSection(c));
                 DockPanel.SetDock(openStage, Dock.Right);
@@ -172,75 +175,96 @@ public sealed partial class Studio
 
                 var rightMeta = Column(6);
                 var detailLabel = c.Layout == "Ficha de concepto" ? "Género o clasificación (ej. Terror psicológico)" : c.Layout == "Portada" ? "Materia o encabezado superior" : "Subtítulo o encabezado secundario";
-                var detailBox = Field(rightMeta, detailLabel, c.Detail, v => { c.Detail = v; refreshSlidePreview?.Invoke(); });
+                var detailBox = Field(rightMeta, detailLabel, c.Detail, v => { c.Detail = v; refreshSlidePreview(); });
                 Grid.SetColumn(rightMeta, 1);
                 metaGrid.Children.Add(rightMeta);
                 body.Children.Add(metaGrid);
 
                 var summaryLabel = c.Layout == "Ficha de concepto" ? "Concepto principal (esquina superior derecha)" : c.Layout == "Portada" ? "Actividad o subtítulo de portada (ej. ACT 2)" : "Texto secundario, resumen o leyenda lateral";
-                Field(body, summaryLabel, c.Summary, v => { c.Summary = v; refreshSlidePreview?.Invoke(); }, c.Layout != "Portada");
+                Field(body, summaryLabel, c.Summary, v => { c.Summary = v; refreshSlidePreview(); }, c.Layout != "Portada");
             }
             else if (work.IsNovel)
             {
                 var novelPreviewHost = new ContentControl { HorizontalAlignment = HorizontalAlignment.Stretch };
-                bool showNovelCoverInEditor = false;
-                var toggleNovelViewBtn = QuietAction("Ver portada", () => { });
-                refreshSlidePreview = () =>
+                int novelPreviewMode = 0; // 0 = Hoja actual, 1 = Portada, 2 = Contraportada
+                var btnPage = QuietAction("Hoja actual", () => { novelPreviewMode = 0; renderPreviewNow?.Invoke(); });
+                var btnFront = QuietAction("Portada", () => { novelPreviewMode = 1; renderPreviewNow?.Invoke(); });
+                var btnBack = QuietAction("Contraportada", () => { novelPreviewMode = 2; renderPreviewNow?.Invoke(); });
+                renderPreviewNow = () =>
                 {
-                    toggleNovelViewBtn.Content = showNovelCoverInEditor ? "Ver hoja del capítulo actual" : "Ver portada de novela";
+                    btnPage.Foreground = novelPreviewMode == 0 ? Accent : Quiet;
+                    btnFront.Foreground = novelPreviewMode == 1 ? Accent : Quiet;
+                    btnBack.Foreground = novelPreviewMode == 2 ? Accent : Quiet;
+                    Control previewSheet = novelPreviewMode switch
+                    {
+                        1 => BuildNovelCoverCanvas(work, false, 420),
+                        2 => BuildNovelCoverCanvas(work, true, 420),
+                        _ => BuildDocumentSectionCanvas(work, c, 420)
+                    };
                     novelPreviewHost.Content = new Viewbox
                     {
                         Stretch = Stretch.Uniform,
-                        MaxHeight = 235,
-                        Child = showNovelCoverInEditor
-                            ? BuildNovelCoverCanvas(work, false, 420)
-                            : BuildDocumentSectionCanvas(work, c, 420)
+                        MaxHeight = 240,
+                        Child = previewSheet
                     };
                 };
-                toggleNovelViewBtn.Click += (_, _) => { showNovelCoverInEditor = !showNovelCoverInEditor; refreshSlidePreview(); };
-                refreshSlidePreview();
+                renderPreviewNow();
                 var novelHeader = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-                var openReading = QuietAction("Abrir lectura por páginas →", () => ReadSection(c));
+                var openReading = QuietAction("Abrir lectura del libro →", () => ReadSection(novelPreviewMode == 1 ? null : c));
                 DockPanel.SetDock(openReading, Dock.Right);
                 novelHeader.Children.Add(openReading);
-                DockPanel.SetDock(toggleNovelViewBtn, Dock.Right);
-                novelHeader.Children.Add(toggleNovelViewBtn);
-                novelHeader.Children.Add(Kicker("Vista en vivo de la página actual"));
-                var coverBar = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 10 };
+                var modeTabs = Row();
+                modeTabs.Margin = new Thickness(0);
+                modeTabs.Children.Add(btnPage);
+                modeTabs.Children.Add(btnFront);
+                modeTabs.Children.Add(btnBack);
+                DockPanel.SetDock(modeTabs, Dock.Right);
+                novelHeader.Children.Add(modeTabs);
+                novelHeader.Children.Add(Kicker("Vista previa de novela"));
+
+                var coverBar = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
                 var coverCombo = new ComboBox
                 {
                     ItemsSource = EditorialTemplate.NovelCoverStyles,
                     SelectedItem = EditorialTemplate.NovelCoverStyles.Contains(work.CoverStyle) ? work.CoverStyle : EditorialTemplate.NovelCoverStyles[0],
-                    HorizontalAlignment = HorizontalAlignment.Stretch
+                    MinWidth = 190,
+                    Margin = new Thickness(0, 0, 8, 4)
                 };
                 coverCombo.SelectionChanged += (_, _) =>
                 {
                     if (coverCombo.SelectedItem is string cs && cs != work.CoverStyle)
                     {
                         work.CoverStyle = cs;
-                        showNovelCoverInEditor = true;
+                        novelPreviewMode = 1;
                         Changed();
-                        refreshSlidePreview?.Invoke();
+                        renderPreviewNow?.Invoke();
                     }
                 };
                 coverBar.Children.Add(coverCombo);
-                var pickCoverBtn = QuietAction("Imagen de portada…", async () => await Guard(async () =>
+                coverBar.Children.Add(QuietAction("Imagen de portada…", async () => await Guard(async () =>
                 {
                     var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Portada PNG o JPEG" })).FirstOrDefault()?.TryGetLocalPath();
                     if (path == null) return;
                     work.CoverImage = shelf.AddImage(path);
-                    showNovelCoverInEditor = true;
+                    novelPreviewMode = 1;
                     Changed();
-                    refreshSlidePreview?.Invoke();
-                }));
-                Grid.SetColumn(pickCoverBtn, 1);
-                coverBar.Children.Add(pickCoverBtn);
+                    renderPreviewNow?.Invoke();
+                })));
+                coverBar.Children.Add(QuietAction("Imagen de contraportada…", async () => await Guard(async () =>
+                {
+                    var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Contraportada PNG o JPEG" })).FirstOrDefault()?.TryGetLocalPath();
+                    if (path == null) return;
+                    work.BackImage = shelf.AddImage(path);
+                    novelPreviewMode = 2;
+                    Changed();
+                    renderPreviewNow?.Invoke();
+                })));
                 var novelCard = Column(8);
                 novelCard.Children.Add(novelHeader);
                 novelCard.Children.Add(novelPreviewHost);
                 var coverExp = new Expander
                 {
-                    Header = $"Formato de portada de novela ({(EditorialTemplate.NovelCoverStyles.Contains(work.CoverStyle) ? work.CoverStyle : EditorialTemplate.NovelCoverStyles[0])})",
+                    Header = $"Portada y contraportada a hoja completa ({(EditorialTemplate.NovelCoverStyles.Contains(work.CoverStyle) ? work.CoverStyle : EditorialTemplate.NovelCoverStyles[0])})",
                     HorizontalAlignment = HorizontalAlignment.Stretch,
                     Content = coverBar
                 };
@@ -250,7 +274,7 @@ public sealed partial class Studio
             else
             {
                 var docPreviewHost = new ContentControl { HorizontalAlignment = HorizontalAlignment.Stretch };
-                refreshSlidePreview = () =>
+                renderPreviewNow = () =>
                 {
                     var pages = BuildDocumentPages(work, 400);
                     var sectionPages = pages.Where(p => p.Section == c).ToList();
@@ -258,8 +282,8 @@ public sealed partial class Studio
                     if (sectionPages.Count >= 2)
                     {
                         var twoGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 12 };
-                        twoGrid.Children.Add(new Viewbox { Stretch = Stretch.Uniform, MaxHeight = 235, Child = sectionPages[0].Sheet });
-                        var secondVb = new Viewbox { Stretch = Stretch.Uniform, MaxHeight = 235, Child = sectionPages[1].Sheet };
+                        twoGrid.Children.Add(new Viewbox { Stretch = Stretch.Uniform, MaxHeight = 235, Child = sectionPages[0].BuildSheet() });
+                        var secondVb = new Viewbox { Stretch = Stretch.Uniform, MaxHeight = 235, Child = sectionPages[1].BuildSheet() };
                         Grid.SetColumn(secondVb, 1);
                         twoGrid.Children.Add(secondVb);
                         docPreviewHost.Content = twoGrid;
@@ -270,13 +294,13 @@ public sealed partial class Studio
                         {
                             Stretch = Stretch.Uniform,
                             MaxHeight = 235,
-                            Child = sectionPages[0].Sheet
+                            Child = sectionPages[0].BuildSheet()
                         };
                     }
                 };
-                refreshSlidePreview();
+                renderPreviewNow();
                 var docHeader = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-                var openDocReading = QuietAction($"Abrir lectura paginada de {work.Type.ToLowerInvariant()} →", () => ReadSection(c));
+                var openDocReading = QuietAction($"Abrir modo Lectura →", () => ReadSection(c));
                 DockPanel.SetDock(openDocReading, Dock.Right);
                 docHeader.Children.Add(openDocReading);
                 docHeader.Children.Add(Kicker($"Vista en vivo de la hoja actual  ·  {work.Type}"));
@@ -289,7 +313,7 @@ public sealed partial class Studio
                 if (templateNames.Length > 1)
                 {
                     var fmtRow = Column(4);
-                    fmtRow.Children.Add(Label($"Plantilla de {work.Type.ToLowerInvariant()}"));
+                    fmtRow.Children.Add(Label($"Formato de {work.Type.ToLowerInvariant()}"));
                     var tplCombo = new ComboBox
                     {
                         ItemsSource = templateNames,
@@ -306,10 +330,19 @@ public sealed partial class Studio
                                 var tplObj = EditorialTemplate.For(format).FirstOrDefault(t => t.Name == chosen);
                                 if (tplObj != null)
                                 {
-                                    foreach (var secName in tplObj.Sections)
+                                    bool allBlank = work.Chapters.All(ch => string.IsNullOrWhiteSpace(ch.PlainText) && ch.Entries.Count == 0 && ch.Images.Count == 0 && string.IsNullOrWhiteSpace(ch.Detail) && string.IsNullOrWhiteSpace(ch.Summary));
+                                    if (allBlank)
                                     {
-                                        if (!work.Chapters.Any(ch => ch.Title.Equals(secName, StringComparison.OrdinalIgnoreCase)))
-                                            work.Chapters.Add(new Chapter { Title = secName, Order = work.Chapters.Count });
+                                        work.Chapters = tplObj.Sections.Select((s, idx) => new Chapter { Title = s, Order = idx }).ToList();
+                                        chapter = work.Chapters.FirstOrDefault();
+                                    }
+                                    else
+                                    {
+                                        foreach (var secName in tplObj.Sections)
+                                        {
+                                            if (!work.Chapters.Any(ch => ch.Title.Equals(secName, StringComparison.OrdinalIgnoreCase)))
+                                                work.Chapters.Add(new Chapter { Title = secName, Order = work.Chapters.Count });
+                                        }
                                     }
                                 }
                             }
@@ -332,7 +365,7 @@ public sealed partial class Studio
                     {
                         Header = work.Type == "CV"
                             ? "Datos profesionales del encabezado"
-                            : $"Datos del encabezado de {work.Type.ToLowerInvariant()} ({frontKeys.Length} campos)",
+                            : $"Datos de portada / encabezado ({frontKeys.Length} campos)",
                         HorizontalAlignment = HorizontalAlignment.Stretch
                     };
                     var fieldsGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 12, RowSpacing = 6 };
@@ -346,7 +379,7 @@ public sealed partial class Studio
                         {
                             if (work.Type == "CV") work.Contact[key] = val;
                             else work.DocumentFacts[key] = val;
-                            refreshSlidePreview?.Invoke();
+                            refreshSlidePreview();
                         });
                         Grid.SetRow(cellCol, idx / 2);
                         Grid.SetColumn(cellCol, idx % 2);
@@ -426,22 +459,6 @@ public sealed partial class Studio
                 insert.Items.Add(MenuAction("Checklist de validación y seguridad",()=>Insert("\n### Criterios de Geometría 16:9 | Aprobado\n- Ningún texto, tabla o imagen rebasa el marco de 960x540 puntos.\n- Auto-ajuste tipográfico activo en tablas de hasta 12 filas.\n\n### Criterios de Seguridad de Datos | Aprobado\n- Compilación LaTeX con -no-shell-escape y rutas confinadas.\n- Reemplazo atómico de archivos PDF y ZIP al exportar.\n")));
                 insert.Items.Add(MenuAction("Ficha de personaje / Equipo",()=>Insert("\n### Rol y Especialidad | Liderazgo Táctico\n- Capitana del sexto escuadrón de exploración en Ciudad Miramar.\n- Especialista en cartografía de la Necrópolis y lectura de rutas.\n\n### Equipamiento y Reliquias | Inventario Activo\n- Linterna de aceite consagrado con radio de luz extendido.\n- Escudo de bronce grabado con el mapa de los estratos 78 a 85.\n")));
                 insert.Items.Add(MenuAction("Embudo o pirámide estratégica",()=>Insert("\n### Nivel 1: Visión Rectora | Dirección de Arte\n- Identidad gótica y táctica inconfundible en cada pantalla.\n\n### Nivel 2: Sistemas Nucleares | HUD y Cartografía\n- Retroalimentación diegética en menos de un segundo.\n\n### Nivel 3: Ejecución Técnica | Pipeline 1080p\n- Activos verificados, paletas Adobe Color y exportación vectorial.\n\n### Nivel 4: Validación y QA | Entrega Final\n- Pruebas de estrés visual y seguridad de compilación.\n")));
-            }
-            else if(work.Type=="Apuntes"){
-                insert.Items.Add(MenuAction("Encabezado de clase fechada (Libreta UASLP)",()=>Insert("\n## Clase: Tema de la sesión ("+DateTime.Now.ToString("dd/MM/yyyy")+")\n### Conceptos principales\n- Definición y fundamentos vistos en clase.\n- Ejemplo práctico y observaciones.\n")));
-                insert.Items.Add(MenuAction("Tabla de subredes IPv4 / VLSM",()=>Insert("\n| Subred | Red / Prefijo | Primer Host | Último Host | Broadcast |\n|---|---|---|---|---|\n| LAN A | 192.168.10.0/26 | 192.168.10.1 | 192.168.10.62 | 192.168.10.63 |\n| LAN B | 192.168.10.64/27 | 192.168.10.65 | 192.168.10.94 | 192.168.10.95 |\n")));
-                insert.Items.Add(MenuAction("Tabla comparativa de conceptos",()=>Insert("\n| Concepto / Obra | Principio clave | Aplicación práctica |\n|---|---|---|\n| Concepto 1 | Fundamento teórico o visual | Caso de uso en el proyecto |\n| Concepto 2 | Contraste y estructura | Validación experimental |\n")));
-            }
-            else if(work.Type=="Informe"){
-                insert.Items.Add(MenuAction("Tabla de direccionamiento de red (P3/P4/P5)",()=>Insert("\n| Dispositivo | Interfaz | Dirección IP | Máscara de subred | Gateway predeterminado |\n|---|---|---|---|---|\n| R1 | G0/0/0 | 10.10.1.1 | 255.255.255.252 | N/A |\n| R1 | G0/0/1 | 192.168.1.1 | 255.255.255.0 | N/A |\n| S1 | VLAN 1 | 192.168.1.2 | 255.255.255.0 | 192.168.1.1 |\n| PC-A | NIC | 192.168.1.10 | 255.255.255.0 | 192.168.1.1 |\n")));
-                insert.Items.Add(MenuAction("Tabla de políticas y reglas ACL",()=>Insert("\n| ACL / Regla | Origen | Destino | Protocolo / Puerto | Acción |\n|---|---|---|---|---|\n| ACL 100 · Regla 10 | 192.168.10.0/24 | 10.0.0.10 | TCP 80 / 443 (HTTP/S) | Permitir |\n| ACL 100 · Regla 20 | Cualquier red externa | Sede corporativa HQ | ICMP (Ping) | Denegar |\n")));
-                insert.Items.Add(MenuAction("Tabla de especificaciones de IP / Arte",()=>Insert("\n| Atributo del proyecto | Especificación técnica y visual |\n|---|---|\n| Género y perspectiva | RPG táctico por turnos en cuadrícula isométrica |\n| Dirección de arte | Arquitectura gótica, piedra húmeda e iluminación cálida |\n")));
-            }
-            else if(work.Type=="CV"){
-                insert.Items.Add(MenuAction("Matriz de competencias y stack técnico",()=>Insert("\n- **Lenguajes y motores:** C#, .NET, Python, C++, SQL, LaTeX, Git.\n- **Diseño y herramientas:** Avalonia UI, Tiled, Krita, Blender, Cisco Packet Tracer.\n- **Idiomas:** Español (nativo) · Inglés técnico y conversacional (B2/C1).\n")));
-            }
-            else if(work.Type is "Propuesta" or "Documento" or "Acta" or "Artículo"){
-                insert.Items.Add(MenuAction("Tabla de requerimientos o entregables",()=>Insert("\n| Clave | Descripción del requerimiento o entregable | Prioridad | Estado |\n|---|---|---|---|\n| RF-01 | Maquetación modular por tipo de documento con vista previa | Alta | Completado |\n| RF-02 | Exportación vectorial segura a PDF mediante XeLaTeX | Alta | Validado |\n")));
             }
             insert.Items.Add(MenuAction("Paleta cromática",()=>Insert("\n[[Paleta: #E4D1A5 Luz cálida | #D99442 Ámbar | #7B8581 Piedra | #55705C Musgo | #182A27 Sombra]]\n")));
             if(!work.IsNovel && work.Type!="Presentación")insert.Items.Add(MenuAction("Bloque de firmas",()=>Insert("\n[[Firmas: Responsable 1 | Responsable 2]]\n")));

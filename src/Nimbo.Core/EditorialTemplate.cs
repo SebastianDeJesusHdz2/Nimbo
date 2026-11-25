@@ -39,45 +39,39 @@ public sealed record EditorialTemplate(string Name, string Style, string[] Secti
             "Apuntes" =>
             [
                 standard,
-                new("Libreta universitaria (UASLP)", "LibretaUASLP", ["Clase 17/08", "Clase 18/08", "Clase 20/08", "Selección de imágenes", "Síntesis parcial"]),
-                new("Libreta de ingeniería y redes", "LibretaUASLP", ["Encuadre y evaluación", "Direccionamiento IPv4 e IPv6", "Subredes y VLSM", "Enrutamiento y OSPF", "Formulario y comandos"]),
-                new("Libreta de arte y diseño de juegos", "LibretaUASLP", ["Principios artísticos", "Selección de referentes", "Luz, color y psicología", "Comunicación visual y HUD", "Diseño de niveles"]),
-                new("Libreta de proyectos computacionales", "LibretaUASLP", ["Metodología y calendario", "Requerimientos funcionales", "Requerimientos no funcionales", "Modelado de base de datos", "Casos de uso"]),
-                new("Cuaderno Cornell", "Cornell", ["Encuadre y criterios", "Principios fundamentales", "Análisis de referentes", "Síntesis de unidad"])
+                new("Libreta", "Libreta", ["Tema 1"]),
+                new("Cuaderno Cornell", "Cornell", ["Tema 1"])
             ],
             "Informe" =>
             [
                 standard,
-                new("Informe ejecutivo", "Moderna", ["Resumen ejecutivo", "Objetivos", "Indicadores", "Hallazgos", "Recomendaciones", "Próximos pasos"]),
-                new("Reporte de práctica de redes (P3/P4/P5)", "PracticaRedes", ["Resumen", "Topología inicial", "Tabla de direccionamiento", "Configuración de dispositivos", "Pruebas de conectividad y verificación", "Conclusión", "Bibliografía"]),
-                new("Práctica con políticas ACL y seguridad", "PracticaRedes", ["Resumen", "Topología inicial y tabla de direccionamiento", "Configuración de equipos y enlaces", "Pruebas previas a las políticas", "Políticas de seguridad y configuración ACL", "Comprobación de políticas", "Conclusión", "Bibliografía"])
+                new("Reporte", "Reporte", ["Resumen", "Conclusiones", "Bibliografía"]),
+                new("Informe ejecutivo", "Moderna", ["Resumen ejecutivo", "Hallazgos", "Recomendaciones"])
             ],
             "Artículo" =>
             [
                 standard,
-                new("Artículo de revisión", "Académica", ["Resumen", "Pregunta de revisión", "Criterios de selección", "Síntesis de evidencia", "Limitaciones", "Referencias"]),
-                new("Paper científico IEEE / Doble columna", "PaperDoble", ["Abstract / Resumen", "1. Introducción", "2. Marco teórico y arquitectura", "3. Metodología experimental", "4. Resultados y discusión", "5. Conclusiones", "Referencias"])
+                new("Artículo académico", "Académica", ["Resumen", "Introducción", "Desarrollo", "Conclusiones", "Referencias"])
             ],
             "Propuesta" =>
             [
                 standard,
-                new("Oferta de servicios", "Moderna", ["Necesidad", "Solución", "Entregables", "Calendario", "Inversión", "Condiciones"]),
-                new("Documento de diseño (GDD)", "GDD", ["Contexto de la IP y USP", "Mecánicas base", "Cartografía y nivel", "Walkthrough táctico", "Jefe o prueba principal"])
+                new("Propuesta de proyecto", "Moderna", ["Contexto", "Alcance", "Entregables", "Presupuesto"])
             ],
             "Acta" =>
             [
                 standard,
-                new("Comité de proyecto", "Moderna", ["Participantes", "Revisión de compromisos", "Decisiones", "Acciones y fechas"])
+                new("Acta de reunión", "Clásica", ["Orden del día", "Acuerdos", "Compromisos"])
             ],
             "Carta" =>
             [
                 standard,
-                new("Solicitud formal", "Clásica", ["Saludo", "Motivo", "Solicitud", "Despedida"])
+                new("Solicitud formal", "Clásica", ["Motivo", "Solicitud"])
             ],
             "Documento" =>
             [
                 standard,
-                new("Guía de trabajo", "Moderna", ["Finalidad", "Preparación", "Instrucciones", "Comprobación"])
+                new("Guía de trabajo", "Moderna", ["Propósito", "Desarrollo", "Referencias"])
             ],
             "Presentación" =>
             [
@@ -106,26 +100,20 @@ public sealed record EditorialTemplate(string Name, string Style, string[] Secti
         if (format.Name == "Novela")
         {
             work.CoverStyle = NovelCoverStyles[0];
+            work.Publication.Contents = true;
+            work.Publication.BackCover = true;
         }
-        else if (Style == "LibretaUASLP")
+        else if (Style == "Libreta")
         {
             work.Publication.Paper = "Carta";
             work.Publication.Contents = true;
             work.Publication.PageNumbers = true;
-            work.DocumentFacts["Universidad"] = "Universidad Autónoma de San Luis Potosí";
-            work.DocumentFacts["Facultad"] = "Facultad de Ingeniería";
-            work.DocumentFacts["Asignatura"] = title.Trim();
-            work.DocumentFacts["Clave de clase"] = "28 36 01";
-            work.DocumentFacts["Carrera"] = "Ingeniería en Sistemas Inteligentes";
-            work.DocumentFacts["Lugar y fecha"] = "Facultad de Ingeniería de la UASLP, Zona Universitaria Poniente, C.P. 78290";
         }
-        else if (Style == "PracticaRedes")
+        else if (Style == "Reporte")
         {
             work.Publication.Paper = "Carta";
-            work.Publication.Contents = false;
-            work.DocumentFacts["Materia y ciclo"] = "Interacción de Redes · Ciclo 2026";
-            work.DocumentFacts["Carrera y claves"] = "Ingeniería en Sistemas Inteligentes, 2021";
-            work.DocumentFacts["Clave de materia"] = "Interacción de Redes, 282901";
+            work.Publication.Contents = true;
+            work.Publication.PageNumbers = true;
         }
         if (format.Name == "Presentación")
         {
@@ -190,34 +178,33 @@ public sealed record EditorialTemplate(string Name, string Style, string[] Secti
     public static string[] CoverLayoutsFor(string type) => type switch
     {
         "Novela" => NovelCoverStyles,
-        "Apuntes" => ["Libreta universitaria (UASLP)", "Encabezado directo de cuaderno"],
-        "Informe" => ["Portada de Práctica (P3/P4/P5)", "Encabezado ejecutivo"],
         _ => []
     };
 
-    public static string[] SectionLayoutsFor(string type) => type switch
+    public static EditorialTemplate Resolve(Format? format, string? templateName)
     {
-        "Informe" => ["Estándar", "Tabla de direccionamiento / Red", "Secuencia de evidencias y capturas", "Comparativa antes / después", "Resumen y conclusiones"],
-        "Apuntes" => ["Clase de libreta (con línea verde)", "Notas Cornell (Conceptos + Síntesis)", "Formulario / Comandos y subredes", "Galería de referentes comentada"],
-        "CV" => ["Entradas cronológicas", "Competencias y tecnologías en columnas", "Proyectos destacados", "Perfil ejecutivo"],
-        "Artículo" => ["Sección académica", "Abstract / Resumen destacado", "Evaluación experimental y tablas", "Referencias bibliográficas"],
-        "Propuesta" => ["Bloque ejecutivo", "Matriz de mecánicas / Entregables", "Cartografía y código cromático", "Presupuesto y firmas"],
-        "Acta" => ["Punto de orden del día", "Tabla de acuerdos y responsables", "Verificación de quórum", "Cierre y firmas"],
-        "Carta" => ["Cuerpo de oficio formal", "Comunicado con tabla", "Cierre con firmas"],
-        "Documento" => ["Sección de manual", "Catálogo de requerimientos (RF / RNF)", "Procedimiento paso a paso", "Tabla de validación"],
-        _ => ["Texto"]
-    };
+        if (format == null) return new("Clásica", "Clásica", []);
+        var templates = For(format);
+        if (string.IsNullOrWhiteSpace(templateName)) return templates[0];
+        var exact = templates.FirstOrDefault(t => t.Name == templateName);
+        if (exact != null) return exact;
+        if (format.Name == "Apuntes" && templateName.Contains("Libreta", StringComparison.OrdinalIgnoreCase))
+            return templates.First(t => t.Style == "Libreta");
+        if (format.Name == "Informe" && (templateName.Contains("Reporte", StringComparison.OrdinalIgnoreCase) || templateName.Contains("Práctica", StringComparison.OrdinalIgnoreCase)))
+            return templates.First(t => t.Style == "Reporte");
+        return templates[0];
+    }
 
     public static string[] FrontMatter(string type) => type switch
     {
         "Carta" => ["Destinatario", "Dirección", "Lugar y fecha", "Asunto"],
         "Acta" => ["Fecha de reunión", "Lugar", "Participantes", "Secretaría"],
-        "Informe" => ["Institución", "Departamento", "Periodo del informe", "Materia y ciclo", "Profesor", "Alumno", "Realizada por", "Carrera y claves", "Clave de materia", "Fecha"],
+        "Informe" => ["Institución", "Departamento", "Periodo del informe", "Materia o área", "Realizada por", "Profesor", "Alumno", "Clave", "Fecha"],
         "Artículo" => ["Afiliación", "Palabras clave", "Correspondencia"],
         "Apuntes" => ["Universidad", "Facultad", "Asignatura", "Clave de clase", "Docente", "Carrera", "Clave U", "Alumno", "Periodo", "Lugar y fecha"],
         "Propuesta" => ["Cliente", "Responsable", "Vigencia", "Presupuesto"],
         "Presentación" => ["Institución", "Evento", "Fecha"],
-        "Documento" => ["Organización", "Referencia", "Versión", "Estado"],
+        "Documento" => ["Organización", "Referencia"],
         _ => []
     };
 
@@ -225,12 +212,12 @@ public sealed record EditorialTemplate(string Name, string Style, string[] Secti
     {
         "Acta" => "Responsable y fecha límite",
         "CV" => "Periodo y ubicación",
-        "Apuntes" => "Fecha de clase, preguntas o conceptos clave",
-        "Informe" => "Dispositivo, subred o indicador técnico",
-        "Artículo" => "Fuente, DOI o referencia",
+        "Apuntes" => "Preguntas o conceptos clave",
+        "Informe" => "Alcance o indicador",
+        "Artículo" => "Fuente o referencia",
         "Carta" => "Referencia o expediente",
         "Propuesta" => "Plazo y responsable",
-        "Documento" => "Código o nota de sección",
+        "Documento" => "Nota de sección",
         _ => "Texto secundario"
     };
 }

@@ -1,6 +1,6 @@
 # Nimbo
 
-Estudio de escritura de escritorio para Windows y Linux. Nimbo 0.6.1 usa C# y .NET 10, Avalonia, SQLite y XeLaTeX.
+Estudio de escritura de escritorio para Windows y Linux. Nimbo 0.6.2 usa C# y .NET 10, Avalonia, SQLite y XeLaTeX.
 
 ## Primera sesión
 

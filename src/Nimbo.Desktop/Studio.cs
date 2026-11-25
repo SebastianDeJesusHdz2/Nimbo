@@ -30,8 +30,10 @@ public sealed partial class Studio : Window
     static IBrush Accent = Brush.Parse("#A4DACC");
     static IBrush PanelColor = Brush.Parse("#202A32");
 
+    readonly bool isAutomatedVerification;
     public Studio(string? testLibrary=null)
     {
+        isAutomatedVerification = testLibrary != null;
         shelf=new Shelf(testLibrary??UserLibrary.OpenDirectory(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)));
         session = new(shelf);
         using(var icon=Avalonia.Platform.AssetLoader.Open(new Uri("avares://Nimbo.Desktop/Art/nimbo.png")))Icon=new WindowIcon(icon);
@@ -63,7 +65,18 @@ public sealed partial class Studio : Window
     static StackPanel Column(double spacing = 12) => new() { Spacing = spacing };
     static StackPanel Row() => new() { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 6) };
     static TextBlock Label(string text, double size = 14) => new() { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap };
-    static Button Action(string text, Action action) { var b = new Button { Content = text, CornerRadius=new CornerRadius(6),Padding=new Thickness(12,7) }; b.Click += (_, _) => action(); return b; }
+    static Button Action(string text, Action action)
+    {
+        var b = new Button { Content = text, CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 7) };
+        b.Click += (_, _) => action();
+        return b;
+    }
+    internal void ReportUnexpectedError(Exception ex)
+    {
+        TrySave();
+        status.Text = "Se evitó un error inesperado: " + ex.Message;
+        try { File.AppendAllText(Path.Combine(shelf.Root, "diagnostico.log"), $"[{DateTime.Now:O}] {ex}\n"); } catch (IOException) { }
+    }
     static Border Card(Control child) => new() { Background = PanelColor, BorderBrush=Edge,BorderThickness=new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(18), Child = child };
     async Task Guard(Func<Task> action) { try { await action(); } catch (Exception ex) { status.Text = ex.Message; } }
     void Run(Action action) { try { action(); } catch (Exception ex) { status.Text = ex.Message; } }

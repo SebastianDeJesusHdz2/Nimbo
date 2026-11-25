@@ -113,7 +113,18 @@ public sealed partial class Studio
         ReadSection(null);Layout();
         if(!Visible("Universidad Autónoma de San Luis Potosí") || !Visible("Apuntes:"))return Fail();
         ReadSection(libretaWork.Chapters[0]);Layout();
-        if(Visible("Apuntes:") || !Visible("1.  Clase 17/08"))return Fail();
+        if(Visible("Apuntes:") || !Visible("1   Tema 1"))return Fail();
+        var libretaPages=BuildDocumentPages(libretaWork,680);
+        foreach(var mode in new[]{1,2,3,2,1}){
+            documentReadingMode=mode;
+            for(int p=0;p<libretaPages.Count;p++){ReadDocumentPage(libretaWork,libretaPages,p);Layout();}
+        }
+        var novelPages=BuildDocumentPages(novel,680);
+        if(novelPages.Count<4 || novelPages[0].Label!="Portada" || novelPages[1].Label!="Contenido" || novelPages[^1].Label!="Contraportada")return Fail();
+        foreach(var mode in new[]{1,2,3,2}){
+            documentReadingMode=mode;
+            for(int p=0;p<novelPages.Count;p++){ReadDocumentPage(novel,novelPages,p);Layout();}
+        }
         var styles=BookCover.LetteringStyles;
         int styleIndex=0;
         foreach(var name in new[]{"Bajo el hielo","Manual de mareas","Cantos del sur","Las manos del reloj","La memoria del muelle","Voces del camino","La carta de Aro","Cuaderno de campo"}){

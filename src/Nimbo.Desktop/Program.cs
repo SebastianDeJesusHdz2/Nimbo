@@ -44,8 +44,15 @@ public sealed class App : Avalonia.Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var verifyEditors=desktop.Args?.Contains("--verify-editors")==true;
+            var verifyUi=desktop.Args?.Contains("--verify-ui")==true;
             var scratch=verifyEditors?Directory.CreateTempSubdirectory("nimbo-views-").FullName:null;
             var studio=new Studio(scratch);
+            if(!verifyEditors && !verifyUi){
+                Dispatcher.UIThread.UnhandledException+=(_,e)=>{
+                    studio.ReportUnexpectedError(e.Exception);
+                    e.Handled=true;
+                };
+            }
             if(verifyEditors){studio.WindowState=WindowState.Normal;studio.Width=1600;studio.Height=960;}
             desktop.MainWindow=studio;
             if(verifyEditors)studio.Opened+=(_,_)=>Dispatcher.UIThread.Post(()=>desktop.Shutdown(studio.VerifyEditorialViews()?0:4),DispatcherPriority.ApplicationIdle);

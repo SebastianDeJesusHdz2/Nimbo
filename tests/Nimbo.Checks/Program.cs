@@ -262,8 +262,14 @@ static async Task GenerateShowcase(Shelf shelf, string libretas, string pdfOut, 
     informe.Chapters = [
         new Chapter
         {
-            Title = "1. Síntesis y arquitectura del mundo",
+            Title = "Resumen",
             Order = 0,
+            PlainText = "Este reporte sintetiza la dirección artística, las paletas cromáticas y la evolución desde boceto estructural hasta render final para los tres primeros estratos (L01, L02 y L03) del proyecto Lantern & Labyrinth."
+        },
+        new Chapter
+        {
+            Title = "Síntesis y arquitectura del mundo",
+            Order = 1,
             Detail = "RPG táctico por turnos en cuadrícula · 5 landmarks conectados",
             PlainText = """
 El mundo de **Lantern & Labyrinth** articula una economía de gremios alrededor de la Fosa del Juramento, una mazmorra vertical de cien estratos situada en el corazón de Ciudad Miramar.
@@ -283,8 +289,8 @@ El mundo de **Lantern & Labyrinth** articula una economía de gremios alrededor 
         },
         new Chapter
         {
-            Title = "2. Moodboard L01: Entrada a la Fosa del Juramento",
-            Order = 1,
+            Title = "Moodboard L01: Entrada a la Fosa del Juramento",
+            Order = 2,
             Detail = "6 referencias visuales en cuadrícula 2x3 + paleta cromática Adobe Color",
             Layout = Illustrations.Gallery,
             Images = [.. l01Refs],
@@ -313,8 +319,8 @@ Gran hondonada central en Ciudad Miramar cuyas escaleras descienden entre niebla
         },
         new Chapter
         {
-            Title = "3. Evolución de arte conceptual a render final",
-            Order = 2,
+            Title = "Evolución de arte conceptual a render final",
+            Order = 3,
             Detail = "Comparativa entre layout cromático de zonas y composición ilustrada final",
             Layout = Illustrations.Gallery,
             Images = [l01Concept, l01Final, l03Concept, l03Final],
@@ -332,6 +338,18 @@ El flujo de producción parte de un boceto de zonas codificado por color para fi
 [[Imagen 3]][[Imagen 4]]
 > Toda composición prioriza la lectura inmediata de las rutas de descenso y los focos de iluminación cálida frente a la penumbra fría del laberinto.
 """
+        },
+        new Chapter
+        {
+            Title = "Conclusiones",
+            Order = 4,
+            PlainText = "La estandarización de moodboards en cuadrícula de 6 referencias y paletas cromáticas de 5 muestras asegura la continuidad visual entre el primer estrato boscoso (L01) y la cúpula de caliza de la Cámara del Sol (L03)."
+        },
+        new Chapter
+        {
+            Title = "Bibliografía",
+            Order = 5,
+            PlainText = "1. Estudio de Arte Conceptual Miramar (2026). *Guía de iluminación y color para entornos subterráneos*.\n2. Adobe Color & Taller Nimbo (2026). *Especificación de contrastes térmicos en RPG tácticos*."
         }
     ];
     examples.Add((informe, "01-Informe-Diseno-Conceptual-ACPV.pdf"));
@@ -1200,7 +1218,7 @@ Esta guía establece los parámetros visuales y técnicos que deben cumplir toda
     novela.Subtitle = "El descenso a la Cámara del Sol";
     novela.CollectionId = "Ejemplos de complejidad";
     novela.CoverColor = "#284B52";
-    novela.CoverStyle = "Tejuelo clásico translúcido";
+    novela.CoverStyle = "Al pie";
     novela.CoverLettering = "Tejuelo";
     novela.CoverImage = l03Final;
     novela.BackImage = l01Final;
