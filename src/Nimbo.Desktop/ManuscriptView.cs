@@ -183,31 +183,29 @@ public sealed partial class Studio
             else if (work.IsNovel)
             {
                 var novelPreviewHost = new ContentControl { HorizontalAlignment = HorizontalAlignment.Stretch };
+                bool showNovelCoverInEditor = false;
+                var toggleNovelViewBtn = QuietAction("Ver portada", () => { });
                 refreshSlidePreview = () =>
                 {
-                    var previewGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 14 };
-                    previewGrid.Children.Add(new Viewbox
+                    toggleNovelViewBtn.Content = showNovelCoverInEditor ? "Ver hoja del capítulo actual" : "Ver portada de novela";
+                    novelPreviewHost.Content = new Viewbox
                     {
                         Stretch = Stretch.Uniform,
-                        MaxHeight = 225,
-                        Child = BuildDocumentCoverCanvas(work, 360)
-                    });
-                    var rightPage = new Viewbox
-                    {
-                        Stretch = Stretch.Uniform,
-                        MaxHeight = 225,
-                        Child = BuildDocumentSectionCanvas(work, c, 360)
+                        MaxHeight = 235,
+                        Child = showNovelCoverInEditor
+                            ? BuildNovelCoverCanvas(work, false, 420)
+                            : BuildDocumentSectionCanvas(work, c, 420)
                     };
-                    Grid.SetColumn(rightPage, 1);
-                    previewGrid.Children.Add(rightPage);
-                    novelPreviewHost.Content = previewGrid;
                 };
+                toggleNovelViewBtn.Click += (_, _) => { showNovelCoverInEditor = !showNovelCoverInEditor; refreshSlidePreview(); };
                 refreshSlidePreview();
                 var novelHeader = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-                var openReading = QuietAction("Abrir vista de libro en Lectura →", () => ReadSection(c));
+                var openReading = QuietAction("Abrir lectura por páginas →", () => ReadSection(c));
                 DockPanel.SetDock(openReading, Dock.Right);
                 novelHeader.Children.Add(openReading);
-                novelHeader.Children.Add(Kicker("Portada a hoja completa con blur y vista de página"));
+                DockPanel.SetDock(toggleNovelViewBtn, Dock.Right);
+                novelHeader.Children.Add(toggleNovelViewBtn);
+                novelHeader.Children.Add(Kicker("Vista en vivo de la página actual"));
                 var coverBar = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 10 };
                 var coverCombo = new ComboBox
                 {
@@ -220,16 +218,18 @@ public sealed partial class Studio
                     if (coverCombo.SelectedItem is string cs && cs != work.CoverStyle)
                     {
                         work.CoverStyle = cs;
+                        showNovelCoverInEditor = true;
                         Changed();
                         refreshSlidePreview?.Invoke();
                     }
                 };
                 coverBar.Children.Add(coverCombo);
-                var pickCoverBtn = QuietAction("Cambiar imagen de portada…", async () => await Guard(async () =>
+                var pickCoverBtn = QuietAction("Imagen de portada…", async () => await Guard(async () =>
                 {
                     var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Portada PNG o JPEG" })).FirstOrDefault()?.TryGetLocalPath();
                     if (path == null) return;
                     work.CoverImage = shelf.AddImage(path);
+                    showNovelCoverInEditor = true;
                     Changed();
                     refreshSlidePreview?.Invoke();
                 }));
@@ -237,9 +237,14 @@ public sealed partial class Studio
                 coverBar.Children.Add(pickCoverBtn);
                 var novelCard = Column(8);
                 novelCard.Children.Add(novelHeader);
-                novelCard.Children.Add(Label("Formato de portada de novela (imagen al 100 % con títulos sobre blur)"));
-                novelCard.Children.Add(coverBar);
                 novelCard.Children.Add(novelPreviewHost);
+                var coverExp = new Expander
+                {
+                    Header = $"Formato de portada de novela ({(EditorialTemplate.NovelCoverStyles.Contains(work.CoverStyle) ? work.CoverStyle : EditorialTemplate.NovelCoverStyles[0])})",
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    Content = coverBar
+                };
+                novelCard.Children.Add(coverExp);
                 body.Children.Add(Card(novelCard));
             }
             else
@@ -247,103 +252,75 @@ public sealed partial class Studio
                 var docPreviewHost = new ContentControl { HorizontalAlignment = HorizontalAlignment.Stretch };
                 refreshSlidePreview = () =>
                 {
-                    if (work.Type == "CV")
+                    var pages = BuildDocumentPages(work, 400);
+                    var sectionPages = pages.Where(p => p.Section == c).ToList();
+                    if (sectionPages.Count == 0 && pages.Count > 0) sectionPages.Add(pages[0]);
+                    if (sectionPages.Count >= 2)
+                    {
+                        var twoGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 12 };
+                        twoGrid.Children.Add(new Viewbox { Stretch = Stretch.Uniform, MaxHeight = 235, Child = sectionPages[0].Sheet });
+                        var secondVb = new Viewbox { Stretch = Stretch.Uniform, MaxHeight = 235, Child = sectionPages[1].Sheet };
+                        Grid.SetColumn(secondVb, 1);
+                        twoGrid.Children.Add(secondVb);
+                        docPreviewHost.Content = twoGrid;
+                    }
+                    else if (sectionPages.Count == 1)
                     {
                         docPreviewHost.Content = new Viewbox
                         {
                             Stretch = Stretch.Uniform,
-                            MaxHeight = 250,
-                            Child = BuildDocumentSectionCanvas(work, c, 420)
+                            MaxHeight = 235,
+                            Child = sectionPages[0].Sheet
                         };
-                    }
-                    else
-                    {
-                        var previewGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 14 };
-                        previewGrid.Children.Add(new Viewbox
-                        {
-                            Stretch = Stretch.Uniform,
-                            MaxHeight = 230,
-                            Child = BuildDocumentCoverCanvas(work, 380)
-                        });
-                        var rightPage = new Viewbox
-                        {
-                            Stretch = Stretch.Uniform,
-                            MaxHeight = 230,
-                            Child = BuildDocumentSectionCanvas(work, c, 380)
-                        };
-                        Grid.SetColumn(rightPage, 1);
-                        previewGrid.Children.Add(rightPage);
-                        docPreviewHost.Content = previewGrid;
                     }
                 };
                 refreshSlidePreview();
                 var docHeader = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-                var openDocReading = QuietAction($"Abrir vista completa de {work.Type.ToLowerInvariant()} en Lectura →", () => ReadSection(c));
+                var openDocReading = QuietAction($"Abrir lectura paginada de {work.Type.ToLowerInvariant()} →", () => ReadSection(c));
                 DockPanel.SetDock(openDocReading, Dock.Right);
                 docHeader.Children.Add(openDocReading);
-                docHeader.Children.Add(Kicker($"Vista en vivo del formato  ·  {work.Type} ({work.Template})"));
+                docHeader.Children.Add(Kicker($"Vista en vivo de la hoja actual  ·  {work.Type}"));
 
                 var format = Format.All.FirstOrDefault(f => f.Name == work.Type);
                 var templateNames = format != null ? EditorialTemplate.For(format).Select(t => t.Name).ToArray() : [work.Template];
-                var coverOptions = EditorialTemplate.CoverLayoutsFor(work.Type);
-                var formatGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 12 };
-
-                var leftFmt = Column(4);
-                leftFmt.Children.Add(Label($"Formato y plantilla de {work.Type.ToLowerInvariant()}"));
-                var tplCombo = new ComboBox
-                {
-                    ItemsSource = templateNames,
-                    SelectedItem = templateNames.Contains(work.Template) ? work.Template : templateNames[0],
-                    HorizontalAlignment = HorizontalAlignment.Stretch
-                };
-                tplCombo.SelectionChanged += (_, _) =>
-                {
-                    if (tplCombo.SelectedItem is string chosen && chosen != work.Template)
-                    {
-                        work.Template = chosen;
-                        if (format != null)
-                        {
-                            var tplObj = EditorialTemplate.For(format).FirstOrDefault(t => t.Name == chosen);
-                            if (tplObj != null)
-                            {
-                                foreach (var secName in tplObj.Sections)
-                                {
-                                    if (!work.Chapters.Any(ch => ch.Title.Equals(secName, StringComparison.OrdinalIgnoreCase)))
-                                        work.Chapters.Add(new Chapter { Title = secName, Order = work.Chapters.Count });
-                                }
-                            }
-                        }
-                        Changed();
-                        Editor();
-                    }
-                };
-                leftFmt.Children.Add(tplCombo);
-                formatGrid.Children.Add(leftFmt);
-
-                var rightFmt = Column(4);
-                rightFmt.Children.Add(Label("Estilo de portada e índice"));
-                var covCombo = new ComboBox
-                {
-                    ItemsSource = coverOptions,
-                    SelectedItem = coverOptions.Contains(work.CoverStyle) ? work.CoverStyle : coverOptions[0],
-                    HorizontalAlignment = HorizontalAlignment.Stretch
-                };
-                covCombo.SelectionChanged += (_, _) =>
-                {
-                    if (covCombo.SelectedItem is string cs && cs != work.CoverStyle)
-                    {
-                        work.CoverStyle = cs;
-                        Changed();
-                        refreshSlidePreview?.Invoke();
-                    }
-                };
-                rightFmt.Children.Add(covCombo);
-                Grid.SetColumn(rightFmt, 1);
-                formatGrid.Children.Add(rightFmt);
-
                 var docCard = Column(8);
                 docCard.Children.Add(docHeader);
-                docCard.Children.Add(formatGrid);
+
+                if (templateNames.Length > 1)
+                {
+                    var fmtRow = Column(4);
+                    fmtRow.Children.Add(Label($"Plantilla de {work.Type.ToLowerInvariant()}"));
+                    var tplCombo = new ComboBox
+                    {
+                        ItemsSource = templateNames,
+                        SelectedItem = templateNames.Contains(work.Template) ? work.Template : templateNames[0],
+                        HorizontalAlignment = HorizontalAlignment.Stretch
+                    };
+                    tplCombo.SelectionChanged += (_, _) =>
+                    {
+                        if (tplCombo.SelectedItem is string chosen && chosen != work.Template)
+                        {
+                            work.Template = chosen;
+                            if (format != null)
+                            {
+                                var tplObj = EditorialTemplate.For(format).FirstOrDefault(t => t.Name == chosen);
+                                if (tplObj != null)
+                                {
+                                    foreach (var secName in tplObj.Sections)
+                                    {
+                                        if (!work.Chapters.Any(ch => ch.Title.Equals(secName, StringComparison.OrdinalIgnoreCase)))
+                                            work.Chapters.Add(new Chapter { Title = secName, Order = work.Chapters.Count });
+                                    }
+                                }
+                            }
+                            Changed();
+                            Editor();
+                        }
+                    };
+                    fmtRow.Children.Add(tplCombo);
+                    docCard.Children.Add(fmtRow);
+                }
+
                 docCard.Children.Add(docPreviewHost);
 
                 var frontKeys = work.Type == "CV"
@@ -354,8 +331,8 @@ public sealed partial class Studio
                     var metaExpander = new Expander
                     {
                         Header = work.Type == "CV"
-                            ? "Datos de encabezado del CV (nombre, profesión y contacto)"
-                            : $"Datos de portada y encabezado de {work.Type.ToLowerInvariant()} ({frontKeys.Length} campos)",
+                            ? "Datos profesionales del encabezado"
+                            : $"Datos del encabezado de {work.Type.ToLowerInvariant()} ({frontKeys.Length} campos)",
                         HorizontalAlignment = HorizontalAlignment.Stretch
                     };
                     var fieldsGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 12, RowSpacing = 6 };

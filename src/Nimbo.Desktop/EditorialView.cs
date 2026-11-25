@@ -105,13 +105,15 @@ public sealed partial class Studio
             docWork.Description="Síntesis editorial del documento con los puntos principales, acuerdos y notas de referencia para la colección.";
             shelf.Save(docWork,0);
         }
-        var libretaWork=EditorialTemplate.For(Format.All.Single(f=>f.Name=="Apuntes"))[0].Create(Format.All.Single(f=>f.Name=="Apuntes"),"Libreta de prueba UASLP");
+        var libretaWork=EditorialTemplate.For(Format.All.Single(f=>f.Name=="Apuntes"))[1].Create(Format.All.Single(f=>f.Name=="Apuntes"),"Libreta de prueba UASLP");
         libretaWork.DocumentFacts["Universidad"]="Universidad Autónoma de San Luis Potosí";
         libretaWork.DocumentFacts["Asignatura"]="Interacción de Redes";
         Open(libretaWork,shelf.Save(libretaWork,0));Layout();
-        if(!Visible("Universidad Autónoma de San Luis Potosí"))return Fail();
+        if(!Visible("Interacción de Redes"))return Fail();
+        ReadSection(null);Layout();
+        if(!Visible("Universidad Autónoma de San Luis Potosí") || !Visible("Apuntes:"))return Fail();
         ReadSection(libretaWork.Chapters[0]);Layout();
-        if(!Visible("Apuntes:"))return Fail();
+        if(Visible("Apuntes:") || !Visible("1.  Clase 17/08"))return Fail();
         var styles=BookCover.LetteringStyles;
         int styleIndex=0;
         foreach(var name in new[]{"Bajo el hielo","Manual de mareas","Cantos del sur","Las manos del reloj","La memoria del muelle","Voces del camino","La carta de Aro","Cuaderno de campo"}){

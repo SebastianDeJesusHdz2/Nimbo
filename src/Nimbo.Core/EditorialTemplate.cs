@@ -6,15 +6,16 @@ public sealed record EditorialTemplate(string Name, string Style, string[] Secti
 
     public static readonly string[] NovelCoverStyles =
     [
-        "Velo editorial al pie",
-        "Cartela central difuminada",
-        "Franja superior de autor",
-        "Marco áureo con velo",
-        "Tejuelo clásico translúcido",
-        "Banda diagonal moderna",
-        "Doble filete de gala",
-        "Minimalista a sangre"
+        "Al pie",
+        "Centrada",
+        "Cabecera",
+        "Tejuelo clásico",
+        "Marco áureo",
+        "Banda completa"
     ];
+
+    public static bool HasDedicatedCover(string type) =>
+        type is "Novela" or "Apuntes" or "Informe";
 
     public static EditorialTemplate[] For(Format f)
     {
@@ -38,68 +39,45 @@ public sealed record EditorialTemplate(string Name, string Style, string[] Secti
             "Apuntes" =>
             [
                 standard,
-                new("Cuaderno de prácticas", "Moderna", ["Objetivo", "Materiales", "Procedimiento", "Observaciones", "Reflexión"]),
                 new("Libreta universitaria (UASLP)", "LibretaUASLP", ["Clase 17/08", "Clase 18/08", "Clase 20/08", "Selección de imágenes", "Síntesis parcial"]),
                 new("Libreta de ingeniería y redes", "LibretaUASLP", ["Encuadre y evaluación", "Direccionamiento IPv4 e IPv6", "Subredes y VLSM", "Enrutamiento y OSPF", "Formulario y comandos"]),
                 new("Libreta de arte y diseño de juegos", "LibretaUASLP", ["Principios artísticos", "Selección de referentes", "Luz, color y psicología", "Comunicación visual y HUD", "Diseño de niveles"]),
                 new("Libreta de proyectos computacionales", "LibretaUASLP", ["Metodología y calendario", "Requerimientos funcionales", "Requerimientos no funcionales", "Modelado de base de datos", "Casos de uso"]),
-                new("Libreta Cornell de cátedra", "Cornell", ["Encuadre y criterios", "Principios fundamentales", "Análisis de referentes", "Síntesis de unidad"]),
-                new("Bitácora de taller", "Bitacora", ["Sesión 1: Fundamentos", "Sesión 2: Exploración visual", "Sesión 3: Retroalimentación y ajustes"])
+                new("Cuaderno Cornell", "Cornell", ["Encuadre y criterios", "Principios fundamentales", "Análisis de referentes", "Síntesis de unidad"])
             ],
             "Informe" =>
             [
                 standard,
                 new("Informe ejecutivo", "Moderna", ["Resumen ejecutivo", "Objetivos", "Indicadores", "Hallazgos", "Recomendaciones", "Próximos pasos"]),
                 new("Reporte de práctica de redes (P3/P4/P5)", "PracticaRedes", ["Resumen", "Topología inicial", "Tabla de direccionamiento", "Configuración de dispositivos", "Pruebas de conectividad y verificación", "Conclusión", "Bibliografía"]),
-                new("Práctica con políticas ACL y seguridad", "PracticaRedes", ["Resumen", "Topología inicial y tabla de direccionamiento", "Configuración de equipos y enlaces", "Pruebas previas a las políticas", "Políticas de seguridad y configuración ACL", "Comprobación de políticas", "Conclusión", "Bibliografía"]),
-                new("Dossier de arte conceptual", "DossierArte", ["Diseño conceptual del mundo", "Landmarks y regiones", "Moodboards y paletas", "Arte conceptual final", "Control de entrega"]),
-                new("Reporte técnico experimental", "Académica", ["Resumen", "Arquitectura y topología", "Desarrollo experimental", "Pruebas y resultados", "Conclusión", "Bibliografía"]),
-                new("Informe de auditoría y QA", "Auditoría", ["Alcance de auditoría", "Matriz de hallazgos", "Evidencias técnicas", "Plan de mitigación", "Dictamen final"])
+                new("Práctica con políticas ACL y seguridad", "PracticaRedes", ["Resumen", "Topología inicial y tabla de direccionamiento", "Configuración de equipos y enlaces", "Pruebas previas a las políticas", "Políticas de seguridad y configuración ACL", "Comprobación de políticas", "Conclusión", "Bibliografía"])
             ],
             "Artículo" =>
             [
                 standard,
                 new("Artículo de revisión", "Académica", ["Resumen", "Pregunta de revisión", "Criterios de selección", "Síntesis de evidencia", "Limitaciones", "Referencias"]),
-                new("Estudio técnico aplicado", "Moderna", ["Resumen", "Introducción", "Arquitectura del sistema", "Evaluación experimental", "Conclusiones", "Referencias"]),
-                new("Paper científico IEEE / Doble columna", "PaperDoble", ["Abstract / Resumen", "1. Introducción", "2. Marco teórico y arquitectura", "3. Metodología experimental", "4. Resultados y discusión", "5. Conclusiones", "Referencias"]),
-                new("Ensayo crítico", "Clásica", ["Planteamiento", "Marco conceptual", "Análisis comparativo", "Conclusiones", "Fuentes"]),
-                new("Monografía académica", "Monografía", ["Resumen", "Estado del arte", "Desarrollo temático", "Estudio de caso", "Conclusiones", "Bibliografía"])
+                new("Paper científico IEEE / Doble columna", "PaperDoble", ["Abstract / Resumen", "1. Introducción", "2. Marco teórico y arquitectura", "3. Metodología experimental", "4. Resultados y discusión", "5. Conclusiones", "Referencias"])
             ],
             "Propuesta" =>
             [
                 standard,
                 new("Oferta de servicios", "Moderna", ["Necesidad", "Solución", "Entregables", "Calendario", "Inversión", "Condiciones"]),
-                new("Documento de diseño (GDD)", "GDD", ["Contexto de la IP y USP", "Mecánicas base", "Cartografía y nivel", "Walkthrough táctico", "Jefe o prueba principal"]),
-                new("Proyecto de ingeniería", "Académica", ["Definición del problema", "Arquitectura propuesta", "Plan de implementación", "Matriz de riesgos", "Presupuesto"]),
-                new("Propuesta de arquitectura de software", "Moderna", ["Resumen ejecutivo", "Requerimientos y alcance", "Arquitectura en capas", "Cronograma de sprints", "Costos y licenciamiento"]),
-                new("Cotización y alcance comercial", "Ejecutiva", ["Objetivo del cliente", "Alcance de entregables", "Fases y tiempos", "Desglose de inversión", "Términos y firmas"])
+                new("Documento de diseño (GDD)", "GDD", ["Contexto de la IP y USP", "Mecánicas base", "Cartografía y nivel", "Walkthrough táctico", "Jefe o prueba principal"])
             ],
             "Acta" =>
             [
                 standard,
-                new("Comité de proyecto", "Moderna", ["Participantes", "Revisión de compromisos", "Decisiones", "Acciones y fechas"]),
-                new("Dictamen de revisión técnica", "Académica", ["Quórum y apertura", "Entregables evaluados", "Observaciones técnicas", "Acuerdos y firmas"]),
-                new("Minuta de seguimiento", "Moderna", ["Contexto de la reunión", "Avances por área", "Bloqueos detectados", "Compromisos"]),
-                new("Acta constitutiva de equipo", "Ejecutiva", ["Instalación y participantes", "Definición de roles", "Reglas operativas y calendario", "Acuerdos y firmas"]),
-                new("Cierre de sprint / Retrospectiva", "Moderna", ["Objetivos completados", "Métricas e incidencias", "Mejoras acordadas", "Compromisos del siguiente ciclo"])
+                new("Comité de proyecto", "Moderna", ["Participantes", "Revisión de compromisos", "Decisiones", "Acciones y fechas"])
             ],
             "Carta" =>
             [
                 standard,
-                new("Solicitud formal", "Clásica", ["Saludo", "Motivo", "Solicitud", "Despedida"]),
-                new("Oficio institucional", "Moderna", ["Antecedentes", "Exposición de motivos", "Petición formal", "Cierre y firmas"]),
-                new("Carta de presentación", "Clásica", ["Apertura", "Trayectoria y aportación", "Propuesta de colaboración", "Despedida"]),
-                new("Memorándum interno", "Memo", ["Contexto", "Directriz o comunicado", "Acciones requeridas"]),
-                new("Carta de entrega de proyecto", "Ejecutiva", ["Relación de entregables", "Alcance verificado", "Conformidad y cierre"])
+                new("Solicitud formal", "Clásica", ["Saludo", "Motivo", "Solicitud", "Despedida"])
             ],
             "Documento" =>
             [
                 standard,
-                new("Guía de trabajo", "Moderna", ["Finalidad", "Preparación", "Instrucciones", "Comprobación"]),
-                new("Manual de estándares", "Moderna", ["Alcance y objetivos", "Especificaciones técnicas", "Criterios de validación", "Anexos"]),
-                new("Especificación de requerimientos (SRS)", "SRS", ["1. Introducción y propósito", "2. Descripción general del sistema", "3. Requerimientos funcionales (RF)", "4. Requerimientos no funcionales (RNF)", "5. Casos de uso y validación"]),
-                new("Manual de arquitectura y operación", "Ejecutiva", ["Topología y componentes", "Requisitos e instalación", "Configuración paso a paso", "Verificación y mantenimiento"]),
-                new("Memoria descriptiva", "Clásica", ["Introducción", "Descripción general", "Desarrollo por componentes", "Conclusiones"])
+                new("Guía de trabajo", "Moderna", ["Finalidad", "Preparación", "Instrucciones", "Comprobación"])
             ],
             "Presentación" =>
             [
@@ -212,15 +190,9 @@ public sealed record EditorialTemplate(string Name, string Style, string[] Secti
     public static string[] CoverLayoutsFor(string type) => type switch
     {
         "Novela" => NovelCoverStyles,
-        "Apuntes" => ["Por formato", "Libreta universitaria (UASLP)", "Portada de cátedra con recuadro", "Encabezado directo de cuaderno", "Al pie", "Centrada", "Cabecera"],
-        "Informe" => ["Por formato", "Portada de Práctica (P3/P4/P5)", "Portada ejecutiva con bloque", "Portada institucional universitaria", "Al pie", "Centrada", "Cabecera"],
-        "CV" => ["Por formato", "Cabecera ejecutiva", "Banda moderna", "Centrada académica", "Doble columna con contacto"],
-        "Artículo" => ["Por formato", "Cabecera de revista científica (Paper)", "Portada de monografía", "Al pie", "Centrada", "Cabecera"],
-        "Propuesta" => ["Por formato", "Portada comercial ejecutiva", "Portada de GDD ilustrado", "Al pie", "Centrada", "Cabecera"],
-        "Acta" => ["Por formato", "Encabezado oficial de sesión", "Portada de comité", "Al pie", "Centrada", "Cabecera"],
-        "Carta" => ["Por formato", "Oficio formal con membrete", "Memorándum directo", "Clásica epistolar"],
-        "Documento" => ["Por formato", "Portada de especificación (SRS)", "Encabezado de guía técnica", "Al pie", "Centrada", "Cabecera"],
-        _ => ["Por formato", "Al pie", "Centrada", "Cabecera"]
+        "Apuntes" => ["Libreta universitaria (UASLP)", "Encabezado directo de cuaderno"],
+        "Informe" => ["Portada de Práctica (P3/P4/P5)", "Encabezado ejecutivo"],
+        _ => []
     };
 
     public static string[] SectionLayoutsFor(string type) => type switch

@@ -12,11 +12,15 @@ public sealed partial class Studio
     {
         if(work.Type!="Presentación"){
             var coverOptions=EditorialTemplate.CoverLayoutsFor(work.Type);
-            var currentCover=coverOptions.Contains(work.CoverStyle)?work.CoverStyle:coverOptions[0];
-            Choice(panel,work.IsNovel?"Formato de portada (imagen completa con blur)":"Formato de portada e inicio",coverOptions,currentCover,v=>{work.CoverStyle=v;Changed();});
+            if(coverOptions.Length>0){
+                var currentCover=coverOptions.Contains(work.CoverStyle)?work.CoverStyle:coverOptions[0];
+                Choice(panel,work.IsNovel?"Formato de portada (imagen completa con blur)":"Formato de portada",coverOptions,currentCover,v=>{work.CoverStyle=v;Changed();});
+            }
             Choice(panel,"Marco de las páginas",["Sin marco","Filete","Doble filete","Esquinas"],work.FrameStyle,v=>{work.FrameStyle=v;Changed();});
-            var subtitle=new CheckBox{Content="Imprimir el subtítulo en la portada",IsChecked=work.ShowCoverSubtitle};
-            subtitle.IsCheckedChanged+=(_,_)=>{work.ShowCoverSubtitle=subtitle.IsChecked==true;Changed();};panel.Children.Add(subtitle);
+            if(EditorialTemplate.HasDedicatedCover(work.Type)){
+                var subtitle=new CheckBox{Content="Imprimir el subtítulo en la portada",IsChecked=work.ShowCoverSubtitle};
+                subtitle.IsCheckedChanged+=(_,_)=>{work.ShowCoverSubtitle=subtitle.IsChecked==true;Changed();};panel.Children.Add(subtitle);
+            }
         }
         if(work.IsNovel){
             var back=Row();panel.Children.Add(back);

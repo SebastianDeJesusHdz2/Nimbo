@@ -1215,6 +1215,10 @@ public sealed partial class Studio
         page.Content = root;
     }
 
+    internal sealed record DocumentPageItem(int PageNumber, string Label, Chapter? Section, Border Sheet);
+
+    int documentReadingMode = 2; // 1 = 1 hoja, 2 = 2 hojas (doble página), 3 = todas las hojas
+
     static string ResolveTemplateStyle(Work work)
     {
         var format = Format.All.FirstOrDefault(f => f.Name == work.Type);
@@ -1246,161 +1250,178 @@ public sealed partial class Studio
         };
     }
 
-    internal Border BuildDocumentCoverCanvas(Work work, int decodeWidth = 720, Action<Chapter>? onSelectChapter = null)
+    internal Border BuildNovelCoverCanvas(Work work, bool backCover = false, int decodeWidth = 720)
     {
-        var sections = WorldModel.Ordered(work).ToList();
-        var style = ResolveTemplateStyle(work);
-        var accentHex = ResolveFormatAccentHex(work);
-        var accentBrush = Brush.Parse(accentHex);
+        const double W = 520, H = 735;
+        var clothHex = Color.TryParse(work.CoverColor, out _) ? work.CoverColor : "#284B52";
+        var coverCanvas = new Canvas { Width = W, Height = H, ClipToBounds = true, Background = Brush.Parse(clothHex) };
+        var imageKey = backCover ? (work.BackImage != "" ? work.BackImage : work.CoverImage) : work.CoverImage;
 
-        if (work.IsNovel)
+        Control BuildArtLayer(double blurRadius)
         {
-            const double W = 540, H = 760;
-            var clothHex = Color.TryParse(work.CoverColor, out _) ? work.CoverColor : "#284B52";
-            var coverRoot = new Grid { Width = W, Height = H, ClipToBounds = true, Background = Brush.Parse(clothHex) };
-
-            void AddFullBleedArt(Panel target, double blurRadius = 0)
+            if (imageKey != "")
             {
-                if (work.CoverImage != "")
+                var path = System.IO.Path.Combine(shelf.Media, System.IO.Path.GetFileName(imageKey));
+                if (Thumbnail(path, decodeWidth, H) is { } pic)
                 {
-                    var path = System.IO.Path.Combine(shelf.Media, System.IO.Path.GetFileName(work.CoverImage));
-                    if (Thumbnail(path, decodeWidth, H) is { } pic)
-                    {
-                        pic.Width = W;
-                        pic.Height = H;
-                        pic.Stretch = Stretch.UniformToFill;
-                        if (blurRadius > 0) pic.Effect = new BlurEffect { Radius = blurRadius };
-                        target.Children.Add(pic);
-                        return;
-                    }
+                    pic.Width = W;
+                    pic.Height = H;
+                    pic.Stretch = Stretch.UniformToFill;
+                    if (blurRadius > 0) pic.Effect = new BlurEffect { Radius = blurRadius };
+                    return pic;
                 }
-                var fallback = new Border
-                {
-                    Width = W,
-                    Height = H,
-                    Background = new LinearGradientBrush
-                    {
-                        StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
-                        EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
-                        GradientStops =
-                        {
-                            new GradientStop(Color.Parse(clothHex), 0),
-                            new GradientStop(Color.Parse("#141C22"), 1)
-                        }
-                    }
-                };
-                if (blurRadius > 0) fallback.Effect = new BlurEffect { Radius = blurRadius };
-                target.Children.Add(fallback);
             }
-
-            AddFullBleedArt(coverRoot, 0);
-            coverRoot.Children.Add(new Border
+            var fallback = new Canvas
             {
+                Width = W,
+                Height = H,
                 Background = new LinearGradientBrush
                 {
                     StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
-                    EndPoint = new RelativePoint(0, 1, RelativeUnit.Relative),
+                    EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
                     GradientStops =
                     {
-                        new GradientStop(Color.Parse("#180D1318"), 0),
-                        new GradientStop(Color.Parse("#320D1318"), 0.5),
-                        new GradientStop(Color.Parse("#700D1318"), 1)
+                        new GradientStop(Color.Parse(clothHex), 0),
+                        new GradientStop(Color.Parse("#131D22"), 1)
                     }
                 }
-            });
-
-            var coverMode = EditorialTemplate.NovelCoverStyles.Contains(work.CoverStyle)
-                ? work.CoverStyle
-                : work.CoverStyle switch
-                {
-                    "Centrada" => "Cartela central difuminada",
-                    "Cabecera" => "Franja superior de autor",
-                    _ => "Velo editorial al pie"
-                };
-
-            if (coverMode is "Marco áureo con velo" or "Doble filete de gala")
+            };
+            if (!backCover && blurRadius == 0)
             {
-                coverRoot.Children.Add(new Border
-                {
-                    Margin = new Thickness(20),
-                    BorderBrush = Brush.Parse("#C8E6C37A"),
-                    BorderThickness = new Thickness(1.2),
-                    CornerRadius = new CornerRadius(2)
-                });
-                if (coverMode == "Doble filete de gala")
-                {
-                    coverRoot.Children.Add(new Border
-                    {
-                        Margin = new Thickness(26),
-                        BorderBrush = Brush.Parse("#90E6C37A"),
-                        BorderThickness = new Thickness(0.7),
-                        CornerRadius = new CornerRadius(2)
-                    });
-                }
+                var stamp = new Image { Source = JacketStamp(work.Id), Width = 148, Height = 148, Opacity = 0.85 };
+                Canvas.SetLeft(stamp, (W - 148) / 2);
+                Canvas.SetTop(stamp, 92);
+                fallback.Children.Add(stamp);
             }
+            if (blurRadius > 0) fallback.Effect = new BlurEffect { Radius = blurRadius };
+            return fallback;
+        }
 
-            var plateMargin = coverMode switch
-            {
-                "Cartela central difuminada" => new Thickness(40, 0, 40, 0),
-                "Franja superior de autor" => new Thickness(28, 36, 28, 0),
-                "Marco áureo con velo" => new Thickness(40, 0, 40, 52),
-                "Tejuelo clásico translúcido" => new Thickness(44, 0, 44, 58),
-                "Banda diagonal moderna" => new Thickness(0, 0, 0, 62),
-                "Doble filete de gala" => new Thickness(44, 0, 44, 54),
-                "Minimalista a sangre" => new Thickness(28, 0, 88, 34),
-                _ => new Thickness(26, 0, 26, 30)
-            };
-            var plateAlign = coverMode switch
-            {
-                "Cartela central difuminada" => VerticalAlignment.Center,
-                "Franja superior de autor" => VerticalAlignment.Top,
-                _ => VerticalAlignment.Bottom
-            };
-            bool leftAligned = coverMode is "Minimalista a sangre" or "Banda diagonal moderna";
+        var sharpBg = BuildArtLayer(0);
+        Canvas.SetLeft(sharpBg, 0);
+        Canvas.SetTop(sharpBg, 0);
+        coverCanvas.Children.Add(sharpBg);
 
-            var plateGrid = new Grid();
-            var plateHost = new Border
+        var coverMode = work.CoverStyle switch
+        {
+            "Centrada" or "Cartela central difuminada" => "Centrada",
+            "Cabecera" or "Franja superior de autor" => "Cabecera",
+            "Marco áureo" or "Marco áureo con velo" => "Marco áureo",
+            "Banda completa" or "Banda diagonal moderna" or "Banda completa translúcida" => "Banda completa",
+            "Tejuelo clásico" or "Tejuelo clásico translúcido" => "Tejuelo clásico",
+            _ => "Al pie"
+        };
+
+        if (!backCover && coverMode == "Marco áureo")
+        {
+            var outerFrame = new Border
             {
-                Margin = plateMargin,
-                VerticalAlignment = plateAlign,
-                ClipToBounds = true,
-                CornerRadius = new CornerRadius(coverMode == "Banda diagonal moderna" ? 0 : 6),
-                Child = plateGrid
+                Width = W - 36,
+                Height = H - 36,
+                BorderBrush = Brush.Parse("#C8E8C878"),
+                BorderThickness = new Thickness(1.2),
+                CornerRadius = new CornerRadius(2)
+            };
+            Canvas.SetLeft(outerFrame, 18);
+            Canvas.SetTop(outerFrame, 18);
+            coverCanvas.Children.Add(outerFrame);
+        }
+
+        bool fullBand = !backCover && coverMode == "Banda completa";
+        double plateW = fullBand ? W : 434;
+        double plateH = backCover
+            ? 226
+            : (work.ShowCoverSubtitle && work.Subtitle != "" ? 222 : 186);
+        double plateX = fullBand ? 0 : (W - plateW) / 2;
+        double plateY = backCover
+            ? H - plateH - 64
+            : coverMode switch
+            {
+                "Centrada" => (H - plateH) / 2,
+                "Cabecera" => 54,
+                _ => H - plateH - 68
             };
 
-            var blurredBackdrop = new Grid { ClipToBounds = true };
-            AddFullBleedArt(blurredBackdrop, 22);
-            blurredBackdrop.Children.Add(new Border
+        var plateRoot = new Grid { Width = plateW, Height = plateH, ClipToBounds = true };
+        var blurSliceCanvas = new Canvas { Width = plateW, Height = plateH, ClipToBounds = true };
+        var blurredArt = BuildArtLayer(22);
+        Canvas.SetLeft(blurredArt, -plateX);
+        Canvas.SetTop(blurredArt, -plateY);
+        blurSliceCanvas.Children.Add(blurredArt);
+        plateRoot.Children.Add(blurSliceCanvas);
+
+        plateRoot.Children.Add(new Border
+        {
+            Background = Brush.Parse("#A410181F")
+        });
+
+        if (!fullBand)
+        {
+            plateRoot.Children.Add(new Border
             {
-                Background = Brush.Parse(coverMode == "Tejuelo clásico translúcido" ? "#B810161E" : "#9E111820"),
-                Effect = new BlurEffect { Radius = 14 }
+                Margin = new Thickness(3.5),
+                BorderBrush = Brush.Parse("#78E8C878"),
+                BorderThickness = new Thickness(0.75),
+                CornerRadius = new CornerRadius(3)
             });
-            plateGrid.Children.Add(blurredBackdrop);
+        }
 
-            var textStack = Column(8);
-            textStack.Margin = new Thickness(26, 22);
-            textStack.HorizontalAlignment = leftAligned ? HorizontalAlignment.Left : HorizontalAlignment.Center;
+        var textStack = Column(backCover ? 10 : 8);
+        textStack.Margin = new Thickness(26, 18);
+        textStack.HorizontalAlignment = HorizontalAlignment.Center;
+        textStack.VerticalAlignment = VerticalAlignment.Center;
 
+        if (backCover)
+        {
             textStack.Children.Add(new TextBlock
             {
-                Text = "NOVELA  ·  " + coverMode.ToUpperInvariant(),
-                FontSize = 10.5,
+                Text = "SINOPSIS",
+                FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
+                FontSize = 11.5,
                 FontWeight = FontWeight.Bold,
                 LetterSpacing = 1.6,
-                Foreground = Brush.Parse("#E8C87A"),
-                TextAlignment = leftAligned ? TextAlignment.Left : TextAlignment.Center,
-                HorizontalAlignment = leftAligned ? HorizontalAlignment.Left : HorizontalAlignment.Center
+                Foreground = Brush.Parse("#E8D28A"),
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+            var synText = work.Description.Trim() != "" ? work.Description.Trim() : work.Title;
+            textStack.Children.Add(new TextBlock
+            {
+                Text = synText,
+                FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
+                FontSize = synText.Length > 340 ? 12.5 : 14,
+                LineHeight = synText.Length > 340 ? 18 : 20,
+                Foreground = Brush.Parse("#FAF6EE"),
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                MaxHeight = 156
+            });
+        }
+        else
+        {
+            textStack.Children.Add(new TextBlock
+            {
+                Text = "NOVELA",
+                FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
+                FontSize = 11,
+                FontWeight = FontWeight.Bold,
+                LetterSpacing = 1.8,
+                Foreground = Brush.Parse("#E8D28A"),
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center
             });
             textStack.Children.Add(new TextBlock
             {
                 Text = work.Title,
                 FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
-                FontSize = work.Title.Length > 34 ? 27 : 32,
+                FontSize = work.Title.Length > 32 ? 26 : 30,
                 FontWeight = FontWeight.Bold,
                 Foreground = Brush.Parse("#FAF6EE"),
                 TextWrapping = TextWrapping.Wrap,
-                TextAlignment = leftAligned ? TextAlignment.Left : TextAlignment.Center,
-                HorizontalAlignment = leftAligned ? HorizontalAlignment.Left : HorizontalAlignment.Center
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                MaxLines = 2
             });
             if (work.ShowCoverSubtitle && work.Subtitle != "")
             {
@@ -1410,18 +1431,19 @@ public sealed partial class Studio
                     FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
                     FontSize = 15,
                     FontStyle = FontStyle.Italic,
-                    Foreground = Brush.Parse("#E4DAC8"),
+                    Foreground = Brush.Parse("#E8E0D0"),
                     TextWrapping = TextWrapping.Wrap,
-                    TextAlignment = leftAligned ? TextAlignment.Left : TextAlignment.Center,
-                    HorizontalAlignment = leftAligned ? HorizontalAlignment.Left : HorizontalAlignment.Center
+                    TextAlignment = TextAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    MaxLines = 2
                 });
             }
             textStack.Children.Add(new Border
             {
-                Width = 140,
-                Height = 1.2,
-                Background = Brush.Parse("#D8B76A"),
-                HorizontalAlignment = leftAligned ? HorizontalAlignment.Left : HorizontalAlignment.Center,
+                Width = 136,
+                Height = 1.1,
+                Background = Brush.Parse("#E2C675"),
+                HorizontalAlignment = HorizontalAlignment.Center,
                 Margin = new Thickness(0, 4)
             });
             if (work.Author != "")
@@ -1430,110 +1452,145 @@ public sealed partial class Studio
                 {
                     Text = work.Author,
                     FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
-                    FontSize = 16,
-                    FontWeight = FontWeight.SemiBold,
+                    FontSize = 15.5,
+                    FontWeight = FontWeight.Bold,
                     Foreground = Brush.Parse("#FAF5EA"),
-                    TextAlignment = leftAligned ? TextAlignment.Left : TextAlignment.Center,
-                    HorizontalAlignment = leftAligned ? HorizontalAlignment.Left : HorizontalAlignment.Center
+                    TextAlignment = TextAlignment.Center,
+                    HorizontalAlignment = HorizontalAlignment.Center
                 });
             }
-
-            var frameOverlay = new Border
-            {
-                BorderBrush = Brush.Parse(coverMode is "Tejuelo clásico translúcido" or "Marco áureo con velo" or "Doble filete de gala" ? "#D8E8C472" : "#66FFFFFF"),
-                BorderThickness = new Thickness(coverMode == "Banda diagonal moderna" ? 0 : 1.2),
-                CornerRadius = new CornerRadius(coverMode == "Banda diagonal moderna" ? 0 : 6),
-                Child = textStack
-            };
-            plateGrid.Children.Add(frameOverlay);
-            coverRoot.Children.Add(plateHost);
-
-            return new Border
-            {
-                Child = coverRoot,
-                BorderBrush = Edge,
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(3),
-                BoxShadow = BoxShadows.Parse("0 14 32 #38000000"),
-                HorizontalAlignment = HorizontalAlignment.Center
-            };
         }
 
-        var pagePaper = Brushes.White;
-        var ink = Brush.Parse("#1E2328");
-        var muted = Brush.Parse("#464646");
-        var sheetCol = Column(14);
-        sheetCol.Width = 720;
-        sheetCol.Margin = new Thickness(44, 38);
+        plateRoot.Children.Add(textStack);
+        var plateBorder = new Border
+        {
+            Width = plateW,
+            Height = plateH,
+            ClipToBounds = true,
+            CornerRadius = new CornerRadius(fullBand ? 0 : 5),
+            BorderBrush = Brush.Parse("#D8E8C878"),
+            BorderThickness = new Thickness(fullBand ? 0 : 1.25),
+            BoxShadow = BoxShadows.Parse("0 8 24 #55000000"),
+            Child = plateRoot
+        };
+        Canvas.SetLeft(plateBorder, plateX);
+        Canvas.SetTop(plateBorder, plateY);
+        coverCanvas.Children.Add(plateBorder);
+
+        return new Border
+        {
+            Child = coverCanvas,
+            BorderBrush = Edge,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            BoxShadow = BoxShadows.Parse("0 14 32 #38000000"),
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+    }
+
+    internal Border BuildDocumentCoverCanvas(Work work, int decodeWidth = 720, Action<Chapter>? onSelectChapter = null)
+    {
+        if (work.IsNovel) return BuildNovelCoverCanvas(work, false, decodeWidth);
+        var pages = BuildDocumentPages(work, decodeWidth, onSelectChapter);
+        return pages.Count > 0 ? pages[0].Sheet : new Border();
+    }
+
+    internal Border BuildDocumentSectionCanvas(Work work, Chapter section, int decodeWidth = 780)
+    {
+        var pages = BuildDocumentPages(work, decodeWidth);
+        var match = pages.FirstOrDefault(p => p.Section == section) ?? pages.FirstOrDefault();
+        return match != null ? match.Sheet : new Border();
+    }
+
+    Border WrapPaperSheet(Control inner, Work work, bool isNovel)
+    {
+        var accentHex = ResolveFormatAccentHex(work);
+        var accentBrush = Brush.Parse(accentHex);
+        var paperBg = isNovel ? Brush.Parse("#FAF6EE") : Brushes.White;
+        Control content = inner;
+        if (work.FrameStyle is "Filete" or "Doble filete" or "Esquinas")
+        {
+            content = new Border
+            {
+                Margin = new Thickness(10),
+                BorderBrush = accentBrush,
+                BorderThickness = new Thickness(work.FrameStyle == "Doble filete" ? 2 : 1),
+                Child = inner
+            };
+        }
+        return new Border
+        {
+            Width = isNovel ? 520 : 680,
+            MinHeight = isNovel ? 735 : 880,
+            Background = paperBg,
+            BorderBrush = Brush.Parse("#C9D1D8"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            BoxShadow = BoxShadows.Parse("0 12 28 #24000000"),
+            Child = content,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+    }
+
+    internal List<DocumentPageItem> BuildDocumentPages(Work work, int decodeWidth = 760, Action<Chapter>? onSelectChapter = null)
+    {
+        var pages = new List<DocumentPageItem>();
+        var sections = WorldModel.Ordered(work).ToList();
+        var style = ResolveTemplateStyle(work);
+        var accentHex = ResolveFormatAccentHex(work);
+        var accentBrush = Brush.Parse(accentHex);
+        var ink = Brush.Parse("#1D2227");
+        var muted = Brush.Parse("#545E68");
+        bool isNovel = work.IsNovel;
+        bool isLibreta = work.Type == "Apuntes" && (style == "LibretaUASLP" || work.CoverStyle == "Libreta universitaria (UASLP)" || !string.IsNullOrWhiteSpace(work.DocumentFacts.GetValueOrDefault("Universidad")));
+        bool isPractica = work.Type == "Informe" && (style == "PracticaRedes" || work.CoverStyle == "Portada de Práctica (P3/P4/P5)" || !string.IsNullOrWhiteSpace(work.DocumentFacts.GetValueOrDefault("Materia y ciclo")));
 
         string Fact(string key, string fallback = "") =>
             work.DocumentFacts.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v) ? v.Trim() : fallback;
 
-        void AddTocBlock(string headingTitle, string accentColorHex, string? underlineGreenHex = null)
+        if (work.Type == "CV")
         {
-            if (sections.Count == 0) return;
-            sheetCol.Children.Add(new Border { Height = 1, Background = Brush.Parse("#D5DCE2"), Margin = new Thickness(0, 8, 0, 4) });
-            var tocHead = new TextBlock
-            {
-                Text = headingTitle,
-                FontSize = 18,
-                FontWeight = FontWeight.Bold,
-                Foreground = Brush.Parse(accentColorHex)
-            };
-            sheetCol.Children.Add(tocHead);
-            if (underlineGreenHex != null)
-                sheetCol.Children.Add(new Border { Height = 2, Background = Brush.Parse(underlineGreenHex), Margin = new Thickness(0, 2, 0, 6) });
-            var tocList = Column(4);
-            for (int i = 0; i < sections.Count; i++)
-            {
-                var ch = sections[i];
-                var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
-                row.Children.Add(new TextBlock
-                {
-                    Text = $"{i + 1}. ",
-                    FontWeight = FontWeight.Bold,
-                    Foreground = Brush.Parse(accentColorHex),
-                    FontSize = 13.5
-                });
-                var titleTb = new TextBlock
-                {
-                    Text = ch.Title,
-                    Foreground = ink,
-                    FontSize = 13.5,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                };
-                Grid.SetColumn(titleTb, 1);
-                row.Children.Add(titleTb);
-                var pgTb = new TextBlock
-                {
-                    Text = $"pág. {i + 1}",
-                    Foreground = muted,
-                    FontSize = 12.5
-                };
-                Grid.SetColumn(pgTb, 2);
-                row.Children.Add(pgTb);
-                if (onSelectChapter != null)
-                {
-                    var btn = new Button
-                    {
-                        Content = row,
-                        Background = Brushes.Transparent,
-                        BorderThickness = new Thickness(0),
-                        Padding = new Thickness(4, 3),
-                        HorizontalAlignment = HorizontalAlignment.Stretch,
-                        HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                        Cursor = new Cursor(StandardCursorType.Hand)
-                    };
-                    var target = ch;
-                    btn.Click += (_, _) => onSelectChapter(target);
-                    tocList.Children.Add(btn);
-                }
-                else tocList.Children.Add(row);
-            }
-            sheetCol.Children.Add(tocList);
+            return BuildPaginatedResumePages(work, decodeWidth);
         }
 
-        if (work.Type == "Apuntes")
+        if (isNovel)
+        {
+            pages.Add(new DocumentPageItem(1, "Portada", null, BuildNovelCoverCanvas(work, false, decodeWidth)));
+            if (work.Publication.Contents && sections.Count > 1)
+            {
+                var tocCol = Column(12);
+                tocCol.Margin = new Thickness(48, 46);
+                tocCol.Children.Add(new TextBlock
+                {
+                    Text = "Contenido",
+                    FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
+                    FontSize = 28,
+                    FontWeight = FontWeight.Bold,
+                    Foreground = ink,
+                    Margin = new Thickness(0, 12, 0, 14)
+                });
+                int estPage = 3;
+                foreach (var ch in sections)
+                {
+                    var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(ch.Level == "Subchapter" ? 16 : 0, 3, 0, 3) };
+                    row.Children.Add(new TextBlock
+                    {
+                        Text = ch.Title,
+                        FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
+                        FontSize = ch.Level == "Arc" ? 15.5 : 14.5,
+                        FontWeight = ch.Level == "Arc" ? FontWeight.Bold : FontWeight.Normal,
+                        Foreground = ink
+                    });
+                    var pTb = new TextBlock { Text = estPage.ToString(), FontFamily = new FontFamily("Georgia, Liberation Serif, serif"), FontSize = 14, Foreground = muted };
+                    Grid.SetColumn(pTb, 1);
+                    row.Children.Add(pTb);
+                    tocCol.Children.Add(row);
+                    estPage++;
+                }
+                pages.Add(new DocumentPageItem(pages.Count + 1, "Contenido", null, WrapPaperSheet(tocCol, work, true)));
+            }
+        }
+        else if (isLibreta)
         {
             var uaslpBlue = "#004785";
             var uaslpGreen = "#22714B";
@@ -1548,15 +1605,19 @@ public sealed partial class Studio
             var alumno = Fact("Alumno", work.Author != "" ? work.Author : "Autor de la libreta");
             var lugarFecha = Fact("Lugar y fecha", Fact("Periodo", "San Luis Potosí, S.L.P."));
 
-            sheetCol.Children.Add(new TextBlock { Text = univ, FontSize = 22, FontWeight = FontWeight.Bold, Foreground = blueBrush, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center });
-            sheetCol.Children.Add(new TextBlock { Text = fac, FontSize = 16, Foreground = muted, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
-            sheetCol.Children.Add(new TextBlock { Text = asig, FontSize = 15, FontWeight = FontWeight.Bold, Foreground = ink, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 8) });
+            var coverCol = Column(12);
+            coverCol.Margin = new Thickness(44, 42);
+            coverCol.Children.Add(new TextBlock { Text = univ, FontSize = 21, FontWeight = FontWeight.Bold, Foreground = blueBrush, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center });
+            coverCol.Children.Add(new TextBlock { Text = fac, FontSize = 15.5, Foreground = muted, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
+            coverCol.Children.Add(new TextBlock { Text = asig, FontSize = 14.5, FontWeight = FontWeight.Bold, Foreground = ink, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 8) });
 
             var bannerStack = Column(6);
             bannerStack.HorizontalAlignment = HorizontalAlignment.Center;
-            bannerStack.Children.Add(new TextBlock { Text = style == "Cornell" ? "Cuaderno Cornell:" : "Apuntes:", FontSize = 19, FontWeight = FontWeight.Bold, Foreground = blueBrush, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
+            bannerStack.Children.Add(new TextBlock { Text = "Apuntes:", FontSize = 18, FontWeight = FontWeight.Bold, Foreground = blueBrush, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
             bannerStack.Children.Add(new TextBlock { Text = work.Title, FontSize = 15, FontWeight = FontWeight.Bold, Foreground = ink, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center });
-            sheetCol.Children.Add(new Border
+            if (work.Subtitle != "" && work.Subtitle != asig)
+                bannerStack.Children.Add(new TextBlock { Text = work.Subtitle, FontSize = 13, Foreground = muted, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center });
+            coverCol.Children.Add(new Border
             {
                 Background = Brush.Parse("#E6EDF5"),
                 BorderBrush = Brush.Parse("#B8CCE0"),
@@ -1569,16 +1630,16 @@ public sealed partial class Studio
             if (work.CoverImage != "")
             {
                 var path = System.IO.Path.Combine(shelf.Media, System.IO.Path.GetFileName(work.CoverImage));
-                if (Thumbnail(path, 480, 140) is { } pic)
+                if (Thumbnail(path, 460, 150) is { } pic)
                 {
-                    pic.MaxHeight = 140;
+                    pic.MaxHeight = 150;
                     pic.Stretch = Stretch.Uniform;
                     pic.HorizontalAlignment = HorizontalAlignment.Center;
-                    sheetCol.Children.Add(new Border { Child = pic, Margin = new Thickness(0, 4) });
+                    coverCol.Children.Add(new Border { Child = pic, Margin = new Thickness(0, 6) });
                 }
             }
 
-            var tableGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("140,*"), RowSpacing = 6, Margin = new Thickness(36, 10, 36, 6) };
+            var tableGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("130,*"), RowSpacing = 6, Margin = new Thickness(28, 10, 28, 6) };
             (string Label, string Val)[] rows =
             [
                 ("Clase:", $"{asig} ({clave})"),
@@ -1589,195 +1650,436 @@ public sealed partial class Studio
             for (int r = 0; r < rows.Length; r++)
             {
                 tableGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                var lTb = new TextBlock { Text = rows[r].Label, FontSize = 14, FontWeight = FontWeight.Bold, Foreground = blueBrush };
-                var vTb = new TextBlock { Text = rows[r].Val, FontSize = 14, Foreground = ink, TextWrapping = TextWrapping.Wrap };
+                var lTb = new TextBlock { Text = rows[r].Label, FontSize = 13.5, FontWeight = FontWeight.Bold, Foreground = blueBrush };
+                var vTb = new TextBlock { Text = rows[r].Val, FontSize = 13.5, Foreground = ink, TextWrapping = TextWrapping.Wrap };
                 Grid.SetRow(lTb, r); Grid.SetColumn(lTb, 0);
                 Grid.SetRow(vTb, r); Grid.SetColumn(vTb, 1);
                 tableGrid.Children.Add(lTb);
                 tableGrid.Children.Add(vTb);
             }
-            sheetCol.Children.Add(tableGrid);
+            coverCol.Children.Add(tableGrid);
 
             var studentBox = Column(4);
-            studentBox.Margin = new Thickness(36, 4, 36, 4);
-            studentBox.Children.Add(new TextBlock { Text = "Alumno:", FontSize = 14.5, FontWeight = FontWeight.Bold, Foreground = blueBrush });
-            studentBox.Children.Add(new TextBlock { Text = "•  " + alumno, FontSize = 14, Foreground = ink, Margin = new Thickness(12, 0, 0, 0) });
-            sheetCol.Children.Add(studentBox);
+            studentBox.Margin = new Thickness(28, 6, 28, 10);
+            studentBox.Children.Add(new TextBlock { Text = "Alumno:", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = blueBrush });
+            studentBox.Children.Add(new TextBlock { Text = "•  " + alumno, FontSize = 13.5, Foreground = ink, Margin = new Thickness(12, 0, 0, 0) });
+            coverCol.Children.Add(studentBox);
+            coverCol.Children.Add(new TextBlock { Text = lugarFecha, FontSize = 12, Foreground = muted, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 24, 0, 0) });
+            pages.Add(new DocumentPageItem(1, "Portada Libreta UASLP", null, WrapPaperSheet(coverCol, work, false)));
 
-            sheetCol.Children.Add(new TextBlock { Text = lugarFecha, FontSize = 12.5, Foreground = muted, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 8, 0, 4) });
-            AddTocBlock("Índice", uaslpBlue, uaslpGreen);
-        }
-        else if (work.Type == "Informe")
-        {
-            bool isPractice = style == "PracticaRedes" || work.CoverStyle == "Portada de Práctica (P3/P4/P5)" || work.DocumentFacts.ContainsKey("Materia y ciclo") && Fact("Materia y ciclo") != "";
-            if (isPractice)
+            if (work.Publication.Contents || sections.Count > 1)
             {
-                var materia = Fact("Materia y ciclo", Fact("Departamento", "Interacción de Redes (2025-2026/I)"));
-                var realizada = Fact("Realizada por", Fact("Alumno", work.Author != "" ? work.Author : "Equipo de Laboratorio"));
-                var prof = Fact("Profesor", "Profesor de Laboratorio");
-                var alumno = Fact("Alumno", work.Author != "" ? work.Author : realizada);
-                var carrera = Fact("Carrera y claves", Fact("Institución", "Ingeniería en Sistemas Inteligentes"));
-                var claveMat = Fact("Clave de materia", "2257 · Grupo 1");
-                var fecha = Fact("Fecha", Fact("Periodo del informe", "Noviembre de 2026"));
-
-                sheetCol.Children.Add(new TextBlock { Text = materia, FontSize = 16, FontWeight = FontWeight.SemiBold, Foreground = ink, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
-                sheetCol.Children.Add(new TextBlock { Text = "Realizada por:", FontSize = 13.5, Foreground = muted, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
-                sheetCol.Children.Add(new TextBlock { Text = realizada, FontSize = 14.5, FontWeight = FontWeight.SemiBold, Foreground = ink, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
-                sheetCol.Children.Add(new TextBlock { Text = work.Title, FontSize = 24, FontWeight = FontWeight.Bold, Foreground = ink, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 6) });
-                if (work.Subtitle != "")
-                    sheetCol.Children.Add(new TextBlock { Text = work.Subtitle, FontSize = 14, FontStyle = FontStyle.Italic, Foreground = muted, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center });
-
-                var metaCenter = Column(3);
-                metaCenter.HorizontalAlignment = HorizontalAlignment.Center;
-                metaCenter.Margin = new Thickness(0, 6);
-                foreach (var line in new[]
+                var idxCol = Column(10);
+                idxCol.Margin = new Thickness(44, 42);
+                idxCol.Children.Add(new TextBlock { Text = "Índice", FontSize = 22, FontWeight = FontWeight.Bold, Foreground = blueBrush });
+                idxCol.Children.Add(new Border { Height = 2.2, Background = Brush.Parse(uaslpGreen), Margin = new Thickness(0, 2, 0, 10) });
+                for (int i = 0; i < sections.Count; i++)
                 {
-                    "Profesor: " + prof,
-                    "Alumno: " + alumno,
-                    carrera,
-                    "Clave de la materia: " + claveMat,
-                    "Fecha: " + fecha
-                }.Where(s => !string.IsNullOrWhiteSpace(s)))
-                {
-                    metaCenter.Children.Add(new TextBlock { Text = line, FontSize = 13.5, Foreground = ink, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
+                    var ch = sections[i];
+                    var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), Margin = new Thickness(0, 3) };
+                    row.Children.Add(new TextBlock { Text = $"{i + 1}   ", FontWeight = FontWeight.Bold, Foreground = blueBrush, FontSize = 14 });
+                    var tTb = new TextBlock { Text = ch.Title, Foreground = blueBrush, FontWeight = FontWeight.SemiBold, FontSize = 14 };
+                    Grid.SetColumn(tTb, 1);
+                    row.Children.Add(tTb);
+                    var pTb = new TextBlock { Text = $"{i + 2}", Foreground = blueBrush, FontWeight = FontWeight.Bold, FontSize = 14 };
+                    Grid.SetColumn(pTb, 2);
+                    row.Children.Add(pTb);
+                    idxCol.Children.Add(row);
                 }
-                sheetCol.Children.Add(metaCenter);
-                if (work.CoverImage != "")
+                pages.Add(new DocumentPageItem(2, "Índice", null, WrapPaperSheet(idxCol, work, false)));
+            }
+        }
+
+        List<Control> BuildSectionBlockControls(Chapter section)
+        {
+            var controls = new List<Control>();
+
+            if (section.Detail != "")
+            {
+                var detailTitle = work.Type == "Apuntes" ? "Conceptos y preguntas" : EditorialTemplate.DetailLabel(work.Type);
+                var detailBox = Column(3);
+                detailBox.Children.Add(new TextBlock { Text = detailTitle, FontSize = 12, FontWeight = FontWeight.Bold, Foreground = accentBrush });
+                detailBox.Children.Add(new TextBlock { Text = section.Detail, FontSize = 13, FontStyle = FontStyle.Italic, Foreground = ink, TextWrapping = TextWrapping.Wrap });
+                controls.Add(new Border
                 {
-                    var path = System.IO.Path.Combine(shelf.Media, System.IO.Path.GetFileName(work.CoverImage));
-                    if (Thumbnail(path, 520, 160) is { } pic)
+                    Background = EditionPalette.Mix(accentHex, "#FFFFFF", 0.10),
+                    BorderBrush = EditionPalette.Mix(accentHex, "#FFFFFF", 0.35),
+                    BorderThickness = new Thickness(3, 0, 0, 0),
+                    CornerRadius = new CornerRadius(2),
+                    Padding = new Thickness(12, 8),
+                    Child = detailBox
+                });
+            }
+
+            Control BuildIllustrationControl(int index, bool small = false)
+            {
+                var holder = Column(4);
+                var path = System.IO.Path.Combine(shelf.Media, System.IO.Path.GetFileName(section.Images[index]));
+                try
+                {
+                    using var file = File.OpenRead(path);
+                    var bitmap = Bitmap.DecodeToWidth(file, decodeWidth);
+                    var layout = Illustrations.Layout(section, index);
+                    var img = new Image
                     {
-                        pic.MaxHeight = 160;
-                        pic.Stretch = Stretch.Uniform;
-                        pic.HorizontalAlignment = HorizontalAlignment.Center;
-                        sheetCol.Children.Add(pic);
-                    }
+                        Source = bitmap,
+                        Stretch = Stretch.Uniform,
+                        MaxHeight = small ? 150 : layout == "Página completa" ? 420 : layout.StartsWith("Ajustar") ? 210 : 310,
+                        HorizontalAlignment = layout.EndsWith("izquierda") ? HorizontalAlignment.Left : layout.EndsWith("derecha") ? HorizontalAlignment.Right : HorizontalAlignment.Center
+                    };
+                    img.DetachedFromVisualTree += (_, _) => bitmap.Dispose();
+                    holder.Children.Add(img);
                 }
-                AddTocBlock("Contenido", accentHex);
+                catch (Exception e) when (e is IOException or ArgumentException)
+                {
+                    holder.Children.Add(new TextBlock { Text = "Ilustración no disponible", Foreground = muted });
+                }
+                if (section.ImageCaptions.TryGetValue(index, out var caption) && caption != "")
+                {
+                    holder.Children.Add(new TextBlock
+                    {
+                        Text = caption,
+                        FontSize = 12,
+                        FontStyle = FontStyle.Italic,
+                        Foreground = muted,
+                        TextAlignment = TextAlignment.Center,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        TextWrapping = TextWrapping.Wrap
+                    });
+                }
+                return holder;
+            }
+
+            void CollectTextSegmentControls(string segment)
+            {
+                var tempPanel = Column(8);
+                AddStyledBlocks(tempPanel, segment, accentHex, ink, isNovel ? 15.5 : 13.8, isNovel);
+                foreach (var child in tempPanel.Children.ToList())
+                {
+                    tempPanel.Children.Remove(child);
+                    controls.Add(child);
+                }
+            }
+
+            var rows = Illustrations.Rows(section).ToList();
+            var used = new HashSet<int>();
+            int start = 0;
+            if (rows.Count == 0 && section.Images.Count > 0 && Illustrations.Layout(section, 0).StartsWith("Ajustar"))
+            {
+                controls.Add(BuildIllustrationControl(0));
+                used.Add(0);
+            }
+            foreach (var row in rows)
+            {
+                CollectTextSegmentControls(section.PlainText[start..row[0].Start]);
+                if (row.Count == 1)
+                {
+                    int index = row[0].Image;
+                    used.Add(index);
+                    controls.Add(BuildIllustrationControl(index));
+                }
+                else
+                {
+                    var strip = new Grid { ColumnDefinitions = new ColumnDefinitions(string.Join(",", row.Select(_ => "*"))), ColumnSpacing = 12 };
+                    for (int col = 0; col < row.Count; col++)
+                    {
+                        int index = row[col].Image;
+                        used.Add(index);
+                        var cell = BuildIllustrationControl(index, true);
+                        Grid.SetColumn(cell, col);
+                        strip.Children.Add(cell);
+                    }
+                    controls.Add(strip);
+                }
+                start = row[^1].End;
+            }
+            CollectTextSegmentControls(section.PlainText[start..]);
+            for (int i = 0; i < section.Images.Count; i++)
+                if (!used.Contains(i)) controls.Add(BuildIllustrationControl(i));
+
+            if (section.Summary != "")
+            {
+                var sumCol = Column(4);
+                sumCol.Children.Add(new TextBlock
+                {
+                    Text = work.Type == "Apuntes" ? "Síntesis" : "Síntesis / Conclusión",
+                    FontSize = 12,
+                    FontWeight = FontWeight.Bold,
+                    Foreground = accentBrush
+                });
+                AddStyledBlocks(sumCol, section.Summary, accentHex, ink, 13);
+                controls.Add(new Border
+                {
+                    Background = EditionPalette.Mix(accentHex, "#FFFFFF", 0.08),
+                    BorderBrush = accentBrush,
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(3),
+                    Padding = new Thickness(12, 8),
+                    Child = sumCol
+                });
+            }
+
+            return controls;
+        }
+
+        static double EstimateControlWeight(Control ctrl)
+        {
+            if (ctrl is Border b && b.Tag as string == "PageBreak") return 999;
+            if (ctrl is TextBlock tb)
+            {
+                int len = tb.Text?.Length ?? (tb.Inlines?.Count ?? 1) * 28;
+                return Math.Max(1.5, Math.Ceiling(len / 78.0) * 1.45);
+            }
+            if (ctrl is Grid) return 6.5;
+            if (ctrl is StackPanel sp) return Math.Max(4.0, sp.Children.Count * 2.2);
+            if (ctrl is Border) return 4.5;
+            return 3.0;
+        }
+
+        void AddInlineFirstPageMasthead(StackPanel paper)
+        {
+            if (work.Type == "Carta")
+            {
+                var placeDate = Fact("Lugar y fecha", "Ciudad, a fecha actual");
+                var subject = Fact("Asunto", work.Title);
+                var recipient = Fact("Destinatario", "");
+                var address = Fact("Dirección", "");
+                paper.Children.Add(new TextBlock { Text = placeDate, FontSize = 13, Foreground = muted, TextAlignment = TextAlignment.Right, HorizontalAlignment = HorizontalAlignment.Right });
+                paper.Children.Add(new TextBlock { Text = "ASUNTO: " + subject, FontSize = 14.5, FontWeight = FontWeight.Bold, Foreground = accentBrush, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 6) });
+                if (recipient != "" || address != "")
+                {
+                    var recBlock = Column(2);
+                    recBlock.Children.Add(new TextBlock { Text = "Dirigido a:", FontSize = 13, Foreground = muted });
+                    if (recipient != "") recBlock.Children.Add(new TextBlock { Text = recipient, FontSize = 14.5, FontWeight = FontWeight.Bold, Foreground = ink });
+                    if (address != "") recBlock.Children.Add(new TextBlock { Text = address, FontSize = 13, Foreground = ink });
+                    recBlock.Children.Add(new TextBlock { Text = "PRESENTE.", FontSize = 13.5, FontWeight = FontWeight.Bold, Foreground = ink });
+                    paper.Children.Add(recBlock);
+                }
+                paper.Children.Add(new Border { Height = 1.2, Background = accentBrush, Margin = new Thickness(0, 4, 0, 8) });
+            }
+            else if (isPractica)
+            {
+                var materia = Fact("Materia y ciclo", Fact("Departamento", "Interacción de Redes"));
+                var realizada = Fact("Realizada por", Fact("Alumno", work.Author));
+                var centerHead = Column(3);
+                centerHead.HorizontalAlignment = HorizontalAlignment.Center;
+                centerHead.Children.Add(new TextBlock { Text = materia, FontSize = 15, FontWeight = FontWeight.SemiBold, Foreground = ink, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
+                if (realizada != "")
+                {
+                    centerHead.Children.Add(new TextBlock { Text = "Realizada por:", FontSize = 12.5, Foreground = muted, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
+                    centerHead.Children.Add(new TextBlock { Text = realizada, FontSize = 13.5, FontWeight = FontWeight.Bold, Foreground = ink, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
+                }
+                centerHead.Children.Add(new TextBlock { Text = work.Title, FontSize = 21, FontWeight = FontWeight.Bold, Foreground = ink, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 4) });
+                foreach (var k in EditorialTemplate.FrontMatter(work.Type))
+                {
+                    if (k is "Materia y ciclo" or "Realizada por") continue;
+                    var fv = Fact(k);
+                    if (fv != "")
+                        centerHead.Children.Add(new TextBlock { Text = $"{k}: {fv}", FontSize = 12.5, Foreground = ink, TextAlignment = TextAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
+                }
+                paper.Children.Add(centerHead);
+                paper.Children.Add(new Border { Height = 1, Background = Brush.Parse("#CFD7DE"), Margin = new Thickness(0, 6) });
             }
             else
             {
-                var banner = Column(6);
-                banner.Children.Add(new TextBlock { Text = work.Template.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeight.Bold, Foreground = Brush.Parse("#D8E6F2"), LetterSpacing = 1.2 });
-                banner.Children.Add(new TextBlock { Text = work.Title, FontSize = 26, FontWeight = FontWeight.Bold, Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap });
+                var topHead = Column(4);
+                topHead.Children.Add(new TextBlock { Text = work.Title, FontSize = 24, FontWeight = FontWeight.Bold, Foreground = accentBrush, TextWrapping = TextWrapping.Wrap });
                 if (work.Subtitle != "")
-                    banner.Children.Add(new TextBlock { Text = work.Subtitle, FontSize = 14, Foreground = Brush.Parse("#E6EFF7"), TextWrapping = TextWrapping.Wrap });
+                    topHead.Children.Add(new TextBlock { Text = work.Subtitle, FontSize = 14, Foreground = muted, TextWrapping = TextWrapping.Wrap });
                 if (work.Author != "")
-                    banner.Children.Add(new TextBlock { Text = work.Author, FontSize = 13.5, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White });
-                sheetCol.Children.Add(new Border { Background = accentBrush, CornerRadius = new CornerRadius(4), Padding = new Thickness(22, 18), Child = banner });
-                if (work.CoverImage != "")
+                    topHead.Children.Add(new TextBlock { Text = work.Author, FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = ink });
+                paper.Children.Add(topHead);
+                paper.Children.Add(new Border { Height = 1.4, Background = accentBrush, Margin = new Thickness(0, 2, 0, 4) });
+                AddFrontMatterTable(paper, work, accentHex, ink);
+            }
+        }
+
+        void AddRunningHeader(StackPanel paper)
+        {
+            var runningHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+            if (work.Type == "Apuntes")
+            {
+                var asig = Fact("Asignatura", work.Title);
+                var clave = Fact("Clave de clase", work.Template);
+                runningHeader.Children.Add(new TextBlock { Text = asig, FontSize = 11.5, FontWeight = FontWeight.SemiBold, Foreground = muted });
+                var rightTb = new TextBlock { Text = $"{clave}  ·  {work.Title}", FontSize = 11.5, Foreground = muted };
+                Grid.SetColumn(rightTb, 1);
+                runningHeader.Children.Add(rightTb);
+                paper.Children.Add(runningHeader);
+                paper.Children.Add(new Border { Height = 1.1, Background = Brush.Parse("#004785") });
+            }
+            else
+            {
+                runningHeader.Children.Add(new TextBlock
                 {
-                    var path = System.IO.Path.Combine(shelf.Media, System.IO.Path.GetFileName(work.CoverImage));
-                    if (Thumbnail(path, 560, 170) is { } pic)
+                    Text = work.Title,
+                    FontSize = 12,
+                    FontStyle = isNovel ? FontStyle.Italic : FontStyle.Normal,
+                    FontWeight = isNovel ? FontWeight.Normal : FontWeight.SemiBold,
+                    Foreground = muted
+                });
+                var rightMeta = new TextBlock
+                {
+                    Text = isNovel ? (work.Author != "" ? work.Author : "Novela") : work.Type,
+                    FontSize = 11.5,
+                    Foreground = muted
+                };
+                Grid.SetColumn(rightMeta, 1);
+                runningHeader.Children.Add(rightMeta);
+                paper.Children.Add(runningHeader);
+                paper.Children.Add(new Border { Height = 1, Background = Brush.Parse("#D8D2C5") });
+            }
+        }
+
+        bool needsInlineMastheadOnFirstSection = !isNovel && !isLibreta;
+
+        for (int sIdx = 0; sIdx < sections.Count; sIdx++)
+        {
+            var section = sections[sIdx];
+            var allControls = BuildSectionBlockControls(section);
+            var chunks = new List<List<Control>>();
+            var currentChunk = new List<Control>();
+            double currentWeight = 0;
+            double maxWeight = (sIdx == 0 && needsInlineMastheadOnFirstSection) ? 14.0 : (isNovel ? 19.0 : 21.0);
+
+            foreach (var ctrl in allControls)
+            {
+                double w = EstimateControlWeight(ctrl);
+                if (w >= 900)
+                {
+                    if (currentChunk.Count > 0) chunks.Add(currentChunk);
+                    currentChunk = [];
+                    currentWeight = 0;
+                    maxWeight = isNovel ? 19.0 : 21.0;
+                    continue;
+                }
+                if (currentChunk.Count > 0 && currentWeight + w > maxWeight)
+                {
+                    chunks.Add(currentChunk);
+                    currentChunk = [];
+                    currentWeight = 0;
+                    maxWeight = isNovel ? 19.0 : 21.0;
+                }
+                currentChunk.Add(ctrl);
+                currentWeight += w;
+            }
+            if (currentChunk.Count > 0 || chunks.Count == 0)
+                chunks.Add(currentChunk);
+
+            for (int cIdx = 0; cIdx < chunks.Count; cIdx++)
+            {
+                int pageNum = pages.Count + 1;
+                var paper = Column(12);
+                paper.Margin = new Thickness(isNovel ? 44 : 40, 32);
+
+                if (sIdx == 0 && cIdx == 0 && needsInlineMastheadOnFirstSection)
+                {
+                    AddInlineFirstPageMasthead(paper);
+                }
+                else
+                {
+                    AddRunningHeader(paper);
+                }
+
+                if (cIdx == 0)
+                {
+                    if (isNovel)
                     {
-                        pic.MaxHeight = 170;
-                        pic.Stretch = Stretch.Uniform;
-                        pic.HorizontalAlignment = HorizontalAlignment.Center;
-                        sheetCol.Children.Add(pic);
+                        var chapHeader = Column(4);
+                        chapHeader.Margin = new Thickness(0, 8, 0, 6);
+                        chapHeader.HorizontalAlignment = HorizontalAlignment.Center;
+                        chapHeader.Children.Add(new TextBlock
+                        {
+                            Text = section.Level == "Arc" ? "PARTE" : $"CAPÍTULO {sIdx + 1}",
+                            FontSize = 11,
+                            FontWeight = FontWeight.Bold,
+                            LetterSpacing = 1.8,
+                            Foreground = Brush.Parse("#8C6D3B"),
+                            HorizontalAlignment = HorizontalAlignment.Center
+                        });
+                        chapHeader.Children.Add(new TextBlock
+                        {
+                            Text = section.Title,
+                            FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
+                            FontSize = 26,
+                            FontWeight = FontWeight.Bold,
+                            Foreground = ink,
+                            TextWrapping = TextWrapping.Wrap,
+                            TextAlignment = TextAlignment.Center,
+                            HorizontalAlignment = HorizontalAlignment.Center
+                        });
+                        chapHeader.Children.Add(new Border { Width = 84, Height = 1.1, Background = Brush.Parse("#C5A368"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 3) });
+                        paper.Children.Add(chapHeader);
+                    }
+                    else if (work.Type == "Apuntes")
+                    {
+                        var secHead = Column(3);
+                        secHead.Children.Add(new TextBlock
+                        {
+                            Text = $"{sIdx + 1}.  {section.Title}",
+                            FontSize = 20,
+                            FontWeight = FontWeight.Bold,
+                            Foreground = Brush.Parse("#004785"),
+                            TextWrapping = TextWrapping.Wrap
+                        });
+                        secHead.Children.Add(new Border { Height = 2.2, Background = Brush.Parse("#22714B") });
+                        paper.Children.Add(secHead);
+                    }
+                    else if (work.Type != "Carta")
+                    {
+                        var secHead = Column(3);
+                        secHead.Children.Add(new TextBlock
+                        {
+                            Text = section.Title,
+                            FontSize = 20,
+                            FontWeight = FontWeight.Bold,
+                            Foreground = accentBrush,
+                            TextWrapping = TextWrapping.Wrap
+                        });
+                        secHead.Children.Add(new Border { Height = 1.2, Background = accentBrush });
+                        paper.Children.Add(secHead);
                     }
                 }
-                AddFrontMatterTable(sheetCol, work, accentHex, ink);
-                AddTocBlock("Contenido del informe", accentHex);
-            }
-        }
-        else if (work.Type == "CV")
-        {
-            return BuildResumeSheetCanvas(work, decodeWidth);
-        }
-        else if (work.Type == "Carta")
-        {
-            var placeDate = Fact("Lugar y fecha", "Ciudad, a fecha actual");
-            var subject = Fact("Asunto", work.Title);
-            var recipient = Fact("Destinatario", "Destinatario institucional");
-            var address = Fact("Dirección", Fact("Cargo o institución", "Presente"));
-            sheetCol.Children.Add(new TextBlock { Text = placeDate, FontSize = 13.5, Foreground = muted, TextAlignment = TextAlignment.Right, HorizontalAlignment = HorizontalAlignment.Right });
-            sheetCol.Children.Add(new TextBlock { Text = "ASUNTO: " + subject, FontSize = 15, FontWeight = FontWeight.Bold, Foreground = accentBrush, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) });
-            var recBlock = Column(2);
-            recBlock.Children.Add(new TextBlock { Text = "Dirigido a:", FontSize = 13.5, Foreground = muted });
-            recBlock.Children.Add(new TextBlock { Text = recipient, FontSize = 15, FontWeight = FontWeight.Bold, Foreground = ink });
-            if (address != "") recBlock.Children.Add(new TextBlock { Text = address, FontSize = 13.5, Foreground = ink });
-            recBlock.Children.Add(new TextBlock { Text = "PRESENTE.", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = ink });
-            sheetCol.Children.Add(recBlock);
-            sheetCol.Children.Add(new Border { Height = 1.5, Background = accentBrush, Margin = new Thickness(0, 6) });
-            if (sections.Count > 0)
-            {
-                var previewBody = Column(10);
-                AddStyledBlocks(previewBody, sections[0].PlainText, accentHex, ink, 14);
-                sheetCol.Children.Add(previewBody);
-            }
-        }
-        else
-        {
-            var topHeader = Column(6);
-            topHeader.Children.Add(new TextBlock { Text = $"{work.Type.ToUpperInvariant()}  ·  {work.Template}", FontSize = 11, FontWeight = FontWeight.Bold, Foreground = accentBrush, LetterSpacing = 1.1 });
-            topHeader.Children.Add(new TextBlock { Text = work.Title, FontSize = 26, FontWeight = FontWeight.Bold, Foreground = ink, TextWrapping = TextWrapping.Wrap });
-            if (work.Subtitle != "")
-                topHeader.Children.Add(new TextBlock { Text = work.Subtitle, FontSize = 15, Foreground = muted, TextWrapping = TextWrapping.Wrap });
-            if (work.Author != "")
-                topHeader.Children.Add(new TextBlock { Text = "Autor / Responsable: " + work.Author, FontSize = 13.5, FontWeight = FontWeight.SemiBold, Foreground = ink });
-            sheetCol.Children.Add(topHeader);
-            sheetCol.Children.Add(new Border { Height = 2, Background = accentBrush });
-            if (work.CoverImage != "")
-            {
-                var path = System.IO.Path.Combine(shelf.Media, System.IO.Path.GetFileName(work.CoverImage));
-                if (Thumbnail(path, 520, 155) is { } pic)
+                else
                 {
-                    pic.MaxHeight = 155;
-                    pic.Stretch = Stretch.Uniform;
-                    pic.HorizontalAlignment = HorizontalAlignment.Center;
-                    sheetCol.Children.Add(pic);
+                    paper.Children.Add(new TextBlock
+                    {
+                        Text = $"{section.Title} (continuación)",
+                        FontSize = 13,
+                        FontStyle = FontStyle.Italic,
+                        Foreground = muted
+                    });
                 }
+
+                foreach (var itemCtrl in chunks[cIdx])
+                    paper.Children.Add(itemCtrl);
+
+                paper.Children.Add(new Border { Height = 1, Background = Brush.Parse("#E2E6EA"), Margin = new Thickness(0, 10, 0, 2) });
+                paper.Children.Add(new TextBlock
+                {
+                    Text = work.Type == "Apuntes" ? $"{pageNum}" : $"—  {pageNum}  —",
+                    FontSize = 12.5,
+                    FontWeight = work.Type == "Apuntes" ? FontWeight.Bold : FontWeight.Normal,
+                    Foreground = work.Type == "Apuntes" ? Brush.Parse("#004785") : muted,
+                    HorizontalAlignment = HorizontalAlignment.Center
+                });
+
+                var pageLabel = chunks.Count > 1
+                    ? $"{section.Title} ({cIdx + 1}/{chunks.Count})"
+                    : section.Title;
+                pages.Add(new DocumentPageItem(pageNum, pageLabel, section, WrapPaperSheet(paper, work, isNovel)));
             }
-            AddFrontMatterTable(sheetCol, work, accentHex, ink);
-            AddTocBlock("Índice de secciones", accentHex);
         }
 
-        return new Border
+        if (isNovel && work.Publication.BackCover && (work.Description != "" || work.BackImage != ""))
         {
-            Background = pagePaper,
-            BorderBrush = Brush.Parse("#C9D1D8"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(3),
-            BoxShadow = BoxShadows.Parse("0 12 28 #24000000"),
-            Child = sheetCol,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-    }
-
-    void AddFrontMatterTable(StackPanel target, Work work, string accentHex, IBrush ink)
-    {
-        var keys = EditorialTemplate.FrontMatter(work.Type)
-            .Where(k => !string.IsNullOrWhiteSpace(work.DocumentFacts.GetValueOrDefault(k)))
-            .ToArray();
-        if (keys.Length == 0) return;
-        var tbl = Column(0);
-        foreach (var k in keys)
-        {
-            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("180,*") };
-            row.Children.Add(new Border
-            {
-                Background = EditionPalette.Mix(accentHex, "#FFFFFF", 0.14),
-                BorderBrush = Brush.Parse("#CFD7DE"),
-                BorderThickness = new Thickness(0.6),
-                Padding = new Thickness(10, 6),
-                Child = new TextBlock { Text = k, FontSize = 13, FontWeight = FontWeight.Bold, Foreground = Brush.Parse(accentHex) }
-            });
-            var valBorder = new Border
-            {
-                Background = Brushes.White,
-                BorderBrush = Brush.Parse("#CFD7DE"),
-                BorderThickness = new Thickness(0.6),
-                Padding = new Thickness(10, 6),
-                Child = new TextBlock { Text = work.DocumentFacts[k], FontSize = 13, Foreground = ink, TextWrapping = TextWrapping.Wrap }
-            };
-            Grid.SetColumn(valBorder, 1);
-            row.Children.Add(valBorder);
-            tbl.Children.Add(row);
+            pages.Add(new DocumentPageItem(pages.Count + 1, "Contraportada", null, BuildNovelCoverCanvas(work, true, decodeWidth)));
         }
-        target.Children.Add(tbl);
+
+        return pages;
     }
 
-    Border BuildResumeSheetCanvas(Work work, int decodeWidth = 720, Chapter? highlightSection = null)
+    List<DocumentPageItem> BuildPaginatedResumePages(Work work, int decodeWidth)
     {
         var style = ResolveTemplateStyle(work);
         var accentHex = ResolveFormatAccentHex(work);
@@ -1789,38 +2091,37 @@ public sealed partial class Studio
         var profession = Contact("Profesión") != "" ? Contact("Profesión") : work.Subtitle;
         var contacts = new[] { "Correo", "Teléfono", "Ciudad", "Portafolio", "Perfil profesional en línea" }
             .Select(Contact).Where(s => s != "").ToArray();
-        var ordered = WorldModel.Ordered(work).ToList();
+        static bool HasCvContent(Chapter c) => c.PlainText != "" || c.Detail != "" || c.Summary != "" || c.Entries.Count > 0 || c.Images.Count > 0;
+        var allOrdered = WorldModel.Ordered(work).ToList();
+        var populated = allOrdered.Any(HasCvContent) ? allOrdered.Where(HasCvContent).ToList() : allOrdered;
 
-        Control RenderCvSection(Chapter sec, bool compact = false)
+        Control RenderCvSection(Chapter sec)
         {
-            bool highlighted = highlightSection == sec;
-            var secStack = Column(6);
-            var headRow = new DockPanel();
-            headRow.Children.Add(new TextBlock
+            var secStack = Column(5);
+            secStack.Children.Add(new TextBlock
             {
                 Text = sec.Title.ToUpperInvariant(),
-                FontSize = compact ? 13 : 14.5,
+                FontSize = 14,
                 FontWeight = FontWeight.Bold,
                 LetterSpacing = 0.8,
                 Foreground = style == "Minimalista" ? ink : accentBrush
             });
-            secStack.Children.Add(headRow);
             secStack.Children.Add(new Border
             {
-                Height = style == "Ejecutiva" ? 2 : 1,
+                Height = style == "Ejecutiva" ? 1.8 : 1,
                 Background = style == "Minimalista" ? Brush.Parse("#222222") : accentBrush
             });
             if (sec.Detail != "")
                 secStack.Children.Add(new TextBlock { Text = sec.Detail, FontSize = 12, FontStyle = FontStyle.Italic, Foreground = muted });
             if (!string.IsNullOrWhiteSpace(sec.PlainText))
-                AddStyledBlocks(secStack, sec.PlainText, accentHex, ink, compact ? 12.5 : 13.5);
+                AddStyledBlocks(secStack, sec.PlainText, accentHex, ink, 13);
             foreach (var entry in sec.Entries)
             {
                 if (string.IsNullOrWhiteSpace(entry.Heading) && string.IsNullOrWhiteSpace(entry.Description)) continue;
                 var entryCol = Column(2);
-                entryCol.Margin = new Thickness(0, 4, 0, 2);
+                entryCol.Margin = new Thickness(0, 3, 0, 2);
                 var topLine = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-                topLine.Children.Add(new TextBlock { Text = entry.Heading, FontSize = compact ? 13 : 14, FontWeight = FontWeight.Bold, Foreground = ink, TextWrapping = TextWrapping.Wrap });
+                topLine.Children.Add(new TextBlock { Text = entry.Heading, FontSize = 13.5, FontWeight = FontWeight.Bold, Foreground = ink, TextWrapping = TextWrapping.Wrap });
                 if (entry.Period != "")
                 {
                     var perTb = new TextBlock { Text = entry.Period, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = accentBrush, Margin = new Thickness(8, 0, 0, 0) };
@@ -1831,462 +2132,110 @@ public sealed partial class Studio
                 if (entry.Organization != "")
                     entryCol.Children.Add(new TextBlock { Text = entry.Organization, FontSize = 12.5, FontStyle = FontStyle.Italic, Foreground = muted });
                 if (!string.IsNullOrWhiteSpace(entry.Description))
-                    AddStyledBlocks(entryCol, entry.Description, accentHex, ink, compact ? 12 : 13);
+                    AddStyledBlocks(entryCol, entry.Description, accentHex, ink, 12.5);
                 secStack.Children.Add(entryCol);
             }
-            if (!highlighted) return secStack;
-            return new Border
-            {
-                Background = EditionPalette.Mix(accentHex, "#FFFFFF", 0.06),
-                BorderBrush = accentBrush,
-                BorderThickness = new Thickness(2, 0, 0, 0),
-                Padding = new Thickness(10, 6, 4, 6),
-                Child = secStack
-            };
+            return secStack;
         }
 
-        if (style == "BandaLateral")
+        Control BuildCvHeader()
         {
-            var grid = new Grid { Width = 740, ColumnDefinitions = new ColumnDefinitions("230,*") };
-            var sideCol = Column(12);
-            sideCol.Margin = new Thickness(20, 26);
-            if (work.CoverImage != "")
+            if (style is "Moderna" or "Ejecutiva" or "BandaLateral")
             {
-                var path = System.IO.Path.Combine(shelf.Media, System.IO.Path.GetFileName(work.CoverImage));
-                if (Thumbnail(path, 220, 110) is { } avatar)
-                {
-                    avatar.Width = 104; avatar.Height = 104; avatar.Stretch = Stretch.UniformToFill;
-                    sideCol.Children.Add(new Border { Width = 104, Height = 104, CornerRadius = new CornerRadius(52), ClipToBounds = true, BorderBrush = Brushes.White, BorderThickness = new Thickness(2), HorizontalAlignment = HorizontalAlignment.Center, Child = avatar });
-                }
+                var bannerBg = style == "Ejecutiva" ? Brush.Parse("#1F2A36") : style == "BandaLateral" ? Brush.Parse("#223448") : accentBrush;
+                var headStack = Column(3);
+                headStack.Children.Add(new TextBlock { Text = name, FontSize = 24, FontWeight = FontWeight.Bold, Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap });
+                if (profession != "")
+                    headStack.Children.Add(new TextBlock { Text = profession, FontSize = 14, Foreground = Brush.Parse("#E6EEF6"), TextWrapping = TextWrapping.Wrap });
+                if (work.Title != name)
+                    headStack.Children.Add(new TextBlock { Text = work.Title, FontSize = 11.5, Foreground = Brush.Parse("#C8D6E4") });
+                if (contacts.Length > 0)
+                    headStack.Children.Add(new TextBlock { Text = string.Join("   ·   ", contacts), FontSize = 11.5, Foreground = Brush.Parse("#F5E3B8"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+                return new Border { Background = bannerBg, CornerRadius = new CornerRadius(4), Padding = new Thickness(20, 14), Child = headStack };
             }
-            sideCol.Children.Add(new TextBlock { Text = name, FontSize = 20, FontWeight = FontWeight.Bold, Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap });
-            if (profession != "")
-                sideCol.Children.Add(new TextBlock { Text = profession, FontSize = 13, Foreground = Brush.Parse("#DCE6F0"), TextWrapping = TextWrapping.Wrap });
-            if (work.Title != name)
-                sideCol.Children.Add(new TextBlock { Text = work.Title, FontSize = 11.5, Foreground = Brush.Parse("#BFD0E0"), TextWrapping = TextWrapping.Wrap });
-            sideCol.Children.Add(new Border { Height = 1, Background = Brush.Parse("#44FFFFFF") });
-            foreach (var c in contacts)
-                sideCol.Children.Add(new TextBlock { Text = "• " + c, FontSize = 12, Foreground = Brush.Parse("#EAF0F6"), TextWrapping = TextWrapping.Wrap });
-
-            var sideChapters = ordered.Where(c => c.Title.Contains("Competencia", StringComparison.OrdinalIgnoreCase) || c.Title.Contains("Habilidad", StringComparison.OrdinalIgnoreCase) || c.Title.Contains("Idioma", StringComparison.OrdinalIgnoreCase) || c.Title.Contains("Stack", StringComparison.OrdinalIgnoreCase)).ToList();
-            var mainChapters = ordered.Except(sideChapters).ToList();
-            foreach (var sc in sideChapters)
-            {
-                sideCol.Children.Add(new Border { Height = 1, Background = Brush.Parse("#33FFFFFF"), Margin = new Thickness(0, 4) });
-                sideCol.Children.Add(new TextBlock { Text = sc.Title.ToUpperInvariant(), FontSize = 12, FontWeight = FontWeight.Bold, Foreground = Brush.Parse("#F2CC76") });
-                if (!string.IsNullOrWhiteSpace(sc.PlainText))
-                    sideCol.Children.Add(new TextBlock { Text = sc.PlainText.Replace("**", ""), FontSize = 11.5, Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap });
-            }
-
-            grid.Children.Add(new Border { Background = Brush.Parse("#223448"), Child = sideCol });
-            var rightCol = Column(14);
-            rightCol.Margin = new Thickness(26, 26);
-            foreach (var mc in mainChapters) rightCol.Children.Add(RenderCvSection(mc));
-            var rightHost = new Border { Background = Brushes.White, Child = rightCol };
-            Grid.SetColumn(rightHost, 1);
-            grid.Children.Add(rightHost);
-            return new Border { Child = grid, BorderBrush = Brush.Parse("#C5CFD8"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(3), BoxShadow = BoxShadows.Parse("0 12 28 #24000000"), HorizontalAlignment = HorizontalAlignment.Center };
-        }
-
-        var pageCol = Column(14);
-        pageCol.Width = 740;
-        pageCol.Margin = new Thickness(40, 34);
-
-        if (style is "Moderna" or "Ejecutiva")
-        {
-            var bannerBg = style == "Ejecutiva" ? Brush.Parse("#1F2A36") : accentBrush;
-            var headStack = Column(4);
-            headStack.Children.Add(new TextBlock { Text = name, FontSize = 26, FontWeight = FontWeight.Bold, Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap });
-            if (profession != "")
-                headStack.Children.Add(new TextBlock { Text = profession, FontSize = 14.5, Foreground = Brush.Parse("#E6EEF6"), TextWrapping = TextWrapping.Wrap });
-            if (work.Title != name)
-                headStack.Children.Add(new TextBlock { Text = work.Title, FontSize = 12, Foreground = Brush.Parse("#C8D6E4") });
-            if (contacts.Length > 0)
-                headStack.Children.Add(new TextBlock { Text = string.Join("   ·   ", contacts), FontSize = 12, Foreground = Brush.Parse("#F5E3B8"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
-            pageCol.Children.Add(new Border { Background = bannerBg, CornerRadius = new CornerRadius(4), Padding = new Thickness(22, 16), Child = headStack });
-        }
-        else
-        {
             bool centered = style == "Académica";
-            var headStack = Column(4);
-            headStack.HorizontalAlignment = centered ? HorizontalAlignment.Center : HorizontalAlignment.Stretch;
-            headStack.Children.Add(new TextBlock
+            var classicHead = Column(3);
+            classicHead.HorizontalAlignment = centered ? HorizontalAlignment.Center : HorizontalAlignment.Stretch;
+            classicHead.Children.Add(new TextBlock
             {
                 Text = name,
-                FontSize = 27,
+                FontSize = 25,
                 FontWeight = FontWeight.Bold,
                 Foreground = style == "Minimalista" ? ink : accentBrush,
                 TextAlignment = centered ? TextAlignment.Center : TextAlignment.Left
             });
             if (profession != "")
-            {
-                headStack.Children.Add(new TextBlock
-                {
-                    Text = profession,
-                    FontSize = 15,
-                    Foreground = muted,
-                    TextAlignment = centered ? TextAlignment.Center : TextAlignment.Left
-                });
-            }
+                classicHead.Children.Add(new TextBlock { Text = profession, FontSize = 14.5, Foreground = muted, TextAlignment = centered ? TextAlignment.Center : TextAlignment.Left });
             if (work.Title != name)
-            {
-                headStack.Children.Add(new TextBlock
-                {
-                    Text = work.Title,
-                    FontSize = 12,
-                    Foreground = muted,
-                    TextAlignment = centered ? TextAlignment.Center : TextAlignment.Left
-                });
-            }
+                classicHead.Children.Add(new TextBlock { Text = work.Title, FontSize = 11.5, Foreground = muted, TextAlignment = centered ? TextAlignment.Center : TextAlignment.Left });
             if (contacts.Length > 0)
-            {
-                headStack.Children.Add(new TextBlock
-                {
-                    Text = string.Join("  ·  ", contacts),
-                    FontSize = 12.5,
-                    Foreground = muted,
-                    TextWrapping = TextWrapping.Wrap,
-                    TextAlignment = centered ? TextAlignment.Center : TextAlignment.Left
-                });
-            }
-            headStack.Children.Add(new Border { Height = style == "Académica" ? 1.5 : 1, Background = style == "Minimalista" ? ink : accentBrush, Margin = new Thickness(0, 4, 0, 0) });
-            pageCol.Children.Add(headStack);
+                classicHead.Children.Add(new TextBlock { Text = string.Join("  ·  ", contacts), FontSize = 12, Foreground = muted, TextWrapping = TextWrapping.Wrap, TextAlignment = centered ? TextAlignment.Center : TextAlignment.Left });
+            classicHead.Children.Add(new Border { Height = 1.2, Background = style == "Minimalista" ? ink : accentBrush, Margin = new Thickness(0, 4, 0, 0) });
+            return classicHead;
         }
 
-        if (style == "DosColumnas" && ordered.Count >= 3)
+        var cvPages = new List<DocumentPageItem>();
+        var currentSections = new List<Chapter>();
+        double weight = 0;
+        foreach (var sec in populated)
         {
-            pageCol.Children.Add(RenderCvSection(ordered[0], true));
-            var twoCols = new Grid { ColumnDefinitions = new ColumnDefinitions("1.15*,0.85*"), ColumnSpacing = 22 };
-            var leftC = Column(12);
-            var rightC = Column(12);
-            for (int i = 1; i < ordered.Count; i++)
+            double secW = 3.0 + Math.Max(1, sec.Entries.Count * 3.5) + Math.Ceiling(sec.PlainText.Length / 90.0);
+            if (currentSections.Count > 0 && weight + secW > (cvPages.Count == 0 ? 18.0 : 22.0))
             {
-                if (i <= (ordered.Count / 2)) leftC.Children.Add(RenderCvSection(ordered[i], true));
-                else rightC.Children.Add(RenderCvSection(ordered[i], true));
+                var pCol = Column(12);
+                pCol.Margin = new Thickness(38, 32);
+                if (cvPages.Count == 0) pCol.Children.Add(BuildCvHeader());
+                foreach (var cs in currentSections) pCol.Children.Add(RenderCvSection(cs));
+                cvPages.Add(new DocumentPageItem(cvPages.Count + 1, $"Hoja {cvPages.Count + 1} · {currentSections[0].Title}", currentSections[0], WrapPaperSheet(pCol, work, false)));
+                currentSections = [];
+                weight = 0;
             }
-            twoCols.Children.Add(leftC);
-            Grid.SetColumn(rightC, 1);
-            twoCols.Children.Add(rightC);
-            pageCol.Children.Add(twoCols);
+            currentSections.Add(sec);
+            weight += secW;
         }
-        else
+        if (currentSections.Count > 0 || cvPages.Count == 0)
         {
-            foreach (var sec in ordered)
-                pageCol.Children.Add(RenderCvSection(sec));
+            var pCol = Column(12);
+            pCol.Margin = new Thickness(38, 32);
+            if (cvPages.Count == 0) pCol.Children.Add(BuildCvHeader());
+            foreach (var cs in currentSections) pCol.Children.Add(RenderCvSection(cs));
+            var firstSec = currentSections.FirstOrDefault();
+            cvPages.Add(new DocumentPageItem(cvPages.Count + 1, firstSec != null ? firstSec.Title : work.Title, firstSec, WrapPaperSheet(pCol, work, false)));
         }
-
-        return new Border
-        {
-            Background = Brushes.White,
-            BorderBrush = Brush.Parse("#C9D1D8"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(3),
-            BoxShadow = BoxShadows.Parse("0 12 28 #24000000"),
-            Child = pageCol,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
+        return cvPages;
     }
 
-    internal Border BuildDocumentSectionCanvas(Work work, Chapter section, int decodeWidth = 780)
+    void AddFrontMatterTable(StackPanel target, Work work, string accentHex, IBrush ink)
     {
-        if (work.Type == "CV")
-            return BuildResumeSheetCanvas(work, decodeWidth, section);
-
-        var style = ResolveTemplateStyle(work);
-        var accentHex = ResolveFormatAccentHex(work);
-        var accentBrush = Brush.Parse(accentHex);
-        var sections = WorldModel.Ordered(work).ToList();
-        int pageNum = Math.Max(1, sections.IndexOf(section) + 1);
-
-        bool isNovel = work.IsNovel;
-        var paperBg = isNovel ? Brush.Parse("#FAF6EE") : Brushes.White;
-        var ink = Brush.Parse("#1D2227");
-        var muted = Brush.Parse("#545E68");
-
-        var paper = Column(16);
-        paper.Width = isNovel ? 650 : 740;
-        paper.Margin = new Thickness(isNovel ? 54 : 44, 36);
-
-        var runningHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        if (work.Type == "Apuntes")
+        var keys = EditorialTemplate.FrontMatter(work.Type)
+            .Where(k => !string.IsNullOrWhiteSpace(work.DocumentFacts.GetValueOrDefault(k)))
+            .ToArray();
+        if (keys.Length == 0) return;
+        var tbl = Column(0);
+        foreach (var k in keys)
         {
-            var asig = work.DocumentFacts.GetValueOrDefault("Asignatura", work.Title);
-            var clave = work.DocumentFacts.GetValueOrDefault("Clave de clase", work.Template);
-            runningHeader.Children.Add(new TextBlock { Text = asig, FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = muted });
-            var rightTb = new TextBlock { Text = $"{clave}  ·  {work.Title}", FontSize = 12, Foreground = muted };
-            Grid.SetColumn(rightTb, 1);
-            runningHeader.Children.Add(rightTb);
-            paper.Children.Add(runningHeader);
-            paper.Children.Add(new Border { Height = 1.2, Background = Brush.Parse("#004785") });
-        }
-        else
-        {
-            runningHeader.Children.Add(new TextBlock
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("170,*") };
+            row.Children.Add(new Border
             {
-                Text = work.Title,
-                FontSize = 13,
-                FontStyle = isNovel ? FontStyle.Italic : FontStyle.Normal,
-                FontWeight = isNovel ? FontWeight.Normal : FontWeight.SemiBold,
-                Foreground = muted
+                Background = EditionPalette.Mix(accentHex, "#FFFFFF", 0.14),
+                BorderBrush = Brush.Parse("#CFD7DE"),
+                BorderThickness = new Thickness(0.6),
+                Padding = new Thickness(10, 5),
+                Child = new TextBlock { Text = k, FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Brush.Parse(accentHex) }
             });
-            var rightMeta = new TextBlock
+            var valBorder = new Border
             {
-                Text = isNovel ? (work.Author != "" ? work.Author : "Novela") : $"{work.Type}  ·  {work.Template}",
-                FontSize = 12,
-                Foreground = muted
+                Background = Brushes.White,
+                BorderBrush = Brush.Parse("#CFD7DE"),
+                BorderThickness = new Thickness(0.6),
+                Padding = new Thickness(10, 5),
+                Child = new TextBlock { Text = work.DocumentFacts[k], FontSize = 12.5, Foreground = ink, TextWrapping = TextWrapping.Wrap }
             };
-            Grid.SetColumn(rightMeta, 1);
-            runningHeader.Children.Add(rightMeta);
-            paper.Children.Add(runningHeader);
-            paper.Children.Add(new Border { Height = 1, Background = Brush.Parse("#D8D2C5") });
+            Grid.SetColumn(valBorder, 1);
+            row.Children.Add(valBorder);
+            tbl.Children.Add(row);
         }
-
-        if (work.Type == "Carta" && pageNum == 1)
-        {
-            var placeDate = work.DocumentFacts.GetValueOrDefault("Lugar y fecha", "").Trim();
-            if (placeDate != "")
-                paper.Children.Add(new TextBlock { Text = placeDate, FontSize = 13.5, Foreground = muted, TextAlignment = TextAlignment.Right, HorizontalAlignment = HorizontalAlignment.Right });
-            var subject = work.DocumentFacts.GetValueOrDefault("Asunto", work.Title).Trim();
-            paper.Children.Add(new TextBlock { Text = "ASUNTO: " + subject, FontSize = 15, FontWeight = FontWeight.Bold, Foreground = accentBrush, TextWrapping = TextWrapping.Wrap });
-            var rec = work.DocumentFacts.GetValueOrDefault("Destinatario", "").Trim();
-            var addr = work.DocumentFacts.GetValueOrDefault("Dirección", "").Trim();
-            if (rec != "" || addr != "")
-            {
-                var recStack = Column(2);
-                recStack.Children.Add(new TextBlock { Text = "Dirigido a:", FontSize = 13, Foreground = muted });
-                if (rec != "") recStack.Children.Add(new TextBlock { Text = rec, FontSize = 14.5, FontWeight = FontWeight.Bold, Foreground = ink });
-                if (addr != "") recStack.Children.Add(new TextBlock { Text = addr, FontSize = 13.5, Foreground = ink });
-                recStack.Children.Add(new TextBlock { Text = "PRESENTE.", FontSize = 13.5, FontWeight = FontWeight.Bold, Foreground = ink });
-                paper.Children.Add(recStack);
-            }
-        }
-
-        if (isNovel)
-        {
-            var chapHeader = Column(6);
-            chapHeader.Margin = new Thickness(0, 12, 0, 8);
-            chapHeader.HorizontalAlignment = HorizontalAlignment.Center;
-            chapHeader.Children.Add(new TextBlock
-            {
-                Text = section.Level == "Arc" ? "PARTE / ARCO" : $"CAPÍTULO {pageNum}",
-                FontSize = 11.5,
-                FontWeight = FontWeight.Bold,
-                LetterSpacing = 2,
-                Foreground = Brush.Parse("#8C6D3B"),
-                HorizontalAlignment = HorizontalAlignment.Center
-            });
-            chapHeader.Children.Add(new TextBlock
-            {
-                Text = section.Title,
-                FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
-                FontSize = 32,
-                FontWeight = FontWeight.Bold,
-                Foreground = ink,
-                TextWrapping = TextWrapping.Wrap,
-                TextAlignment = TextAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Center
-            });
-            chapHeader.Children.Add(new Border { Width = 96, Height = 1.2, Background = Brush.Parse("#C5A368"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4) });
-            paper.Children.Add(chapHeader);
-        }
-        else if (work.Type == "Apuntes")
-        {
-            var secHead = Column(4);
-            secHead.Children.Add(new TextBlock
-            {
-                Text = $"{pageNum}.  {section.Title}",
-                FontSize = 24,
-                FontWeight = FontWeight.Bold,
-                Foreground = Brush.Parse("#004785"),
-                TextWrapping = TextWrapping.Wrap
-            });
-            secHead.Children.Add(new Border { Height = 2.4, Background = Brush.Parse("#22714B") });
-            paper.Children.Add(secHead);
-        }
-        else
-        {
-            var secHead = Column(4);
-            secHead.Children.Add(new TextBlock
-            {
-                Text = section.Title,
-                FontSize = 26,
-                FontWeight = FontWeight.Bold,
-                Foreground = accentBrush,
-                TextWrapping = TextWrapping.Wrap
-            });
-            secHead.Children.Add(new Border { Height = 1.5, Background = accentBrush });
-            paper.Children.Add(secHead);
-        }
-
-        if (section.Detail != "")
-        {
-            var detailTitle = work.Type == "Apuntes" ? "Conceptos clave y preguntas guía" : EditorialTemplate.DetailLabel(work.Type);
-            var detailBox = Column(3);
-            detailBox.Children.Add(new TextBlock { Text = detailTitle, FontSize = 12, FontWeight = FontWeight.Bold, Foreground = accentBrush });
-            detailBox.Children.Add(new TextBlock { Text = section.Detail, FontSize = 13.5, FontStyle = FontStyle.Italic, Foreground = ink, TextWrapping = TextWrapping.Wrap });
-            paper.Children.Add(new Border
-            {
-                Background = EditionPalette.Mix(accentHex, "#FFFFFF", 0.10),
-                BorderBrush = EditionPalette.Mix(accentHex, "#FFFFFF", 0.35),
-                BorderThickness = new Thickness(3, 0, 0, 0),
-                CornerRadius = new CornerRadius(2),
-                Padding = new Thickness(12, 8),
-                Child = detailBox
-            });
-        }
-
-        void Illustration(int index, Panel destination, bool small = false)
-        {
-            var path = System.IO.Path.Combine(shelf.Media, System.IO.Path.GetFileName(section.Images[index]));
-            try
-            {
-                using var file = File.OpenRead(path);
-                var bitmap = Bitmap.DecodeToWidth(file, decodeWidth);
-                var layout = Illustrations.Layout(section, index);
-                var img = new Image
-                {
-                    Source = bitmap,
-                    Stretch = Stretch.Uniform,
-                    MaxHeight = layout == "Página completa" ? 560 : layout.StartsWith("Ajustar") ? 230 : 400,
-                    HorizontalAlignment = layout.EndsWith("izquierda") ? HorizontalAlignment.Left : layout.EndsWith("derecha") ? HorizontalAlignment.Right : HorizontalAlignment.Center
-                };
-                if (small) img.MaxHeight = 165;
-                img.DetachedFromVisualTree += (_, _) => bitmap.Dispose();
-                destination.Children.Add(img);
-            }
-            catch (Exception e) when (e is IOException or ArgumentException)
-            {
-                destination.Children.Add(new TextBlock { Text = "Ilustración no disponible", Foreground = muted });
-            }
-            if (section.ImageCaptions.TryGetValue(index, out var caption) && caption != "")
-            {
-                destination.Children.Add(new TextBlock
-                {
-                    Text = caption,
-                    FontSize = 12.5,
-                    FontStyle = FontStyle.Italic,
-                    Foreground = muted,
-                    TextAlignment = TextAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    TextWrapping = TextWrapping.Wrap
-                });
-            }
-        }
-
-        var contentTarget = paper;
-        if (!isNovel && work.Type == "Apuntes" && style == "Cornell" && section.Detail != "")
-        {
-            var cornellGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("190,*"), ColumnSpacing = 16 };
-            var cuePanel = Column(6);
-            cuePanel.Children.Add(new TextBlock { Text = "COLUMNA DE CLAVES", FontSize = 11, FontWeight = FontWeight.Bold, Foreground = Brush.Parse("#004785") });
-            foreach (var cue in section.Detail.Split(['·', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                cuePanel.Children.Add(new TextBlock { Text = "• " + cue, FontSize = 12.5, Foreground = ink, TextWrapping = TextWrapping.Wrap });
-            cornellGrid.Children.Add(new Border
-            {
-                Background = Brush.Parse("#F3F7FB"),
-                BorderBrush = Brush.Parse("#C9D9E8"),
-                BorderThickness = new Thickness(0, 0, 1.5, 0),
-                Padding = new Thickness(10, 10, 12, 10),
-                Child = cuePanel
-            });
-            var notesCol = Column(12);
-            Grid.SetColumn(notesCol, 1);
-            cornellGrid.Children.Add(notesCol);
-            paper.Children.Add(cornellGrid);
-            contentTarget = notesCol;
-        }
-
-        var rows = Illustrations.Rows(section).ToList();
-        var used = new HashSet<int>();
-        int start = 0;
-        if (rows.Count == 0 && section.Images.Count > 0 && Illustrations.Layout(section, 0).StartsWith("Ajustar"))
-        {
-            Illustration(0, contentTarget);
-            used.Add(0);
-        }
-        foreach (var row in rows)
-        {
-            AddStyledBlocks(contentTarget, section.PlainText[start..row[0].Start], accentHex, ink, isNovel ? 16.5 : 14.5, isNovel);
-            if (row.Count == 1)
-            {
-                int index = row[0].Image;
-                used.Add(index);
-                Illustration(index, contentTarget);
-            }
-            else
-            {
-                var strip = new Grid { ColumnDefinitions = new ColumnDefinitions(string.Join(",", row.Select(_ => "*"))), ColumnSpacing = 12 };
-                for (int col = 0; col < row.Count; col++)
-                {
-                    int index = row[col].Image;
-                    used.Add(index);
-                    var cell = Column(4);
-                    Illustration(index, cell, true);
-                    Grid.SetColumn(cell, col);
-                    strip.Children.Add(cell);
-                }
-                contentTarget.Children.Add(strip);
-            }
-            start = row[^1].End;
-        }
-        AddStyledBlocks(contentTarget, section.PlainText[start..], accentHex, ink, isNovel ? 16.5 : 14.5, isNovel);
-        for (int i = 0; i < section.Images.Count; i++)
-            if (!used.Contains(i)) Illustration(i, contentTarget);
-
-        if (section.Summary != "")
-        {
-            var sumCol = Column(4);
-            sumCol.Children.Add(new TextBlock
-            {
-                Text = work.Type == "Apuntes" ? "Síntesis de la sesión" : "Síntesis / Conclusión de sección",
-                FontSize = 12.5,
-                FontWeight = FontWeight.Bold,
-                Foreground = accentBrush
-            });
-            AddStyledBlocks(sumCol, section.Summary, accentHex, ink, 13.5);
-            paper.Children.Add(new Border
-            {
-                Background = EditionPalette.Mix(accentHex, "#FFFFFF", 0.08),
-                BorderBrush = accentBrush,
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(3),
-                Padding = new Thickness(14, 10),
-                Child = sumCol
-            });
-        }
-
-        paper.Children.Add(new Border { Height = 1, Background = Brush.Parse("#E0E4E8"), Margin = new Thickness(0, 8, 0, 2) });
-        paper.Children.Add(new TextBlock
-        {
-            Text = work.Type == "Apuntes" ? $"{pageNum}" : $"—  {pageNum}  —",
-            FontSize = 13,
-            FontWeight = work.Type == "Apuntes" ? FontWeight.Bold : FontWeight.Normal,
-            Foreground = work.Type == "Apuntes" ? Brush.Parse("#004785") : muted,
-            HorizontalAlignment = HorizontalAlignment.Center
-        });
-
-        Control framedSheet = paper;
-        if (work.FrameStyle is "Filete" or "Doble filete" or "Esquinas")
-        {
-            framedSheet = new Border
-            {
-                Margin = new Thickness(10),
-                BorderBrush = accentBrush,
-                BorderThickness = new Thickness(work.FrameStyle == "Doble filete" ? 2 : 1),
-                Child = paper
-            };
-        }
-
-        return new Border
-        {
-            Background = paperBg,
-            BorderBrush = Brush.Parse("#C9D1D8"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(3),
-            BoxShadow = BoxShadows.Parse("0 12 28 #24000000"),
-            Child = framedSheet,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
+        target.Children.Add(tbl);
     }
 
     void AddStyledBlocks(Panel paper, string text, string accentHex, IBrush inkBrush, double fontSize, bool literary = false)
@@ -2297,7 +2246,12 @@ public sealed partial class Studio
         {
             var line = lines[i];
             if (string.IsNullOrWhiteSpace(line)) continue;
-            if (line is "[[Página]]" or "[[Índice]]")
+            if (line == "[[Página]]")
+            {
+                paper.Children.Add(new Border { Tag = "PageBreak", Height = 1 });
+                continue;
+            }
+            if (line == "[[Índice]]")
             {
                 paper.Children.Add(new Border { Height = 1, Background = Brush.Parse("#D5DCE2"), Margin = new Thickness(0, 6) });
                 continue;
@@ -2314,9 +2268,9 @@ public sealed partial class Studio
                         var hex = "#" + (m.Success ? m.Groups[1].Value.ToUpperInvariant() : "666666");
                         var lbl = m.Success ? m.Groups[2].Value.Trim() : items[c];
                         var cell = Column(3);
-                        cell.Children.Add(new Border { Height = 32, Background = Color.TryParse(hex, out var col) ? new SolidColorBrush(col) : Brushes.Gray, CornerRadius = new CornerRadius(3), BorderBrush = Brush.Parse("#BFC7CE"), BorderThickness = new Thickness(1) });
-                        cell.Children.Add(new TextBlock { Text = hex, FontSize = 11, FontWeight = FontWeight.Bold, Foreground = inkBrush, HorizontalAlignment = HorizontalAlignment.Center });
-                        if (lbl != "") cell.Children.Add(new TextBlock { Text = lbl, FontSize = 11, Foreground = Brush.Parse("#525C66"), HorizontalAlignment = HorizontalAlignment.Center, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center });
+                        cell.Children.Add(new Border { Height = 30, Background = Color.TryParse(hex, out var col) ? new SolidColorBrush(col) : Brushes.Gray, CornerRadius = new CornerRadius(3), BorderBrush = Brush.Parse("#BFC7CE"), BorderThickness = new Thickness(1) });
+                        cell.Children.Add(new TextBlock { Text = hex, FontSize = 10.5, FontWeight = FontWeight.Bold, Foreground = inkBrush, HorizontalAlignment = HorizontalAlignment.Center });
+                        if (lbl != "") cell.Children.Add(new TextBlock { Text = lbl, FontSize = 10.5, Foreground = Brush.Parse("#525C66"), HorizontalAlignment = HorizontalAlignment.Center, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center });
                         Grid.SetColumn(cell, c);
                         grid.Children.Add(cell);
                     }
@@ -2334,7 +2288,7 @@ public sealed partial class Studio
                     {
                         var cell = Column(4);
                         cell.Children.Add(new Border { Height = 1, Background = inkBrush });
-                        cell.Children.Add(new TextBlock { Text = signers[c], FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = inkBrush, HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center });
+                        cell.Children.Add(new TextBlock { Text = signers[c], FontSize = 12, FontWeight = FontWeight.Bold, Foreground = inkBrush, HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center });
                         Grid.SetColumn(cell, c);
                         grid.Children.Add(cell);
                     }
@@ -2365,12 +2319,12 @@ public sealed partial class Studio
                     };
                     for (int c = 0; c < columns; c++)
                     {
-                        var tb = StyledRichLine(c < rows[r].Length ? rows[r][c].Trim() : "", header ? 13 : 12.5, header, header ? accentBrush : inkBrush, literary);
+                        var tb = StyledRichLine(c < rows[r].Length ? rows[r][c].Trim() : "", header ? 12.5 : 12, header, header ? accentBrush : inkBrush, literary);
                         var cell = new Border
                         {
                             BorderBrush = Brush.Parse("#CFD7DE"),
                             BorderThickness = new Thickness(0.6),
-                            Padding = new Thickness(8, 5),
+                            Padding = new Thickness(7, 4.5),
                             Child = tb
                         };
                         Grid.SetColumn(cell, c);
@@ -2389,7 +2343,7 @@ public sealed partial class Studio
             var content = sub3 ? line[4..] : heading ? line[3..] : (quote || bullet) ? line[2..] : numMatch.Success ? numMatch.Groups[2].Value : line;
             var block = StyledRichLine(
                 bullet ? "•  " + content : numMatch.Success ? numMatch.Groups[1].Value + ".  " + content : content,
-                heading ? fontSize + 5 : sub3 ? fontSize + 2 : fontSize,
+                heading ? fontSize + 4.5 : sub3 ? fontSize + 1.8 : fontSize,
                 heading || sub3,
                 heading || sub3 ? accentBrush : inkBrush,
                 literary);
@@ -2408,7 +2362,7 @@ public sealed partial class Studio
         {
             FontFamily = family,
             FontSize = size,
-            LineHeight = size * 1.54,
+            LineHeight = size * 1.5,
             Foreground = fg,
             TextWrapping = TextWrapping.Wrap,
             FontWeight = bold ? FontWeight.Bold : FontWeight.Normal
@@ -2432,67 +2386,172 @@ public sealed partial class Studio
             ReadPresentation(work, sections, selected);
             return;
         }
-        var section = selected ?? sections.FirstOrDefault();
+        var pages = BuildDocumentPages(work, 760);
+        int startIndex = 0;
+        if (selected != null)
+        {
+            int found = pages.FindIndex(p => p.Section == selected);
+            if (found >= 0) startIndex = found;
+        }
+        ReadDocumentPage(work, pages, startIndex);
+    }
+
+    void ReadDocumentPage(Work work, List<DocumentPageItem> pages, int pageIndex)
+    {
+        if (pages.Count == 0) return;
+        pageIndex = Math.Clamp(pageIndex, 0, pages.Count - 1);
+        var activePage = pages[pageIndex];
+        if (activePage.Section != null) chapter = activePage.Section;
+
         var root = new DockPanel();
-        var top = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
-        top.Children.Add(Action("‹ Editar", () => { chapter = section; Editor(); }));
+        var top = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+        top.Children.Add(Action("‹ Editar", () => Editor()));
         top.Children.Add(Action("Vista previa de impresión", async () => await Preview()));
         top.Children.Add(QuietAction("Exportar PDF…", async () => await Export(true)));
 
-        if (section != null && sections.Count > 1)
-        {
-            int idx = sections.IndexOf(section);
-            var prev = QuietAction("‹ Anterior", () => { if (idx > 0) ReadSection(sections[idx - 1]); });
-            prev.IsEnabled = idx > 0;
-            var next = QuietAction("Siguiente ›", () => { if (idx + 1 < sections.Count) ReadSection(sections[idx + 1]); });
-            next.IsEnabled = idx + 1 < sections.Count;
-            top.Children.Add(prev);
-            var picker = new ComboBox { ItemsSource = sections, SelectedItem = section, MaxWidth = 300 };
-            picker.SelectionChanged += (_, _) => { if (picker.SelectedItem is Chapter target && target != section) ReadSection(target); };
-            top.Children.Add(picker);
-            top.Children.Add(next);
-        }
-        else if (section != null)
-        {
-            var picker = new ComboBox { ItemsSource = sections, SelectedItem = section, MaxWidth = 300 };
-            picker.SelectionChanged += (_, _) => { if (picker.SelectedItem is Chapter target && target != section) ReadSection(target); };
-            top.Children.Add(picker);
-        }
+        int step = (documentReadingMode == 2 && pages.Count > 1) ? 2 : 1;
+        var prev = Action("‹ Hoja anterior", () => ReadDocumentPage(work, pages, Math.Max(0, pageIndex - step)));
+        prev.IsEnabled = pageIndex > 0;
+        var next = Action("Hoja siguiente ›", () => ReadDocumentPage(work, pages, Math.Min(pages.Count - 1, pageIndex + step)));
+        next.IsEnabled = pageIndex + step < pages.Count;
+        top.Children.Add(prev);
 
-        var badgeText = work.IsNovel
-            ? $"  Vista de libro ({work.Publication.Paper})  ·  Portada: {(EditorialTemplate.NovelCoverStyles.Contains(work.CoverStyle) ? work.CoverStyle : EditorialTemplate.NovelCoverStyles[0])}"
-            : $"  Vista final de {work.Type}  ·  Plantilla: {work.Template}";
-        top.Children.Add(Kicker(badgeText));
+        var pageLabels = pages.Select(p => $"Hoja {p.PageNumber} de {pages.Count} · {p.Label}").ToArray();
+        var picker = new ComboBox { ItemsSource = pageLabels, SelectedIndex = pageIndex, MaxWidth = 310 };
+        picker.SelectionChanged += (_, _) =>
+        {
+            if (picker.SelectedIndex >= 0 && picker.SelectedIndex != pageIndex)
+                ReadDocumentPage(work, pages, picker.SelectedIndex);
+        };
+        top.Children.Add(picker);
+        top.Children.Add(next);
+
+        var mode1 = QuietAction("1 hoja", () => { documentReadingMode = 1; ReadDocumentPage(work, pages, pageIndex); });
+        var mode2 = QuietAction("2 hojas", () => { documentReadingMode = 2; ReadDocumentPage(work, pages, pageIndex); });
+        var mode3 = QuietAction("Todas las hojas", () => { documentReadingMode = 3; ReadDocumentPage(work, pages, pageIndex); });
+        if (documentReadingMode == 1) mode1.Foreground = Accent;
+        else if (documentReadingMode == 2) mode2.Foreground = Accent;
+        else mode3.Foreground = Accent;
+        top.Children.Add(mode1);
+        if (pages.Count > 1) top.Children.Add(mode2);
+        if (pages.Count > 1) top.Children.Add(mode3);
 
         DockPanel.SetDock(top, Dock.Top);
         root.Children.Add(top);
 
-        var stage = Column(24);
-        stage.Margin = new Thickness(12, 8, 12, 32);
-        stage.HorizontalAlignment = HorizontalAlignment.Center;
-
-        if (work.Type == "CV")
+        if (pages.Count > 1)
         {
-            stage.Children.Add(BuildResumeSheetCanvas(work, 780, section));
+            var filmstrip = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(4, 8, 4, 4) };
+            for (int i = 0; i < pages.Count; i++)
+            {
+                int idx = i;
+                bool isCurrent = idx == pageIndex || (documentReadingMode == 2 && idx == pageIndex + 1);
+                var miniSheet = Column(4);
+                miniSheet.VerticalAlignment = VerticalAlignment.Center;
+                miniSheet.HorizontalAlignment = HorizontalAlignment.Center;
+                miniSheet.Children.Add(new TextBlock
+                {
+                    Text = $"HOJA {idx + 1}",
+                    FontSize = 10,
+                    FontWeight = FontWeight.Bold,
+                    Foreground = isCurrent ? Accent : Brush.Parse("#5A6570"),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                });
+                miniSheet.Children.Add(new Border { Width = 44, Height = 1.2, Background = isCurrent ? Accent : Brush.Parse("#CFD7DE"), HorizontalAlignment = HorizontalAlignment.Center });
+                miniSheet.Children.Add(new TextBlock
+                {
+                    Text = pages[idx].Label,
+                    FontSize = 11,
+                    FontWeight = isCurrent ? FontWeight.SemiBold : FontWeight.Normal,
+                    Foreground = Brush.Parse("#1F262D"),
+                    TextWrapping = TextWrapping.Wrap,
+                    TextAlignment = TextAlignment.Center,
+                    MaxLines = 2,
+                    MaxWidth = 96,
+                    HorizontalAlignment = HorizontalAlignment.Center
+                });
+                var thumbCard = new Border
+                {
+                    Width = 108,
+                    Height = 68,
+                    Background = isCurrent ? EditionPalette.Mix(palette.Foil, "#FFFFFF", 0.85) : Brushes.White,
+                    BorderBrush = isCurrent ? Accent : Edge,
+                    BorderThickness = new Thickness(isCurrent ? 2.2 : 1),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(6, 4),
+                    Child = miniSheet
+                };
+                var btn = new Button
+                {
+                    Content = thumbCard,
+                    Background = Brushes.Transparent,
+                    BorderThickness = new Thickness(0),
+                    Padding = new Thickness(2),
+                    Cursor = new Cursor(StandardCursorType.Hand)
+                };
+                btn.Click += (_, _) => ReadDocumentPage(work, pages, idx);
+                filmstrip.Children.Add(btn);
+            }
+            var stripViewer = new ScrollViewer
+            {
+                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                Content = filmstrip
+            };
+            DockPanel.SetDock(stripViewer, Dock.Bottom);
+            root.Children.Add(stripViewer);
+        }
+
+        if (documentReadingMode == 3)
+        {
+            var allStack = Column(24);
+            allStack.Margin = new Thickness(16, 8, 16, 28);
+            allStack.HorizontalAlignment = HorizontalAlignment.Center;
+            foreach (var p in pages)
+            {
+                var pWrap = Column(6);
+                pWrap.HorizontalAlignment = HorizontalAlignment.Center;
+                pWrap.Children.Add(Kicker($"Hoja {p.PageNumber} de {pages.Count}  ·  {p.Label}"));
+                pWrap.Children.Add(p.Sheet);
+                allStack.Children.Add(pWrap);
+            }
+            root.Children.Add(new ScrollViewer { Content = allStack });
+        }
+        else if (documentReadingMode == 2 && pageIndex + 1 < pages.Count)
+        {
+            var spreadGrid = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("*,*"),
+                ColumnSpacing = 22,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(16, 8, 16, 24)
+            };
+            var leftPane = Column(6);
+            leftPane.HorizontalAlignment = HorizontalAlignment.Center;
+            leftPane.Children.Add(Kicker($"Hoja {activePage.PageNumber} de {pages.Count}  ·  {activePage.Label}"));
+            leftPane.Children.Add(activePage.Sheet);
+            spreadGrid.Children.Add(leftPane);
+
+            var nextPage = pages[pageIndex + 1];
+            var rightPane = Column(6);
+            rightPane.HorizontalAlignment = HorizontalAlignment.Center;
+            rightPane.Children.Add(Kicker($"Hoja {nextPage.PageNumber} de {pages.Count}  ·  {nextPage.Label}"));
+            rightPane.Children.Add(nextPage.Sheet);
+            Grid.SetColumn(rightPane, 1);
+            spreadGrid.Children.Add(rightPane);
+
+            root.Children.Add(new ScrollViewer { Content = spreadGrid });
         }
         else
         {
-            var coverExpander = new Expander
-            {
-                Header = work.IsNovel
-                    ? $"Portada de novela a hoja completa con blur ({(EditorialTemplate.NovelCoverStyles.Contains(work.CoverStyle) ? work.CoverStyle : EditorialTemplate.NovelCoverStyles[0])})"
-                    : $"Portada e índice del formato ({work.Template})",
-                IsExpanded = true,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Width = 760,
-                Content = BuildDocumentCoverCanvas(work, 780, ch => { chapter = ch; ReadSection(ch); })
-            };
-            stage.Children.Add(coverExpander);
-            if (section != null)
-                stage.Children.Add(BuildDocumentSectionCanvas(work, section, 780));
+            var singleStack = Column(8);
+            singleStack.Margin = new Thickness(16, 8, 16, 24);
+            singleStack.HorizontalAlignment = HorizontalAlignment.Center;
+            singleStack.Children.Add(Kicker($"Hoja {activePage.PageNumber} de {pages.Count}  ·  {activePage.Label}"));
+            singleStack.Children.Add(activePage.Sheet);
+            root.Children.Add(new ScrollViewer { Content = singleStack });
         }
 
-        root.Children.Add(new ScrollViewer { Content = stage });
         page.Content = root;
     }
 }

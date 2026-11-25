@@ -941,6 +941,7 @@ public static class Publisher
                 else tex.AppendLine(@"\begin{center}\includegraphics[width=.84\linewidth,height=.47\textheight,keepaspectratio]{media/" + key + "}"+caption+@"\end{center}");
             }
             if(novel && work.Publication.RunningHead=="Sin encabezado")tex.AppendLine(@"\pagestyle{plain}");
+            tex.AppendLine(@"\newsavebox{\nimbocoverbox}");
             void Cover(string picture,bool back){
                 tex.AppendLine(@"\clearpage\thispagestyle{empty}");
                 if(picture.Length>0){
@@ -951,22 +952,26 @@ public static class Publisher
                 else{
                     tex.AppendLine(@"\AddToHookNext{shipout/background}{\put(0,-\paperheight){\textcolor{accent!82!black}{\rule{\paperwidth}{\paperheight}}}}");
                 }
-                var coverMode = EditorialTemplate.NovelCoverStyles.Contains(work.CoverStyle)
-                    ? work.CoverStyle
-                    : work.CoverStyle switch
-                    {
-                        "Centrada" => "Cartela central difuminada",
-                        "Cabecera" => "Franja superior de autor",
-                        _ => "Velo editorial al pie"
-                    };
-                bool centered = coverMode is not ("Minimalista a sangre" or "Banda diagonal moderna");
-                bool topPos = coverMode == "Franja superior de autor";
-                bool midPos = coverMode == "Cartela central difuminada";
+                var coverMode = work.CoverStyle switch
+                {
+                    "Centrada" or "Cartela central difuminada" => "Centrada",
+                    "Cabecera" or "Franja superior de autor" => "Cabecera",
+                    "Marco áureo" or "Marco áureo con velo" => "Marco áureo",
+                    "Banda completa" or "Banda diagonal moderna" or "Banda completa translúcida" => "Banda completa",
+                    "Tejuelo clásico" or "Tejuelo clásico translúcido" => "Tejuelo clásico",
+                    _ => "Al pie"
+                };
+                if (!back && coverMode == "Marco áureo")
+                {
+                    tex.AppendLine(@"\AddToHookNext{shipout/foreground}{\color{white!75!yellow}\linethickness{.8pt}\put(7mm,-\dimexpr\paperheight-7mm\relax){\framebox(\dimexpr\paperwidth-14mm\relax,\dimexpr\paperheight-14mm\relax){}}}");
+                }
+                bool topPos = !back && coverMode == "Cabecera";
+                bool midPos = !back && coverMode == "Centrada";
+                bool fullBand = !back && coverMode == "Banda completa";
                 if (!topPos) tex.AppendLine(@"\null\vfill");
-                if (midPos) tex.AppendLine(@"\vspace*{12mm}");
-                tex.AppendLine(@"\noindent\begin{tikzpicture}");
-                tex.AppendLine(@"\node[inner sep=0pt,opacity=0] (box) {");
-                tex.AppendLine(@"  \parbox{\dimexpr\linewidth-24pt\relax}{\color{white}" + (centered ? @"\centering" : @"\raggedright") + @"\vspace{10pt}");
+                if (midPos) tex.AppendLine(@"\vspace*{10mm}");
+                var boxWidth = fullBand ? @"\dimexpr\linewidth-12pt\relax" : @"\dimexpr\linewidth-24pt\relax";
+                tex.AppendLine(@"\sbox{\nimbocoverbox}{\parbox{" + boxWidth + @"}{\color{white}\centering\vspace{10pt}");
                 if(back){
                     tex.AppendLine(@"{\footnotesize\bfseries\color{white!80!yellow}SINOPSIS\par}\smallskip");
                     tex.AppendLine(Paragraphs(work.Description.Length>900?"":work.Description));
@@ -978,32 +983,19 @@ public static class Publisher
                     tex.AppendLine(@"\medskip{\color{white!75!yellow}\rule{38mm}{.7pt}\par}");
                     if(work.Author!="")tex.AppendLine(@"\medskip{\large\bfseries "+Escape(work.Author)+@"\par}");
                 }
-                tex.AppendLine(@"  \vspace{10pt}}");
-                tex.AppendLine(@"};");
+                tex.AppendLine(@"\vspace{10pt}}}");
+                tex.AppendLine(@"\noindent\begin{tikzpicture}");
+                tex.AppendLine(@"\path (0,0) node[inner sep=0pt] (box) {\phantom{\usebox{\nimbocoverbox}}};");
                 for (int b = 6; b >= 1; b--)
                 {
-                    var pad = (b * 2.2).ToString("0.0", CultureInfo.InvariantCulture);
-                    tex.AppendLine(@"\fill[accent!30!black,opacity=0.14,rounded corners=5pt] ([xshift=-" + pad + @"pt,yshift=-" + pad + @"pt]box.south west) rectangle ([xshift=" + pad + @"pt,yshift=" + pad + @"pt]box.north east);");
+                    var pad = (10 + b * 1.8).ToString("0.0", CultureInfo.InvariantCulture);
+                    var vpad = (6 + b * 1.8).ToString("0.0", CultureInfo.InvariantCulture);
+                    tex.AppendLine(@"\draw[black,opacity=0.06,line width=2.4pt,rounded corners=6pt] ([xshift=-" + pad + @"pt,yshift=-" + vpad + @"pt]box.south west) rectangle ([xshift=" + pad + @"pt,yshift=" + vpad + @"pt]box.north east);");
                 }
-                tex.AppendLine(@"\fill[accent!22!black,opacity=0.84,rounded corners=4pt] ([xshift=-10pt,yshift=-6pt]box.south west) rectangle ([xshift=10pt,yshift=6pt]box.north east);");
-                tex.AppendLine(@"\draw[white!75!yellow,opacity=0.75,line width=0.8pt,rounded corners=4pt] ([xshift=-10pt,yshift=-6pt]box.south west) rectangle ([xshift=10pt,yshift=6pt]box.north east);");
-                if (coverMode is "Tejuelo clásico translúcido" or "Doble filete de gala" or "Marco áureo con velo")
-                    tex.AppendLine(@"\draw[white!75!yellow,opacity=0.45,line width=0.45pt,rounded corners=3pt] ([xshift=-7pt,yshift=-3pt]box.south west) rectangle ([xshift=7pt,yshift=3pt]box.north east);");
-                tex.AppendLine(@"\node[inner sep=0pt] at (box.center) {");
-                tex.AppendLine(@"  \parbox{\dimexpr\linewidth-24pt\relax}{\color{white}" + (centered ? @"\centering" : @"\raggedright") + @"\vspace{10pt}");
-                if(back){
-                    tex.AppendLine(@"{\footnotesize\bfseries\color{white!80!yellow}SINOPSIS\par}\smallskip");
-                    tex.AppendLine(Paragraphs(work.Description.Length>900?"":work.Description));
-                }
-                else{
-                    if(novel) tex.AppendLine(@"{\footnotesize\bfseries\color{white!78!yellow}NOVELA\par}\smallskip");
-                    tex.AppendLine(@"{\Huge\bfseries "+Escape(work.Title)+@"\par}");
-                    if(work.ShowCoverSubtitle && work.Subtitle!="")tex.AppendLine(@"\medskip{\large\itshape "+Escape(work.Subtitle)+@"\par}");
-                    tex.AppendLine(@"\medskip{\color{white!75!yellow}\rule{38mm}{.7pt}\par}");
-                    if(work.Author!="")tex.AppendLine(@"\medskip{\large\bfseries "+Escape(work.Author)+@"\par}");
-                }
-                tex.AppendLine(@"  \vspace{10pt}}");
-                tex.AppendLine(@"};");
+                tex.AppendLine(@"\fill[accent!24!black,opacity=0.62,rounded corners=4pt] ([xshift=-10pt,yshift=-6pt]box.south west) rectangle ([xshift=10pt,yshift=6pt]box.north east);");
+                tex.AppendLine(@"\draw[white!75!yellow,opacity=0.82,line width=0.85pt,rounded corners=4pt] ([xshift=-10pt,yshift=-6pt]box.south west) rectangle ([xshift=10pt,yshift=6pt]box.north east);");
+                tex.AppendLine(@"\draw[white!75!yellow,opacity=0.48,line width=0.45pt,rounded corners=3pt] ([xshift=-7pt,yshift=-3pt]box.south west) rectangle ([xshift=7pt,yshift=3pt]box.north east);");
+                tex.AppendLine(@"\node[inner sep=0pt] at (box.center) {\usebox{\nimbocoverbox}};");
                 tex.AppendLine(@"\end{tikzpicture}\par");
                 if(back && work.Description.Length>900)tex.AppendLine(@"\medskip\noindent "+Paragraphs(work.Description));
                 if(midPos || topPos)tex.AppendLine(@"\vfill\null");
@@ -1129,7 +1121,7 @@ public static class Publisher
                     if (address != "") tex.AppendLine(Escape(address) + @"\\");
                     tex.AppendLine(@"{\bfseries PRESENTE.}\par\medskip");
                 }
-                tex.AppendLine(@"\noindent{\color{accent}\rule{\linewidth}{.8pt}}\medskip");
+                tex.AppendLine(@"\noindent{\color{accent}\rule{\linewidth}{.8pt}}\par\medskip");
             }
             else if (!designedCover && !glossary && work.Type is "Acta" or "Apuntes")
             {
