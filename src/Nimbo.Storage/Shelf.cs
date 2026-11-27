@@ -5,9 +5,72 @@ using Nimbo.Core;
 
 namespace Nimbo.Storage;
 
-public sealed record Entry(string Id, string Title, string Type, long Revision, string Cover, string Color, string Author, string Description, string Collection, string Lettering = "Automática")
+public sealed record Entry(
+    string Id,
+    string Title,
+    string Type,
+    long Revision,
+    string Cover,
+    string Color,
+    string Author,
+    string Description,
+    string Collection,
+    string Lettering = "Automática",
+    string Subtitle = "",
+    string Template = "",
+    int ChapterCount = 1,
+    string FirstSection = "",
+    string SecondSection = "",
+    string ThirdSection = "",
+    string PrimaryFact = "",
+    string SecondaryFact = "")
 {
     public override string ToString() => Title;
+
+    public static Entry FromWork(Work work, long revision = 0)
+    {
+        var ordered = WorldModel.Ordered(work).ToList();
+        string Fact(params string[] keys)
+        {
+            foreach (var k in keys)
+            {
+                if (work.Contact.TryGetValue(k, out var cv) && !string.IsNullOrWhiteSpace(cv)) return cv.Trim();
+                if (work.DocumentFacts.TryGetValue(k, out var dv) && !string.IsNullOrWhiteSpace(dv)) return dv.Trim();
+            }
+            return "";
+        }
+        var (pFact, sFact) = work.Type switch
+        {
+            "CV" => (Fact("Profesión", "Nombre profesional"), Fact("Ciudad", "Correo", "Portafolio")),
+            "Apuntes" => (Fact("Asignatura", "Universidad"), Fact("Universidad", "Clave de clase", "Periodo")),
+            "Informe" => (Fact("Materia o área", "Institución", "Departamento"), Fact("Periodo del informe", "Fecha", "Realizada por")),
+            "Carta" => (Fact("Destinatario", "Asunto"), Fact("Lugar y fecha", "Dirección")),
+            "Propuesta" => (Fact("Cliente", "Responsable"), Fact("Presupuesto", "Vigencia")),
+            "Acta" => (Fact("Fecha de reunión", "Lugar"), Fact("Lugar", "Secretaría")),
+            "Artículo" => (Fact("Afiliación", "Palabras clave"), Fact("Palabras clave", "Correspondencia")),
+            "Presentación" => (Fact("Evento", "Institución"), Fact("Fecha", "Institución")),
+            _ => (Fact("Organización", "Referencia"), Fact("Referencia"))
+        };
+        return new Entry(
+            work.Id,
+            work.Title,
+            work.Type,
+            revision,
+            work.CoverImage,
+            work.CoverColor,
+            work.Author,
+            work.Description,
+            work.CollectionId,
+            work.CoverLettering,
+            work.Subtitle,
+            work.Template,
+            Math.Max(1, ordered.Count),
+            ordered.Count > 0 ? ordered[0].Title : "",
+            ordered.Count > 1 ? ordered[1].Title : "",
+            ordered.Count > 2 ? ordered[2].Title : "",
+            pFact,
+            sFact);
+    }
 }
 public sealed class Shelf : Nimbo.Application.IWorkRepository
 {
@@ -33,9 +96,72 @@ public sealed class Shelf : Nimbo.Application.IWorkRepository
     public List<Entry> List()
     {
         using var db = Connect(); using var cmd = db.CreateCommand();
-        cmd.CommandText = "SELECT id,title,type,revision,coalesce(json_extract(content,'$.CoverImage'),''),coalesce(json_extract(content,'$.CoverColor'),''),coalesce(json_extract(content,'$.Author'),''),coalesce(json_extract(content,'$.Description'),''),coalesce(json_extract(content,'$.CollectionId'),''),coalesce(json_extract(content,'$.CoverLettering'),'Automática') FROM works ORDER BY edited DESC,title";
+        cmd.CommandText = """
+            SELECT
+              id,
+              title,
+              type,
+              revision,
+              coalesce(json_extract(content,'$.CoverImage'),''),
+              coalesce(json_extract(content,'$.CoverColor'),''),
+              coalesce(json_extract(content,'$.Author'),''),
+              coalesce(json_extract(content,'$.Description'),''),
+              coalesce(json_extract(content,'$.CollectionId'),''),
+              coalesce(json_extract(content,'$.CoverLettering'),'Automática'),
+              coalesce(json_extract(content,'$.Subtitle'),''),
+              coalesce(json_extract(content,'$.Template'),''),
+              coalesce(json_array_length(content,'$.Chapters'),1),
+              coalesce(json_extract(content,'$.Chapters[0].Title'),''),
+              coalesce(json_extract(content,'$.Chapters[1].Title'),''),
+              coalesce(json_extract(content,'$.Chapters[2].Title'),''),
+              coalesce(
+                json_extract(content,'$.Contact.Profesión'),
+                json_extract(content,'$.DocumentFacts.Asignatura'),
+                json_extract(content,'$.DocumentFacts."Materia o área"'),
+                json_extract(content,'$.DocumentFacts.Institución'),
+                json_extract(content,'$.DocumentFacts.Destinatario'),
+                json_extract(content,'$.DocumentFacts.Cliente'),
+                json_extract(content,'$.DocumentFacts."Fecha de reunión"'),
+                json_extract(content,'$.DocumentFacts.Afiliación'),
+                json_extract(content,'$.DocumentFacts.Evento'),
+                json_extract(content,'$.DocumentFacts.Organización'),
+                ''),
+              coalesce(
+                json_extract(content,'$.Contact.Ciudad'),
+                json_extract(content,'$.DocumentFacts.Universidad'),
+                json_extract(content,'$.DocumentFacts."Periodo del informe"'),
+                json_extract(content,'$.DocumentFacts."Lugar y fecha"'),
+                json_extract(content,'$.DocumentFacts.Presupuesto'),
+                json_extract(content,'$.DocumentFacts.Lugar'),
+                json_extract(content,'$.DocumentFacts."Palabras clave"'),
+                json_extract(content,'$.DocumentFacts.Fecha'),
+                json_extract(content,'$.DocumentFacts.Referencia'),
+                '')
+            FROM works ORDER BY edited DESC,title
+            """;
         using var reader = cmd.ExecuteReader(); var items = new List<Entry>();
-        while (reader.Read()) items.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetInt64(3), reader.GetString(4), reader.GetString(5), reader.GetString(6), reader.GetString(7), reader.GetString(8), reader.GetString(9)));
+        while (reader.Read())
+        {
+            items.Add(new(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.GetInt64(3),
+                reader.GetString(4),
+                reader.GetString(5),
+                reader.GetString(6),
+                reader.GetString(7),
+                reader.GetString(8),
+                reader.GetString(9),
+                reader.GetString(10),
+                reader.GetString(11),
+                reader.GetInt32(12),
+                reader.GetString(13),
+                reader.GetString(14),
+                reader.GetString(15),
+                reader.GetString(16),
+                reader.GetString(17)));
+        }
         return items;
     }
     public (Work Work, long Revision) Open(string id)

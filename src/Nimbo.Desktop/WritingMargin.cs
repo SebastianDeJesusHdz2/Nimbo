@@ -17,7 +17,46 @@ public sealed partial class Studio
         Avalonia.Automation.AutomationProperties.SetName(notes,"Notas de la sección");
         notes.TextChanged+=(_,_)=>{if(section.AuthorMemo==notes.Text)return;section.AuthorMemo=notes.Text??"";Changed();};
         margin.Children.Add(Display("Notas de la sección",21));margin.Children.Add(notes);
-        if(!work.IsNovel)return margin;
+        if(!work.IsNovel){
+            margin.Children.Add(Rule(Edge));
+            var fmt=Format.All.FirstOrDefault(f=>f.Name==work.Type);
+            var activeTpl=EditorialTemplate.Resolve(fmt,work.Template);
+            margin.Children.Add(Display("Plantilla · "+activeTpl.Name,18));
+            margin.Children.Add(Label(EditorialTemplate.FormatGuidance(work.Type,activeTpl.Name),12.5));
+            if(activeTpl.Sections.Length>0){
+                margin.Children.Add(Kicker("Secciones recomendadas"));
+                var secList=Column(4);
+                foreach(var secTitle in activeTpl.Sections){
+                    var targetName=secTitle;
+                    var existing=work.Chapters.FirstOrDefault(c=>c.Title.Equals(targetName,StringComparison.OrdinalIgnoreCase));
+                    if(existing!=null){
+                        var jump=QuietAction("✓  "+targetName,()=>{chapter=existing;RememberSection(work,existing);Editor();});
+                        if(existing==section)jump.Foreground=Accent;
+                        secList.Children.Add(jump);
+                    }else{
+                        secList.Children.Add(QuietAction("+  Añadir «"+targetName+"»",()=>{
+                            chapter=new(){Title=targetName,Level="Chapter",Order=work.Chapters.Count};
+                            work.Chapters.Add(chapter);RememberSection(work,chapter);Changed();Editor();
+                        }));
+                    }
+                }
+                margin.Children.Add(secList);
+            }
+            var snippets=EditorialTemplate.QuickSnippets(work.Type);
+            if(snippets.Length>0){
+                margin.Children.Add(Rule(Edge));
+                margin.Children.Add(Kicker("Bloques rápidos · "+work.Type));
+                foreach(var (label,content) in snippets){
+                    var blockText=content;
+                    margin.Children.Add(QuietAction("+ "+label,()=>{
+                        section.PlainText=(section.PlainText.TrimEnd()+"\n"+blockText.TrimStart()).Trim();
+                        section.CaretOffset=section.PlainText.Length;
+                        Changed();Editor();
+                    }));
+                }
+            }
+            return margin;
+        }
         margin.Children.Add(Rule(Edge));margin.Children.Add(Display("Consultar glosario",21));
         var search=new TextBox{Watermark="Buscar una ficha…"};margin.Children.Add(search);
         var list=Column(5);var preview=Column(7);margin.Children.Add(list);margin.Children.Add(preview);

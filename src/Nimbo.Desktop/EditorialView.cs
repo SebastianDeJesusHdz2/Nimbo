@@ -176,7 +176,7 @@ public sealed partial class Studio
         parent.Children.Add(box); return box;
     }
     static readonly string[] Tones = ["Océano", "Bosque", "Vino", "Grafito", "Aurora", "Porcelana"];
-    static readonly string[] Inks = ["Por formato", "Petróleo", "Vino", "Oliva", "Grafito"];
+    static readonly string[] Inks = ["Por formato", "Color de portada", "Petróleo", "Vino", "Oliva", "Grafito"];
     void WritingPreferences(StackPanel panel)
     {
         Choice(panel, "Paleta de la interfaz", Tones, ReadPref("paleta", "Océano"), v => Run(() => { File.WriteAllText(Config("paleta"), v); ApplyTheme(); Preferences(); }));
@@ -205,8 +205,11 @@ public sealed partial class Studio
         {
             Choice(panel, "Interlineado impreso", ["Normal", "Abierto", "Amplio"], work.PrintSpacing, v => { work.PrintSpacing = v; Changed(); });
             Choice(panel, "Sangría de párrafo", ["Automática", "Sin sangría", "5 mm", "8 mm"], work.PrintIndent, v => { work.PrintIndent = v; Changed(); });
+            Choice(panel, "Encabezado de páginas", ["Automático", "Sin encabezado"], work.Publication.RunningHead == "Sin encabezado" ? "Sin encabezado" : "Automático", v => { work.Publication.RunningHead = v; Changed(); });
             var toc = new CheckBox { Content = "Incluir índice de contenido (Table of Contents)", IsChecked = work.Publication.Contents };
             toc.IsCheckedChanged += (_, _) => { work.Publication.Contents = toc.IsChecked == true; Changed(); }; panel.Children.Add(toc);
+            var pgNums = new CheckBox { Content = "Numerar páginas al pie", IsChecked = work.Publication.PageNumbers };
+            pgNums.IsCheckedChanged += (_, _) => { work.Publication.PageNumbers = pgNums.IsChecked == true; Changed(); }; panel.Children.Add(pgNums);
         }
         panel.Children.Add(Action("Vista previa de impresión", async () => await Preview()));
     }
@@ -239,18 +242,53 @@ public sealed partial class Studio
     }
     void ResumeEntries(StackPanel body, Chapter c, Action? onChanged = null)
     {
-        var list = Column(12); list.Children.Add(Display("Entradas de la sección", 22));
-        foreach (var entry in c.Entries)
+        var list = Column(12);
+        var headRow = new DockPanel();
+        var addTop = Action("+ Añadir entrada", () => { c.Entries.Add(new()); Changed(); Editor(); });
+        Emphasize(addTop);
+        DockPanel.SetDock(addTop, Dock.Right);
+        headRow.Children.Add(addTop);
+        headRow.Children.Add(Display("Entradas de la sección (" + c.Entries.Count + ")", 22));
+        list.Children.Add(headRow);
+        for (int idx = 0; idx < c.Entries.Count; idx++)
         {
+            int entryIdx = idx;
+            var entry = c.Entries[idx];
             var card = Column(6);
+            var bar = new DockPanel();
+            var actions = Row();
+            actions.Margin = new Thickness(0);
+            if (entryIdx > 0)
+            {
+                actions.Children.Add(QuietAction("↑ Subir", () =>
+                {
+                    (c.Entries[entryIdx - 1], c.Entries[entryIdx]) = (c.Entries[entryIdx], c.Entries[entryIdx - 1]);
+                    Changed(); Editor();
+                }));
+            }
+            if (entryIdx < c.Entries.Count - 1)
+            {
+                actions.Children.Add(QuietAction("↓ Bajar", () =>
+                {
+                    (c.Entries[entryIdx + 1], c.Entries[entryIdx]) = (c.Entries[entryIdx], c.Entries[entryIdx + 1]);
+                    Changed(); Editor();
+                }));
+            }
+            var remove = QuietAction("Quitar entrada", () => { }); bool confirm = false;
+            remove.Click += (_, _) => { if (!confirm) { confirm = true; remove.Content = "Confirmar eliminación"; return; } c.Entries.Remove(entry); Changed(); Editor(); };
+            actions.Children.Add(remove);
+            DockPanel.SetDock(actions, Dock.Right);
+            bar.Children.Add(actions);
+            bar.Children.Add(Kicker($"Entrada {entryIdx + 1:D2}"));
+            card.Children.Add(bar);
             Field(card, "Puesto, título o logro", entry.Heading, v => { entry.Heading = v; onChanged?.Invoke(); });
             Field(card, "Organización o institución", entry.Organization, v => { entry.Organization = v; onChanged?.Invoke(); });
             Field(card, "Fechas", entry.Period, v => { entry.Period = v; onChanged?.Invoke(); });
             Field(card, "Descripción y resultados", entry.Description, v => { entry.Description = v; onChanged?.Invoke(); }, true);
-            var remove = Action("Quitar entrada", () => { }); bool confirm = false;
-            remove.Click += (_, _) => { if (!confirm) { confirm = true; remove.Content = "Confirmar eliminación"; return; } c.Entries.Remove(entry); Changed(); Editor(); };
-            card.Children.Add(remove); list.Children.Add(Card(card));
+            list.Children.Add(Card(card));
         }
-        list.Children.Add(Action("+ Añadir entrada", () => { c.Entries.Add(new()); Changed(); Editor(); })); body.Children.Add(list);
+        if (c.Entries.Count > 0)
+            list.Children.Add(Action("+ Añadir entrada", () => { c.Entries.Add(new()); Changed(); Editor(); }));
+        body.Children.Add(list);
     }
 }

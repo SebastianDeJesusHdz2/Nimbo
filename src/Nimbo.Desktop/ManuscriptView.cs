@@ -48,30 +48,52 @@ public sealed partial class Studio
             code.TextChanged+=(_,_)=>{work.TexSource=code.Text??"";Changed();};
             root.Children.Add(code);page.Content=root;return;
         }
-        var left=Column(12);left.Width=202;
-        left.Children.Add(WorkArt(work,360,116));
-        left.Children.Add(Kicker(work.Type));left.Children.Add(Display(work.Title,25));left.Children.Add(Rule(Edge));
+        var left=Column(10);left.Width=214;
+        if(work.IsNovel || work.CoverImage!="")left.Children.Add(WorkArt(work,360,110));
+        else left.Children.Add(new Viewbox{Height=126,Stretch=Stretch.Uniform,HorizontalAlignment=HorizontalAlignment.Center,Child=Miniature(Entry.FromWork(work),()=>Details())});
+        left.Children.Add(Kicker(work.IsNovel ? work.Type : $"{work.Type}  ·  {(string.IsNullOrWhiteSpace(work.Template) ? "Clásica" : work.Template)}"));
+        left.Children.Add(Display(work.Title,24));left.Children.Add(Rule(Edge));
         left.Children.Add(Label("Índice del manuscrito",14));
         var outline=Column(3);var titles=new Dictionary<Chapter,TextBlock>();
+        int outlineIdx=0;
         foreach(var entry in WorldModel.Ordered(work)){
-            var label=Label(entry.Title,14);titles[entry]=label;
+            outlineIdx++;
+            var label=Label(entry.Title,13.5);titles[entry]=label;
+            Control itemContent=label;
+            if(work.Type=="Presentación"){
+                var col=Column(1);
+                var sub=new TextBlock{Text=$"{outlineIdx:D2} · {(string.IsNullOrWhiteSpace(entry.Layout)?"Texto e imagen":entry.Layout)}",FontSize=10.5,Foreground=Quiet};
+                col.Children.Add(label);col.Children.Add(sub);
+                itemContent=col;
+            }else if(work.Type=="CV" && entry.Entries.Count>0){
+                var row=new DockPanel();
+                var badge=new TextBlock{Text=entry.Entries.Count.ToString(),FontSize=11,Foreground=Quiet,Margin=new Thickness(6,0,0,0),VerticalAlignment=VerticalAlignment.Center};
+                DockPanel.SetDock(badge,Dock.Right);
+                row.Children.Add(badge);row.Children.Add(label);
+                itemContent=row;
+            }
             var item=QuietAction("",()=>{if(entry==chapter)return;chapter=entry;RememberSection(work,entry);Editor();});
             var indent=entry.ParentId==""?0:entry.Level=="Subchapter"?20:10;
-            item.Padding=new Thickness(10+indent,8,8,8);item.HorizontalAlignment=HorizontalAlignment.Stretch;
-            item.HorizontalContentAlignment=HorizontalAlignment.Left;item.Content=label;
+            item.Padding=new Thickness(10+indent,7,8,7);item.HorizontalAlignment=HorizontalAlignment.Stretch;
+            item.HorizontalContentAlignment=HorizontalAlignment.Left;item.Content=itemContent;
             if(chapter==entry){item.Background=Sheet;item.BorderThickness=new Thickness(2,0,0,0);item.BorderBrush=Accent;item.Foreground=Accent;}
             outline.Children.Add(item);
         }
         left.Children.Add(outline);
         void Add(string level, string title, string parent)
         {
-            chapter = new() { Title = title, Level = level, ParentId = parent, Order = work.Chapters.Count }; work.Chapters.Add(chapter); RememberSection(work,chapter); Changed(); Editor();
+            chapter = new() { Title = title, Level = level, ParentId = parent, Order = work.Chapters.Count };
+            if (work.Type == "Presentación") chapter.Layout = "Texto e imagen";
+            work.Chapters.Add(chapter); RememberSection(work,chapter); Changed(); Editor();
         }
         var section = work.IsNovel ? "Capítulo" : Format.All.FirstOrDefault(f => f.Name == work.Type)?.Section ?? "Sección";
         var structure=new MenuFlyout();
         Chapter? FindChapter(string? id)=>work.Chapters.FirstOrDefault(n=>n.Id==id);
         var parentChapter=chapter?.Level=="Subchapter"?FindChapter(chapter.ParentId):chapter;
         var arc=parentChapter?.Level=="Arc"?parentChapter:FindChapter(parentChapter?.ParentId);
+        var quickAddBtn=Action("+ Añadir "+section.ToLowerInvariant(),()=>Add("Chapter",section+" "+(work.Chapters.Count+1),arc?.Level=="Arc"?arc.Id:""));
+        quickAddBtn.HorizontalAlignment=HorizontalAlignment.Stretch;
+        left.Children.Add(quickAddBtn);
         structure.Items.Add(MenuAction("Añadir "+section.ToLowerInvariant(),()=>Add("Chapter",section+" "+(work.Chapters.Count+1),arc?.Level=="Arc"?arc.Id:"")));
         if(work.IsNovel){
             structure.Items.Add(MenuAction("Añadir arco",()=>Add("Arc","Nuevo arco","")));
@@ -273,12 +295,50 @@ public sealed partial class Studio
             }
             else
             {
+                var format = Format.All.FirstOrDefault(f => f.Name == work.Type);
+                var activeTpl = EditorialTemplate.Resolve(format, work.Template);
+                bool hasDedicatedCover = activeTpl.Style is "Libreta" or "Reporte";
+                bool hasDedicatedToc = hasDedicatedCover && work.Publication.Contents;
+                int docPreviewMode = 0; // 0 = Hoja de la sección, 1 = Portada / Encabezado, 2 = Índice / Contenido
+
+                var btnSecView = QuietAction("Hoja de la sección", () => { docPreviewMode = 0; renderPreviewNow?.Invoke(); });
+                var btnCoverView = QuietAction(hasDedicatedCover ? "Portada" : "Primera hoja", () => { docPreviewMode = 1; renderPreviewNow?.Invoke(); });
+                var btnTocView = QuietAction(activeTpl.Style == "Libreta" ? "Índice" : "Contenido", () => { docPreviewMode = 2; renderPreviewNow?.Invoke(); });
+
                 var docPreviewHost = new ContentControl { HorizontalAlignment = HorizontalAlignment.Stretch };
                 renderPreviewNow = () =>
                 {
+                    btnSecView.Foreground = docPreviewMode == 0 ? Accent : Quiet;
+                    btnCoverView.Foreground = docPreviewMode == 1 ? Accent : Quiet;
+                    btnTocView.Foreground = docPreviewMode == 2 ? Accent : Quiet;
+
                     var pages = BuildDocumentPages(work, 400);
+                    if (pages.Count == 0) return;
+
+                    if (docPreviewMode == 1)
+                    {
+                        docPreviewHost.Content = new Viewbox
+                        {
+                            Stretch = Stretch.Uniform,
+                            MaxHeight = 238,
+                            Child = pages[0].BuildSheet()
+                        };
+                        return;
+                    }
+                    if (docPreviewMode == 2 && pages.Count > 1)
+                    {
+                        var tocPage = pages.FirstOrDefault(p => p.Label is "Índice" or "Contenido") ?? pages[1];
+                        docPreviewHost.Content = new Viewbox
+                        {
+                            Stretch = Stretch.Uniform,
+                            MaxHeight = 238,
+                            Child = tocPage.BuildSheet()
+                        };
+                        return;
+                    }
+
                     var sectionPages = pages.Where(p => p.Section == c).ToList();
-                    if (sectionPages.Count == 0 && pages.Count > 0) sectionPages.Add(pages[0]);
+                    if (sectionPages.Count == 0) sectionPages.Add(pages[0]);
                     if (sectionPages.Count >= 2)
                     {
                         var twoGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 12 };
@@ -288,7 +348,7 @@ public sealed partial class Studio
                         twoGrid.Children.Add(secondVb);
                         docPreviewHost.Content = twoGrid;
                     }
-                    else if (sectionPages.Count == 1)
+                    else
                     {
                         docPreviewHost.Content = new Viewbox
                         {
@@ -300,12 +360,20 @@ public sealed partial class Studio
                 };
                 renderPreviewNow();
                 var docHeader = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-                var openDocReading = QuietAction($"Abrir modo Lectura →", () => ReadSection(c));
+                var openDocReading = QuietAction("Abrir modo Lectura →", () => ReadSection(docPreviewMode == 1 && hasDedicatedCover ? null : c));
                 DockPanel.SetDock(openDocReading, Dock.Right);
                 docHeader.Children.Add(openDocReading);
-                docHeader.Children.Add(Kicker($"Vista en vivo de la hoja actual  ·  {work.Type}"));
 
-                var format = Format.All.FirstOrDefault(f => f.Name == work.Type);
+                var previewTabs = Row();
+                previewTabs.Margin = new Thickness(0);
+                previewTabs.Children.Add(btnSecView);
+                previewTabs.Children.Add(btnCoverView);
+                if (hasDedicatedToc) previewTabs.Children.Add(btnTocView);
+                DockPanel.SetDock(previewTabs, Dock.Right);
+                docHeader.Children.Add(previewTabs);
+
+                docHeader.Children.Add(Kicker($"Vista en vivo  ·  {work.Type}  ·  {activeTpl.Name}"));
+
                 var templateNames = format != null ? EditorialTemplate.For(format).Select(t => t.Name).ToArray() : [work.Template];
                 var docCard = Column(8);
                 docCard.Children.Add(docHeader);
@@ -313,11 +381,11 @@ public sealed partial class Studio
                 if (templateNames.Length > 1)
                 {
                     var fmtRow = Column(4);
-                    fmtRow.Children.Add(Label($"Formato de {work.Type.ToLowerInvariant()}"));
+                    fmtRow.Children.Add(Label($"Plantilla y formato de {work.Type.ToLowerInvariant()}"));
                     var tplCombo = new ComboBox
                     {
                         ItemsSource = templateNames,
-                        SelectedItem = templateNames.Contains(work.Template) ? work.Template : templateNames[0],
+                        SelectedItem = templateNames.Contains(work.Template) ? work.Template : activeTpl.Name,
                         HorizontalAlignment = HorizontalAlignment.Stretch
                     };
                     tplCombo.SelectionChanged += (_, _) =>
@@ -327,22 +395,19 @@ public sealed partial class Studio
                             work.Template = chosen;
                             if (format != null)
                             {
-                                var tplObj = EditorialTemplate.For(format).FirstOrDefault(t => t.Name == chosen);
-                                if (tplObj != null)
+                                var tplObj = EditorialTemplate.Resolve(format, chosen);
+                                bool allBlank = work.Chapters.All(ch => string.IsNullOrWhiteSpace(ch.PlainText) && ch.Entries.Count == 0 && ch.Images.Count == 0 && string.IsNullOrWhiteSpace(ch.Detail) && string.IsNullOrWhiteSpace(ch.Summary));
+                                if (allBlank)
                                 {
-                                    bool allBlank = work.Chapters.All(ch => string.IsNullOrWhiteSpace(ch.PlainText) && ch.Entries.Count == 0 && ch.Images.Count == 0 && string.IsNullOrWhiteSpace(ch.Detail) && string.IsNullOrWhiteSpace(ch.Summary));
-                                    if (allBlank)
+                                    work.Chapters = tplObj.Sections.Select((s, idx) => new Chapter { Title = s, Order = idx }).ToList();
+                                    chapter = work.Chapters.FirstOrDefault();
+                                }
+                                else
+                                {
+                                    foreach (var secName in tplObj.Sections)
                                     {
-                                        work.Chapters = tplObj.Sections.Select((s, idx) => new Chapter { Title = s, Order = idx }).ToList();
-                                        chapter = work.Chapters.FirstOrDefault();
-                                    }
-                                    else
-                                    {
-                                        foreach (var secName in tplObj.Sections)
-                                        {
-                                            if (!work.Chapters.Any(ch => ch.Title.Equals(secName, StringComparison.OrdinalIgnoreCase)))
-                                                work.Chapters.Add(new Chapter { Title = secName, Order = work.Chapters.Count });
-                                        }
+                                        if (!work.Chapters.Any(ch => ch.Title.Equals(secName, StringComparison.OrdinalIgnoreCase)))
+                                            work.Chapters.Add(new Chapter { Title = secName, Order = work.Chapters.Count });
                                     }
                                 }
                             }
@@ -351,23 +416,56 @@ public sealed partial class Studio
                         }
                     };
                     fmtRow.Children.Add(tplCombo);
+                    fmtRow.Children.Add(Label(EditorialTemplate.FormatGuidance(work.Type, activeTpl.Name), 12.5));
                     docCard.Children.Add(fmtRow);
                 }
 
                 docCard.Children.Add(docPreviewHost);
 
+                if (activeTpl.Style == "Reporte")
+                {
+                    var repToolbar = new WrapPanel { Margin = new Thickness(0, 2, 0, 0) };
+                    var roleNote = c.Title.Equals("Resumen", StringComparison.OrdinalIgnoreCase)
+                        ? "Sección preliminar sin numerar · Seguida automáticamente por el índice de Contenido."
+                        : (c.Title.StartsWith("Conclusi", StringComparison.OrdinalIgnoreCase) || c.Title.StartsWith("Bibliograf", StringComparison.OrdinalIgnoreCase))
+                            ? "Sección final sin numerar · Incluida en el índice de Contenido."
+                            : "Sección numerada del cuerpo del reporte.";
+                    repToolbar.Children.Add(new TextBlock { Text = roleNote, FontSize = 12, Foreground = Quiet, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) });
+                    repToolbar.Children.Add(QuietAction("+ Sección de desarrollo", () =>
+                    {
+                        var orderedCh = WorldModel.Ordered(work).ToList();
+                        int insertIdx = orderedCh.FindIndex(ch => ch.Title.StartsWith("Conclusi", StringComparison.OrdinalIgnoreCase) || ch.Title.StartsWith("Bibliograf", StringComparison.OrdinalIgnoreCase));
+                        int bodyNum = orderedCh.Count(ch => !ch.Title.Equals("Resumen", StringComparison.OrdinalIgnoreCase) && !ch.Title.StartsWith("Conclusi", StringComparison.OrdinalIgnoreCase) && !ch.Title.StartsWith("Bibliograf", StringComparison.OrdinalIgnoreCase)) + 1;
+                        var newSec = new Chapter { Title = "Desarrollo " + bodyNum, Level = "Chapter" };
+                        if (insertIdx >= 0) orderedCh.Insert(insertIdx, newSec);
+                        else orderedCh.Add(newSec);
+                        for (int n = 0; n < orderedCh.Count; n++) orderedCh[n].Order = n;
+                        work.Chapters = orderedCh;
+                        chapter = newSec;
+                        RememberSection(work, newSec);
+                        Changed();
+                        Editor();
+                    }));
+                    docCard.Children.Add(repToolbar);
+                }
+
                 var frontKeys = work.Type == "CV"
                     ? ["Nombre profesional", "Profesión", "Correo", "Teléfono", "Ciudad", "Portafolio", "Perfil profesional en línea"]
-                    : EditorialTemplate.FrontMatter(work.Type);
+                    : EditorialTemplate.AllFactKeys(work);
                 if (frontKeys.Length > 0)
                 {
+                    bool expandByDefault = work.Type is "Carta" or "Acta" && work.Chapters.IndexOf(c) == 0 && frontKeys.All(k => string.IsNullOrWhiteSpace(work.DocumentFacts.GetValueOrDefault(k)));
                     var metaExpander = new Expander
                     {
                         Header = work.Type == "CV"
                             ? "Datos profesionales del encabezado"
-                            : $"Datos de portada / encabezado ({frontKeys.Length} campos)",
+                            : hasDedicatedCover
+                                ? $"Portada institucional de {activeTpl.Name} ({frontKeys.Length} campos)"
+                                : $"Datos de encabezado de {work.Type.ToLowerInvariant()} ({frontKeys.Length} campos)",
+                        IsExpanded = expandByDefault,
                         HorizontalAlignment = HorizontalAlignment.Stretch
                     };
+                    var expanderStack = Column(8);
                     var fieldsGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 12, RowSpacing = 6 };
                     for (int idx = 0; idx < frontKeys.Length; idx++)
                     {
@@ -379,13 +477,39 @@ public sealed partial class Studio
                         {
                             if (work.Type == "CV") work.Contact[key] = val;
                             else work.DocumentFacts[key] = val;
+                            if (hasDedicatedCover) docPreviewMode = 1;
                             refreshSlidePreview();
                         });
                         Grid.SetRow(cellCol, idx / 2);
                         Grid.SetColumn(cellCol, idx % 2);
                         fieldsGrid.Children.Add(cellCol);
                     }
-                    metaExpander.Content = fieldsGrid;
+                    expanderStack.Children.Add(fieldsGrid);
+                    if (hasDedicatedCover)
+                    {
+                        var coverImgBar = Row();
+                        coverImgBar.Children.Add(QuietAction("Imagen de portada…", async () => await Guard(async () =>
+                        {
+                            var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Imagen de portada PNG o JPEG" })).FirstOrDefault()?.TryGetLocalPath();
+                            if (path == null) return;
+                            work.CoverImage = shelf.AddImage(path);
+                            docPreviewMode = 1;
+                            Changed();
+                            renderPreviewNow?.Invoke();
+                        })));
+                        if (work.CoverImage != "")
+                        {
+                            coverImgBar.Children.Add(QuietAction("Quitar imagen de portada", () =>
+                            {
+                                work.CoverImage = "";
+                                docPreviewMode = 1;
+                                Changed();
+                                renderPreviewNow?.Invoke();
+                            }));
+                        }
+                        expanderStack.Children.Add(coverImgBar);
+                    }
+                    metaExpander.Content = expanderStack;
                     docCard.Children.Add(metaExpander);
                 }
 
@@ -462,6 +586,10 @@ public sealed partial class Studio
             }
             insert.Items.Add(MenuAction("Paleta cromática",()=>Insert("\n[[Paleta: #E4D1A5 Luz cálida | #D99442 Ámbar | #7B8581 Piedra | #55705C Musgo | #182A27 Sombra]]\n")));
             if(!work.IsNovel && work.Type!="Presentación")insert.Items.Add(MenuAction("Bloque de firmas",()=>Insert("\n[[Firmas: Responsable 1 | Responsable 2]]\n")));
+            foreach(var (snipLabel,snipContent) in EditorialTemplate.QuickSnippets(work.Type)){
+                var textToInsert=snipContent;
+                insert.Items.Add(MenuAction(snipLabel,()=>Insert(textToInsert)));
+            }
             async Task InsertPictures(bool gallery){
                 var paths=await PickIllustrations(true);
                 if(paths.Length==0)return;
@@ -489,8 +617,12 @@ public sealed partial class Studio
             var fixedTools=Column(0);fixedTools.Name="HerramientasDeEscritura";fixedTools.MaxWidth=body.MaxWidth;fixedTools.HorizontalAlignment=HorizontalAlignment.Stretch;
             fixedTools.Children.Add(barFrame);DockPanel.SetDock(fixedTools,Dock.Top);root.Children.Add(fixedTools);
             AddSearch(root,fixedTools,bar,draft);
+            if(work.Type=="CV" && draft.Blocks.Count==1)draft.Blocks[0].MinHeight=115;
+            if(work.Type=="CV")ResumeEntries(body,c,refreshSlidePreview);
             if(work.Type=="Presentación")
                 body.Children.Add(Label(c.Layout=="Ficha de concepto"?"Listas de Referencias y Key Words (tabla de 2 columnas o bloques ### Referencias / ### Key Words)":c.Layout=="Tabla visual"?"Tabla de elementos (puedes usar [[Imagen N]] en la primera columna para incrustar cada icono)":"Contenido principal de la diapositiva (admite tablas, listas y [[Paleta: ...]])"));
+            else if(work.Type=="CV")
+                body.Children.Add(Label("Texto libre o introducción de la sección (opcional si usas entradas estructuradas arriba)",13));
             body.Children.Add(draft.View);
             var count=Label("",12);void Count(){var clean=System.Text.RegularExpressions.Regex.Replace(Illustrations.Marker().Replace(c.PlainText," "),@"\[\[(?:Página|Índice|Paleta:[^\]]+|Firmas:[^\]]+)\]\]"," ");var words=System.Text.RegularExpressions.Regex.Count(clean, @"[\p{L}\p{N}]+");count.Text=$"{words:N0} palabras   ·   {Math.Max(1,(int)Math.Ceiling(words/210d))} min de lectura";}Count();draft.Edited+=Count;body.Children.Add(count);
             if(c.Images.Count!=0 && !illustrated){
@@ -527,8 +659,9 @@ public sealed partial class Studio
                 if(work.Type=="Presentación"){LoadAssets();assets.IsExpanded=true;}
                 body.Children.Add(assets);
             }
-            if(work.Type=="CV")ResumeEntries(body,c,refreshSlidePreview);
             if (work.Type == "Apuntes") Field(body, "Síntesis", c.Summary, v => { c.Summary = v; refreshSlidePreview?.Invoke(); }, true);
+            else if (work.Type is "Informe" or "Propuesta" or "Artículo" or "Acta" or "Documento")
+                Field(body, "Recuadro de síntesis o nota destacada al cierre de la sección (opcional)", c.Summary, v => { c.Summary = v; refreshSlidePreview?.Invoke(); }, true);
         }
         var sheet=new Border{Child=body,Padding=new Thickness(36,30,36,24),MaxWidth=body.MaxWidth+72,HorizontalAlignment=HorizontalAlignment.Stretch};
         root.Children.Add(new ScrollViewer{Content=sheet}); page.Content = root;
@@ -536,42 +669,89 @@ public sealed partial class Studio
     void Details()=>Details(false);
     void Details(bool printing)
     {
-        Navigate("Ficha");var work = current!; var body = Column();body.MaxWidth=ReadPref("ancho","Medio") switch {"Amplio"=>1120,"Estrecho"=>680,_=>860};body.HorizontalAlignment=HorizontalAlignment.Stretch; body.Children.Add(Kicker(work.Type));body.Children.Add(Display("Ficha de la obra",36));
+        Navigate("Ficha");var work = current!; var body = Column();body.MaxWidth=ReadPref("ancho","Medio") switch {"Amplio"=>1120,"Estrecho"=>680,_=>860};body.HorizontalAlignment=HorizontalAlignment.Stretch;
+        body.Children.Add(Kicker(work.IsNovel ? work.Type : $"{work.Type}  ·  {(string.IsNullOrWhiteSpace(work.Template) ? "Clásica" : work.Template)}"));
+        body.Children.Add(Display("Ficha y personalización",36));
         var jacket=new DockPanel();var coverOptions=Column(8);
-        var proof=new ContentControl{Width=160,Height=222,Margin=new Thickness(0,0,22,0)};
+        var leftStage=Column(6);leftStage.Margin=new Thickness(0,0,24,0);
+        var proof=new ContentControl{Width=164,Height=224};
+        bool showingBackFace=false;
         void RefreshJacket(){
-            var entry=new Entry(work.Id,work.Title,work.Type,0,work.CoverImage,work.CoverColor,work.Author,work.Description,work.CollectionId,work.CoverLettering);
-            proof.Content=Miniature(entry,()=>{if(work.IsNovel)InspectBook(entry);else ReadSection(chapter);});
+            var entry=Entry.FromWork(work);
+            var mini=Miniature(entry,()=>{if(work.IsNovel)InspectBook(entry);else ReadSection(chapter);});
+            if(mini is BookCover bc)bc.ShowJacket(showingBackFace);
+            else if(mini is TurningSheet ts)ts.ShowFace(showingBackFace);
+            proof.Content=mini;
         }
-        RefreshJacket();DockPanel.SetDock(proof,Dock.Left);jacket.Children.Add(proof);
-        coverOptions.VerticalAlignment=VerticalAlignment.Center;coverOptions.Children.Add(Kicker(work.IsNovel?"Encuadernación":"Miniatura"));
+        RefreshJacket();
+        leftStage.Children.Add(proof);
+        var faceRow=Row();faceRow.HorizontalAlignment=HorizontalAlignment.Center;faceRow.Margin=new Thickness(0);
+        faceRow.Children.Add(QuietAction("Anverso",()=>{showingBackFace=false;RefreshJacket();}));
+        faceRow.Children.Add(QuietAction("Reverso",()=>{showingBackFace=true;RefreshJacket();}));
+        leftStage.Children.Add(faceRow);
+        DockPanel.SetDock(leftStage,Dock.Left);jacket.Children.Add(leftStage);
+
+        coverOptions.VerticalAlignment=VerticalAlignment.Center;
+        coverOptions.Children.Add(Kicker(work.IsNovel?"Encuadernación 3D y portada":"Personalización de minidocumento 3D y color"));
         var inks=new WrapPanel();
-        foreach(var hex in palette.Swatches.Concat(new[]{"#3C425E","#886240","#8C6273","#1E6667","#E4DABC","#392B39","#88403F","#FAF8F0"}).Prepend(work.CoverColor).Where(s=>Color.TryParse(s,out _)).Distinct(StringComparer.OrdinalIgnoreCase)){
-            var swatch=new Button{Width=30,Height=30,MinWidth=0,Padding=new Thickness(0),Margin=new Thickness(0,0,5,4),Background=Brush.Parse(hex),CornerRadius=new CornerRadius(15),
-                BorderBrush=Foreground,BorderThickness=new Thickness(hex==work.CoverColor?2:0)};
-            ToolTip.SetTip(swatch,"Pasta "+hex);Avalonia.Automation.AutomationProperties.SetName(swatch,"Pasta "+hex);
+        var presetColors=palette.Swatches.Concat(new[]{"#004785","#1B5272","#364A8A","#7A3E65","#376B48","#9B342E","#4A3C6E","#475E4B","#1E5B88","#3C425E","#886240","#8C6273","#1E6667","#E4DABC","#392B39","#88403F","#FAF8F0"}).Prepend(work.CoverColor).Where(s=>Color.TryParse(s,out _)).Distinct(StringComparer.OrdinalIgnoreCase);
+        foreach(var hex in presetColors){
+            var swatch=new Button{Width=28,Height=28,MinWidth=0,Padding=new Thickness(0),Margin=new Thickness(0,0,5,4),Background=Brush.Parse(hex),CornerRadius=new CornerRadius(14),
+                BorderBrush=Foreground,BorderThickness=new Thickness(string.Equals(hex,work.CoverColor,StringComparison.OrdinalIgnoreCase)?2:0)};
+            ToolTip.SetTip(swatch,"Color "+hex);Avalonia.Automation.AutomationProperties.SetName(swatch,"Pasta "+hex);
             swatch.Click+=(_,_)=>{work.CoverColor=hex;Changed();RefreshJacket();foreach(var b in inks.Children.OfType<Button>())b.BorderThickness=new Thickness(b==swatch?2:0);};inks.Children.Add(swatch);
         }
         coverOptions.Children.Add(inks);
-        Choice(coverOptions,"Letras de la encuadernación",BookCover.LetteringStyles,work.CoverLettering,v=>{work.CoverLettering=v;Changed();RefreshJacket();});
-        coverOptions.Children.Add(Action("Elegir portada…", async () => await Guard(async () =>
+
+        var customColorRow=Row();
+        var hexInput=new TextBox{Text=work.CoverColor,Watermark="#HEX personalizado",Width=130};
+        customColorRow.Children.Add(hexInput);
+        customColorRow.Children.Add(QuietAction("Aplicar color HEX",()=>{
+            var candidate=(hexInput.Text??"").Trim();
+            if(!candidate.StartsWith('#'))candidate="#"+candidate;
+            if(Color.TryParse(candidate,out _)){work.CoverColor=candidate.ToUpperInvariant();hexInput.Text=work.CoverColor;Changed();RefreshJacket();}
+        }));
+        coverOptions.Children.Add(customColorRow);
+
+        if(work.IsNovel){
+            Choice(coverOptions,"Letras de la encuadernación",BookCover.LetteringStyles,work.CoverLettering,v=>{work.CoverLettering=v;Changed();RefreshJacket();});
+        }else{
+            var miniStyles=EditorialTemplate.DocumentMiniatureStyles;
+            Choice(coverOptions,"Estilo y acabado del minidocumento",miniStyles,miniStyles.Contains(work.CoverLettering)?work.CoverLettering:miniStyles[0],v=>{work.CoverLettering=v;Changed();RefreshJacket();});
+        }
+        var imgActions=Row();
+        imgActions.Children.Add(Action(work.IsNovel?"Elegir portada…":"Imagen o logotipo de portada…", async () => await Guard(async () =>
         {
             var path = (await StorageProvider.OpenFilePickerAsync(new() { Title = "Portada PNG o JPEG" })).FirstOrDefault()?.TryGetLocalPath();
-            if (path == null) return; work.CoverImage = shelf.AddImage(path); Changed(); Details();
+            if (path == null) return; work.CoverImage = shelf.AddImage(path); Changed(); Details(printing);
         })));
-        if(work.CoverImage!="")coverOptions.Children.Add(QuietAction("Quitar imagen de portada",()=>{work.CoverImage="";Changed();Details();}));
-        jacket.Children.Add(coverOptions);body.Children.Add(jacket);
+        if(work.CoverImage!="")imgActions.Children.Add(QuietAction("Quitar imagen de portada",()=>{work.CoverImage="";Changed();Details(printing);}));
+        coverOptions.Children.Add(imgActions);
+        jacket.Children.Add(coverOptions);body.Children.Add(Card(jacket));
         var coverPage=body;var form=Column(8);var print=Column(8);body=form;
-        var titleBox=Field(body,"Título",work.Title,v=>work.Title=v);
-        var authorBox=Field(body,"Autor",work.Author,v=>work.Author=v);
-        Field(body, "Subtítulo", work.Subtitle, v => work.Subtitle = v); Field(body, "Colección", work.CollectionId, v => work.CollectionId = v);
-        var blurb=Field(body,"Sinopsis de contraportada",work.Description,v=>work.Description=v,true);
-        foreach(var field in new[]{titleBox,authorBox,blurb})field.LostFocus+=(_,_)=>RefreshJacket();
+        var titleBox=Field(body,"Título",work.Title,v=>{work.Title=v;RefreshJacket();});
+        var authorBox=Field(body,"Autor",work.Author,v=>{work.Author=v;RefreshJacket();});
+        var subBox=Field(body, "Subtítulo", work.Subtitle, v => { work.Subtitle = v; RefreshJacket(); });
+        Field(body, "Colección", work.CollectionId, v => work.CollectionId = v);
+        var blurb=Field(body,work.IsNovel?"Sinopsis de contraportada":"Resumen o síntesis para el reverso del minidocumento",work.Description,v=>{work.Description=v;RefreshJacket();},true);
+        foreach(var field in new[]{titleBox,authorBox,subBox,blurb})field.LostFocus+=(_,_)=>RefreshJacket();
         if(work.Type=="CV")ResumeProfile(body,work);
-        var facts=EditorialTemplate.FrontMatter(work.Type);
-        if(facts.Length>0){
+        var facts=EditorialTemplate.AllFactKeys(work);
+        if(facts.Length>0 || !work.IsNovel){
             var data=Column(6);data.Children.Add(Display("Datos de "+work.Type.ToLowerInvariant(),22));
-            foreach(var key in facts)Field(data,key,work.DocumentFacts.GetValueOrDefault(key,""),v=>work.DocumentFacts[key]=v);
+            foreach(var key in facts)Field(data,key,work.DocumentFacts.GetValueOrDefault(key,""),v=>{work.DocumentFacts[key]=v;RefreshJacket();});
+            if(!work.IsNovel && work.Type!="CV"){
+                var extraFactRow=new WrapPanel{Margin=new Thickness(0,6,0,0)};
+                var customKey=new TextBox{Watermark="Nuevo campo (ej. Expediente, Semestre)",MinWidth=210,Margin=new Thickness(0,0,8,4)};
+                var customVal=new TextBox{Watermark="Valor del campo",MinWidth=210,Margin=new Thickness(0,0,8,4)};
+                extraFactRow.Children.Add(customKey);extraFactRow.Children.Add(customVal);
+                extraFactRow.Children.Add(QuietAction("+ Añadir dato",()=>{
+                    var k=(customKey.Text??"").Trim();if(k=="")return;
+                    work.DocumentFacts[k]=(customVal.Text??"").Trim();
+                    Changed();Details(printing);
+                }));
+                data.Children.Add(extraFactRow);
+            }
             body.Children.Add(Card(data));
         }
         PrintSettings(print,work);

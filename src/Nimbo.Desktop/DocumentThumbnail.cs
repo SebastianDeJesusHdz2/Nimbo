@@ -192,11 +192,41 @@ public sealed partial class Studio
                 _ => (116d, 166d, 7d, 31d, "#F9F7F1", "#D2CEC2")
             };
 
+            bool darkFinish = entry.Lettering is "Ejecutiva" or "Carbón" or "Tejuelo";
+            if (!slide)
+            {
+                paperHex = entry.Lettering switch
+                {
+                    "Ejecutiva" or "Carbón" => "#1B232C",
+                    "Tejuelo" => "#212832",
+                    "Académica" or "Oro" or "Cobre" => "#FAF1DF",
+                    "Minimalista" or "Plata" => "#FFFFFF",
+                    _ => paperHex
+                };
+            }
+            var foilHex = entry.Lettering switch
+            {
+                "Oro" or "Tejuelo" or "Ejecutiva" => "#E5BC68",
+                "Plata" => "#C6D3DF",
+                "Cobre" => "#DD8D64",
+                _ => accentHex
+            };
+            var foilBrush = Brush.Parse(foilHex);
             var paper = Brush.Parse(paperHex);
             var rimBrush = Brush.Parse(rimHex);
-            var darkInk = Brush.Parse("#1D252C");
-            var mutedInk = Brush.Parse("#5A6570");
+            var darkInk = darkFinish ? Brush.Parse("#F5F1E8") : Brush.Parse("#1D252C");
+            var mutedInk = darkFinish ? Brush.Parse("#B8C3CE") : Brush.Parse("#5A6570");
             var ruleBrush = EditionPalette.Mix(accentHex, "#B8B4AA", .72);
+            var secs = new[] { entry.FirstSection, entry.SecondSection, entry.ThirdSection }.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+            var tplTag = !string.IsNullOrWhiteSpace(entry.Template) && !entry.Template.Equals("Clásica", StringComparison.OrdinalIgnoreCase)
+                ? entry.Template.ToUpperInvariant()
+                : entry.Type.ToUpperInvariant();
+            string Initials(string source)
+            {
+                var parts = source.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Where(p => char.IsLetter(p[0])).Take(2).Select(p => char.ToUpperInvariant(p[0])).ToArray();
+                return parts.Length > 0 ? new string(parts) : "CV";
+            }
 
             double depth(double x, double z) => z * cos - x * sin;
             Point Project(double x, double y, double z) => new(Bounds.Width / 2 + x * cos + z * sin, topY + y + depth(x, z) * .16);
@@ -272,20 +302,20 @@ public sealed partial class Studio
                             else
                             {
                                 dc.DrawEllipse(EditionPalette.Mix(accentHex, "#FFFFFF", .24), null, avatarCenter, 12, 12);
-                                dc.DrawEllipse(Brushes.Ivory, null, new Point(avatarCenter.X, avatarCenter.Y - 3.5), 4.2, 4.2);
-                                dc.DrawGeometry(Brushes.Ivory, null, Geometry.Parse($"M {avatarCenter.X - 7.5},{avatarCenter.Y + 9} C {avatarCenter.X - 7.5},{avatarCenter.Y + 3} {avatarCenter.X + 7.5},{avatarCenter.Y + 3} {avatarCenter.X + 7.5},{avatarCenter.Y + 9} Z"));
+                                DrawTextVector(dc, Initials(entry.Author != "" ? entry.Author : entry.Title), new Rect(6, 16.5, 24, 12), 8.2, Brushes.Ivory, FontWeight.Bold, TextAlignment.Center, 1);
                             }
-                            dc.DrawEllipse(null, new Pen(Brushes.Ivory, 1.2), avatarCenter, 12, 12);
+                            dc.DrawEllipse(null, new Pen(foilBrush, 1.2), avatarCenter, 12, 12);
 
-                            DrawTextVector(dc, "PERFIL", new Rect(5, 53, sideW - 10, 8), 5.5, softAccent, FontWeight.Bold, maxLines: 1);
+                            var cityOrTag = entry.SecondaryFact != "" ? entry.SecondaryFact : "PERFIL";
+                            DrawTextVector(dc, cityOrTag.ToUpperInvariant(), new Rect(4, 53, sideW - 8, 8), 5.0, softAccent, FontWeight.Bold, maxLines: 1);
                             for (int i = 0; i < 3; i++)
                             {
                                 double cy = 64 + i * 8;
                                 dc.DrawEllipse(softAccent, null, new Point(7, cy + 1.5), 1.5, 1.5);
                                 dc.DrawRectangle(softAccent, null, new Rect(11, cy + .5, 18 - (i % 2) * 4, 2), 1, 1);
                             }
-                            DrawTextVector(dc, "APTITUDES", new Rect(5, 94, sideW - 10, 8), 5.2, softAccent, FontWeight.Bold, maxLines: 1);
-                            double[] skills = [21, 16, 24, 18];
+                            DrawTextVector(dc, $"{entry.ChapterCount} SECC.", new Rect(4, 94, sideW - 8, 8), 5.2, softAccent, FontWeight.Bold, maxLines: 1);
+                            double[] skills = [22, 17, 24, 19];
                             for (int i = 0; i < skills.Length; i++)
                             {
                                 double sy = 105 + i * 11;
@@ -294,22 +324,26 @@ public sealed partial class Studio
                             }
 
                             double mainX = sideW + 7, mainW = w - sideW - 13;
-                            dc.DrawRectangle(softAccent, null, new Rect(mainX, 10, 48, 10), 2, 2);
-                            DrawTextVector(dc, "CURRÍCULUM", new Rect(mainX + 3, 11.5, 44, 8), 5.8, deepAccent, FontWeight.Bold, maxLines: 1);
-                            DrawTextVector(dc, entry.Title, new Rect(mainX, 24, mainW, 30), 11.5, darkInk, FontWeight.Bold, maxLines: 2);
-                            if (entry.Author != "")
-                                DrawTextVector(dc, entry.Author, new Rect(mainX, 53, mainW, 11), 7.8, accent, FontWeight.SemiBold, maxLines: 1);
-                            dc.DrawLine(new Pen(accent, 1.1), new Point(mainX, 66), new Point(w - 7, 66));
+                            dc.DrawRectangle(softAccent, null, new Rect(mainX, 9, mainW, 10), 2, 2);
+                            var cvHeaderTag = entry.Template != "" ? "CV · " + entry.Template.ToUpperInvariant() : "CURRÍCULUM VITAE";
+                            DrawTextVector(dc, cvHeaderTag, new Rect(mainX + 3, 10.5, mainW - 6, 8), 5.2, deepAccent, FontWeight.Bold, maxLines: 1);
+                            DrawTextVector(dc, entry.Title, new Rect(mainX, 22, mainW, 27), 11, darkInk, FontWeight.Bold, maxLines: 2);
+                            var profLine = entry.PrimaryFact != "" ? entry.PrimaryFact : (entry.Subtitle != "" ? entry.Subtitle : entry.Author);
+                            if (profLine != "")
+                                DrawTextVector(dc, profLine, new Rect(mainX, 50, mainW, 11), 7.2, foilBrush, FontWeight.SemiBold, maxLines: 1);
+                            dc.DrawLine(new Pen(foilBrush, 1.1), new Point(mainX, 63), new Point(w - 7, 63));
 
-                            dc.DrawLine(new Pen(midAccent, 1), new Point(mainX + 3, 75), new Point(mainX + 3, h - 14));
+                            dc.DrawLine(new Pen(midAccent, 1), new Point(mainX + 3, 72), new Point(mainX + 3, h - 12));
+                            string[] cvDefaultSecs = ["Perfil", "Experiencia", "Formación"];
                             for (int n = 0; n < 3; n++)
                             {
-                                double ey = 74 + n * 28;
-                                dc.DrawEllipse(accent, new Pen(Brushes.White, .8), new Point(mainX + 3, ey + 3), 3, 3);
-                                dc.DrawRectangle(EditionPalette.Mix(accentHex, "#E8E2E6", .85), null, new Rect(mainX + 9, ey, mainW - 9, 21), 2, 2);
-                                dc.DrawRectangle(darkInk, null, new Rect(mainX + 13, ey + 4, mainW - 22, 2.5), 1, 1);
-                                dc.DrawRectangle(accent, null, new Rect(mainX + 13, ey + 9.5, 24, 2), 1, 1);
-                                dc.DrawRectangle(mutedInk, null, new Rect(mainX + 13, ey + 14.5, mainW - 18, 1.8), 1, 1);
+                                double ey = 71 + n * 29;
+                                var secName = n < secs.Length ? secs[n] : cvDefaultSecs[n];
+                                dc.DrawEllipse(accent, new Pen(Brushes.White, .8), new Point(mainX + 3, ey + 4), 3, 3);
+                                dc.DrawRectangle(darkFinish ? Brush.Parse("#293440") : EditionPalette.Mix(accentHex, "#E8E2E6", .85), new Pen(foilBrush, .4), new Rect(mainX + 9, ey, mainW - 9, 23), 2, 2);
+                                DrawTextVector(dc, secName.ToUpperInvariant(), new Rect(mainX + 12, ey + 2.5, mainW - 15, 8), 5.6, darkInk, FontWeight.Bold, maxLines: 1);
+                                dc.DrawRectangle(foilBrush, null, new Rect(mainX + 12, ey + 11.5, Math.Min(mainW - 18, 22 + (secName.Length % 4) * 5), 2), 1, 1);
+                                dc.DrawRectangle(mutedInk, null, new Rect(mainX + 12, ey + 16.5, mainW - 18, 1.8), 1, 1);
                             }
                             break;
                         }
@@ -320,16 +354,18 @@ public sealed partial class Studio
                             dc.DrawEllipse(Brush.Parse("#E06C60"), null, new Point(8, 7), 2.2, 2.2);
                             dc.DrawEllipse(Brush.Parse("#E8B858"), null, new Point(15, 7), 2.2, 2.2);
                             dc.DrawEllipse(Brush.Parse("#5CB878"), null, new Point(22, 7), 2.2, 2.2);
-                            dc.DrawRectangle(accent, null, new Rect(w - 34, 3, 28, 8), 2, 2);
-                            DrawTextVector(dc, "16:9", new Rect(w - 33, 3.5, 26, 7), 5.8, Brushes.White, FontWeight.Bold, TextAlignment.Center, 1);
+                            dc.DrawRectangle(accent, null, new Rect(w - 50, 2.5, 44, 9), 2, 2);
+                            DrawTextVector(dc, $"16:9 · {entry.ChapterCount}P", new Rect(w - 49, 3.2, 42, 7.5), 5.3, Brushes.White, FontWeight.Bold, TextAlignment.Center, 1);
 
-                            DrawTextVector(dc, "PRESENTACIÓN", new Rect(9, 18, 72, 9), 6.2, midAccent, FontWeight.Bold, maxLines: 1);
-                            DrawTextVector(dc, entry.Title, new Rect(9, 28, 70, 36), 12, Brushes.Ivory, FontWeight.Bold, maxLines: 3, shadow: Brush.Parse("#AA080E14"));
-                            if (entry.Author != "")
-                                DrawTextVector(dc, entry.Author, new Rect(9, 66, 70, 11), 7.8, softAccent, FontWeight.Normal, maxLines: 1);
+                            var slideKicker = entry.PrimaryFact != "" ? entry.PrimaryFact.ToUpperInvariant() : tplTag;
+                            DrawTextVector(dc, slideKicker, new Rect(9, 17, 72, 9), 5.6, Brush.Parse("#E6AA68"), FontWeight.Bold, maxLines: 1);
+                            DrawTextVector(dc, entry.Title, new Rect(9, 26, 70, 35), 11.2, Brushes.Ivory, FontWeight.Bold, maxLines: 3, shadow: Brush.Parse("#AA080E14"));
+                            var slideSub = entry.Author != "" ? entry.Author : entry.Subtitle;
+                            if (slideSub != "")
+                                DrawTextVector(dc, slideSub, new Rect(9, 64, 70, 11), 7.2, softAccent, FontWeight.Normal, maxLines: 1);
 
-                            var cardRect = new Rect(83, 19, 47, 56);
-                            dc.DrawRectangle(EditionPalette.Mix(accentHex, "#1E3448", .62), new Pen(midAccent, .8), cardRect, 3, 3);
+                            var cardRect = new Rect(83, 18, 47, 58);
+                            dc.DrawRectangle(EditionPalette.Mix(accentHex, "#1E3448", .62), new Pen(Brush.Parse("#E6AA68"), .85), cardRect, 3, 3);
                             if (art != null)
                             {
                                 DrawCoverSlice(dc, art, cardRect.Deflate(2), 2);
@@ -345,66 +381,109 @@ public sealed partial class Studio
                                     dc.DrawRectangle(Brush.Parse(bars[b].col), null, new Rect(cardRect.Left + 6 + b * 9.5, cardRect.Bottom - 6 - bars[b].bh, 6.5, bars[b].bh), 1.5, 1.5);
                             }
 
-                            dc.DrawRectangle(Brush.Parse("#0F1B26"), null, new Rect(0, h - 10, w, 10));
-                            dc.DrawRectangle(accent, null, new Rect(8, h - 6.5, 14, 3), 1.5, 1.5);
-                            dc.DrawRectangle(Brush.Parse("#48647A"), null, new Rect(25, h - 6.5, 5, 3), 1.5, 1.5);
-                            dc.DrawRectangle(Brush.Parse("#48647A"), null, new Rect(33, h - 6.5, 5, 3), 1.5, 1.5);
+                            dc.DrawRectangle(Brush.Parse("#0F1B26"), null, new Rect(0, h - 11, w, 11));
+                            int dots = Math.Clamp(entry.ChapterCount, 2, 7);
+                            double dotX = 8;
+                            for (int dIdx = 0; dIdx < dots; dIdx++)
+                            {
+                                double dw = dIdx == 0 ? 13 : 5;
+                                dc.DrawRectangle(dIdx == 0 ? Brush.Parse("#E6AA68") : Brush.Parse("#48647A"), null, new Rect(dotX, h - 7, dw, 3), 1.5, 1.5);
+                                dotX += dw + 3;
+                            }
+                            if (entry.SecondaryFact != "")
+                                DrawTextVector(dc, entry.SecondaryFact, new Rect(w - 50, h - 9, 44, 8), 5.2, softAccent, FontWeight.SemiBold, TextAlignment.Right, 1);
                             break;
                         }
 
                         case "Informe":
                         {
-                            dc.DrawRectangle(accent, null, new Rect(0, 0, w, 25));
-                            dc.DrawRectangle(deepAccent, null, new Rect(0, 0, 8, h));
-                            DrawTextVector(dc, "INFORME", new Rect(13, 5, 64, 9), 6.5, Brushes.Ivory, FontWeight.Bold, maxLines: 1);
-                            dc.DrawRectangle(Brush.Parse("#48B884"), null, new Rect(w - 28, 6, 20, 8), 4, 4);
-                            DrawTextVector(dc, "KPI", new Rect(w - 27, 6.5, 18, 7), 5.2, Brushes.White, FontWeight.Bold, TextAlignment.Center, 1);
-                            dc.DrawRectangle(softAccent, null, new Rect(13, 16, 36, 2.2), 1, 1);
-
-                            DrawTextVector(dc, entry.Title, new Rect(13, 30, w - 21, 30), 11.5, darkInk, FontWeight.Bold, maxLines: 2);
-                            if (entry.Author != "")
-                                DrawTextVector(dc, entry.Author, new Rect(13, 59, w - 21, 11), 7.8, accent, FontWeight.SemiBold, maxLines: 1);
-
-                            for (int k = 0; k < 2; k++)
+                            bool isReporte = entry.Template.Contains("Reporte", StringComparison.OrdinalIgnoreCase);
+                            if (isReporte)
                             {
-                                var kpi = new Rect(13 + k * 49, 73, 45, 22);
-                                dc.DrawRectangle(Brushes.White, new Pen(Brush.Parse("#CBD8E2"), .8), kpi, 2.5, 2.5);
-                                dc.DrawRectangle(k == 0 ? accent : Brush.Parse("#E69D45"), null, new Rect(kpi.Left + 4, kpi.Top + 4, 16, 4), 1.5, 1.5);
-                                dc.DrawRectangle(Brush.Parse("#8397A5"), null, new Rect(kpi.Left + 4, kpi.Top + 11, 28, 2.2), 1, 1);
-                                dc.DrawRectangle(Brush.Parse("#B4C4CE"), null, new Rect(kpi.Left + 4, kpi.Top + 16, 20, 2), 1, 1);
-                            }
+                                dc.DrawRectangle(accent, null, new Rect(0, 0, 7, h));
+                                dc.DrawRectangle(foilBrush, null, new Rect(14, 11, w - 22, 1.4));
+                                var inst = entry.PrimaryFact != "" ? entry.PrimaryFact.ToUpperInvariant() : "REPORTE TÉCNICO";
+                                DrawTextVector(dc, inst, new Rect(14, 15, w - 22, 14), 5.6, foilBrush, FontWeight.Bold, TextAlignment.Center, 2);
+                                dc.DrawRectangle(foilBrush, null, new Rect(26, 31, w - 46, .8));
+                                DrawTextVector(dc, entry.Title, new Rect(14, 36, w - 22, 30), 11, darkInk, FontWeight.Bold, TextAlignment.Center, 2, true);
+                                if (entry.Author != "")
+                                    DrawTextVector(dc, "Por: " + entry.Author, new Rect(14, 66, w - 22, 10), 6.8, mutedInk, FontWeight.SemiBold, TextAlignment.Center, 1);
 
-                            var chartBox = new Rect(13, 101, w - 21, 56);
-                            dc.DrawRectangle(Brushes.White, new Pen(Brush.Parse("#C4D3DE"), .8), chartBox, 3, 3);
-                            if (art != null)
-                            {
-                                DrawCoverSlice(dc, art, chartBox.Deflate(2), 2);
+                                var midBox = new Rect(14, 80, w - 22, 46);
+                                dc.DrawRectangle(darkFinish ? Brush.Parse("#25303B") : Brushes.White, new Pen(foilBrush, .75), midBox, 2.5, 2.5);
+                                if (art != null)
+                                {
+                                    DrawCoverSlice(dc, art, midBox.Deflate(2), 2);
+                                }
+                                else
+                                {
+                                    DrawTextVector(dc, "CONTENIDO", new Rect(midBox.Left + 5, midBox.Top + 3, midBox.Width - 10, 8), 5.4, foilBrush, FontWeight.Bold, maxLines: 1);
+                                    for (int s = 0; s < Math.Min(3, Math.Max(1, secs.Length)); s++)
+                                    {
+                                        var sName = s < secs.Length ? $"{s + 1}. {secs[s]}" : $"{s + 1}. Sección";
+                                        DrawTextVector(dc, sName, new Rect(midBox.Left + 6, midBox.Top + 13 + s * 10, midBox.Width - 12, 9), 5.8, darkInk, FontWeight.Normal, maxLines: 1);
+                                    }
+                                }
+                                var footFact = entry.SecondaryFact != "" ? entry.SecondaryFact : $"{entry.ChapterCount} secciones · Índice";
+                                DrawTextVector(dc, footFact, new Rect(14, h - 18, w - 22, 10), 5.8, mutedInk, FontWeight.SemiBold, TextAlignment.Center, 1);
                             }
                             else
                             {
-                                for (int g = 1; g <= 3; g++)
-                                    dc.DrawLine(new Pen(Brush.Parse("#E6EEF3"), .7), new Point(chartBox.Left + 5, chartBox.Top + g * 12), new Point(chartBox.Right - 5, chartBox.Top + g * 12));
-                                (double hBar, IBrush col)[] bars = [(18, midAccent), (29, accent), (23, Brush.Parse("#E69D45")), (37, accent), (32, Brush.Parse("#3FA796"))];
-                                var pts = new Point[bars.Length];
-                                for (int b = 0; b < bars.Length; b++)
+                                dc.DrawRectangle(accent, null, new Rect(0, 0, w, 25));
+                                dc.DrawRectangle(deepAccent, null, new Rect(0, 0, 8, h));
+                                DrawTextVector(dc, tplTag, new Rect(13, 5, 68, 9), 6.0, Brushes.Ivory, FontWeight.Bold, maxLines: 1);
+                                dc.DrawRectangle(Brush.Parse("#48B884"), null, new Rect(w - 30, 6, 22, 8), 4, 4);
+                                DrawTextVector(dc, $"{entry.ChapterCount} SEC", new Rect(w - 29, 6.5, 20, 7), 4.9, Brushes.White, FontWeight.Bold, TextAlignment.Center, 1);
+                                dc.DrawRectangle(softAccent, null, new Rect(13, 16, 38, 2.2), 1, 1);
+
+                                DrawTextVector(dc, entry.Title, new Rect(13, 29, w - 21, 29), 11.2, darkInk, FontWeight.Bold, maxLines: 2);
+                                var infSub = entry.PrimaryFact != "" ? entry.PrimaryFact : entry.Author;
+                                if (infSub != "")
+                                    DrawTextVector(dc, infSub, new Rect(13, 58, w - 21, 11), 7.3, foilBrush, FontWeight.SemiBold, maxLines: 1);
+
+                                for (int k = 0; k < 2; k++)
                                 {
-                                    double bx = chartBox.Left + 8 + b * 16.5;
-                                    double by = chartBox.Bottom - 6 - bars[b].hBar;
-                                    dc.DrawRectangle(bars[b].col, null, new Rect(bx, by, 10.5, bars[b].hBar), 1.5, 1.5);
-                                    pts[b] = new Point(bx + 5.2, by - 3);
+                                    var kpi = new Rect(13 + k * 49, 72, 45, 23);
+                                    dc.DrawRectangle(darkFinish ? Brush.Parse("#26313C") : Brushes.White, new Pen(Brush.Parse("#CBD8E2"), .8), kpi, 2.5, 2.5);
+                                    var kTitle = k < secs.Length ? secs[k] : (k == 0 ? "Resumen" : "Análisis");
+                                    DrawTextVector(dc, kTitle.ToUpperInvariant(), new Rect(kpi.Left + 3, kpi.Top + 3, kpi.Width - 6, 8), 5.0, k == 0 ? foilBrush : Brush.Parse("#E69D45"), FontWeight.Bold, maxLines: 1);
+                                    dc.DrawRectangle(Brush.Parse("#8397A5"), null, new Rect(kpi.Left + 4, kpi.Top + 12, 28, 2.2), 1, 1);
+                                    dc.DrawRectangle(Brush.Parse("#B4C4CE"), null, new Rect(kpi.Left + 4, kpi.Top + 17, 20, 2), 1, 1);
                                 }
-                                var trendPen = new Pen(Brush.Parse("#D95F43"), 1.3);
-                                for (int b = 0; b < pts.Length - 1; b++) dc.DrawLine(trendPen, pts[b], pts[b + 1]);
-                                foreach (var pt in pts) dc.DrawEllipse(Brushes.White, trendPen, pt, 2, 2);
+
+                                var chartBox = new Rect(13, 100, w - 21, 57);
+                                dc.DrawRectangle(darkFinish ? Brush.Parse("#26313C") : Brushes.White, new Pen(Brush.Parse("#C4D3DE"), .8), chartBox, 3, 3);
+                                if (art != null)
+                                {
+                                    DrawCoverSlice(dc, art, chartBox.Deflate(2), 2);
+                                }
+                                else
+                                {
+                                    for (int g = 1; g <= 3; g++)
+                                        dc.DrawLine(new Pen(Brush.Parse("#E6EEF3"), .7), new Point(chartBox.Left + 5, chartBox.Top + g * 12), new Point(chartBox.Right - 5, chartBox.Top + g * 12));
+                                    (double hBar, IBrush col)[] bars = [(18, midAccent), (29, accent), (23, Brush.Parse("#E69D45")), (37, accent), (32, Brush.Parse("#3FA796"))];
+                                    var pts = new Point[bars.Length];
+                                    for (int b = 0; b < bars.Length; b++)
+                                    {
+                                        double bx = chartBox.Left + 8 + b * 16.5;
+                                        double by = chartBox.Bottom - 6 - bars[b].hBar;
+                                        dc.DrawRectangle(bars[b].col, null, new Rect(bx, by, 10.5, bars[b].hBar), 1.5, 1.5);
+                                        pts[b] = new Point(bx + 5.2, by - 3);
+                                    }
+                                    var trendPen = new Pen(Brush.Parse("#D95F43"), 1.3);
+                                    for (int b = 0; b < pts.Length - 1; b++) dc.DrawLine(trendPen, pts[b], pts[b + 1]);
+                                    foreach (var pt in pts) dc.DrawEllipse(Brushes.White, trendPen, pt, 2, 2);
+                                }
                             }
                             break;
                         }
 
                         case "Apuntes":
                         {
+                            bool isLibreta = entry.Template.Contains("Libreta", StringComparison.OrdinalIgnoreCase);
                             for (double y = 26; y < h - 10; y += 10.5)
-                                dc.DrawLine(new Pen(Brush.Parse("#D8DFC2"), .75), new Point(12, y), new Point(w - 6, y));
-                            dc.DrawLine(new Pen(Brush.Parse("#D96459"), 1.15), new Point(31, 0), new Point(31, h));
+                                dc.DrawLine(new Pen(Brush.Parse(darkFinish ? "#2E3A30" : "#D8DFC2"), .75), new Point(12, y), new Point(w - 6, y));
+                            dc.DrawLine(new Pen(Brush.Parse("#D96459"), 1.15), new Point(29, 0), new Point(29, h));
                             dc.DrawRectangle(EditionPalette.Mix(accentHex, "#1F3325", .55), null, new Rect(0, 0, 11, h));
                             for (double y = 13; y < h - 10; y += 16)
                             {
@@ -412,55 +491,61 @@ public sealed partial class Studio
                                 dc.DrawRectangle(Brush.Parse("#C8D0D8"), new Pen(Brush.Parse("#6E7880"), .5), new Rect(1, y - 1.4, 13.5, 2.8), 1.2, 1.2);
                             }
 
-                            dc.DrawRectangle(accent, null, new Rect(35, 9, 44, 11), 2, 2);
-                            DrawTextVector(dc, "APUNTES", new Rect(38, 10.5, 38, 8), 6, Brushes.Ivory, FontWeight.Bold, maxLines: 1);
-                            DrawTextVector(dc, entry.Title, new Rect(35, 24, w - 42, 30), 11.5, Brush.Parse("#223026"), FontWeight.Bold, maxLines: 2);
-                            if (entry.Author != "")
-                                DrawTextVector(dc, entry.Author, new Rect(35, 53, w - 42, 11), 7.8, accent, FontWeight.SemiBold, maxLines: 1);
+                            var apBadge = isLibreta ? "LIBRETA" : (entry.Template.Contains("Cornell", StringComparison.OrdinalIgnoreCase) ? "CORNELL" : "APUNTES");
+                            dc.DrawRectangle(accent, null, new Rect(33, 8, 52, 11), 2, 2);
+                            DrawTextVector(dc, apBadge, new Rect(35, 9.5, 48, 8), 5.8, Brushes.Ivory, FontWeight.Bold, TextAlignment.Center, 1);
 
-                            for (int i = 0; i < 4; i++)
+                            if (entry.SecondaryFact != "")
+                                DrawTextVector(dc, entry.SecondaryFact, new Rect(33, 21, w - 39, 9), 5.6, foilBrush, FontWeight.Bold, maxLines: 1);
+                            DrawTextVector(dc, entry.Title, new Rect(33, 30, w - 39, 28), 11, darkInk, FontWeight.Bold, maxLines: 2);
+                            var apSub = entry.PrimaryFact != "" ? entry.PrimaryFact : (entry.Author != "" ? entry.Author : entry.Subtitle);
+                            if (apSub != "")
+                                DrawTextVector(dc, apSub, new Rect(33, 58, w - 39, 10), 7.0, foilBrush, FontWeight.SemiBold, maxLines: 1);
+
+                            for (int i = 0; i < 3; i++)
                             {
-                                double ry = 70 + i * 10.5;
-                                dc.DrawEllipse(accent, null, new Point(21, ry - 2), 2, 2);
-                                dc.DrawRectangle(Brush.Parse("#6F7A68"), null, new Rect(35, ry - 3, w - 45 - (i % 2) * 12, 2), 1, 1);
+                                double ry = 73 + i * 11;
+                                dc.DrawEllipse(accent, null, new Point(21, ry + 3), 2, 2);
+                                if (i < secs.Length)
+                                    DrawTextVector(dc, $"{i + 1}. {secs[i]}", new Rect(33, ry, w - 40, 9), 6.2, darkInk, FontWeight.SemiBold, maxLines: 1);
+                                else
+                                    dc.DrawRectangle(mutedInk, null, new Rect(33, ry + 2, w - 45 - (i % 2) * 12, 2), 1, 1);
                             }
 
-                            var sticky = new Rect(34, 110, w - 42, 46);
+                            var sticky = new Rect(33, 108, w - 41, 48);
                             if (art != null)
                             {
                                 dc.DrawRectangle(Brushes.White, new Pen(Brush.Parse("#C8C0A8"), .8), sticky, 2, 2);
-                                DrawCoverSlice(dc, art, sticky.Deflate(3), 1.5);
+                                DrawCoverSlice(dc, art, sticky.Deflate(2.5), 1.5);
                             }
                             else
                             {
                                 dc.DrawRectangle(Brush.Parse("#22000000"), null, sticky.Translate(new Vector(1.5, 2)), 2, 2);
                                 dc.DrawRectangle(Brush.Parse("#FFE98A"), new Pen(Brush.Parse("#DFC458"), .8), sticky, 2, 2);
                                 dc.DrawEllipse(Brush.Parse("#D9534F"), new Pen(Brushes.White, .6), new Point(sticky.Center.X, sticky.Top + 4), 2.8, 2.8);
-                                dc.DrawRectangle(accent, null, new Rect(sticky.Left + 7, sticky.Top + 12, 26, 8), 1.5, 1.5);
-                                dc.DrawRectangle(midAccent, null, new Rect(sticky.Left + 7, sticky.Top + 26, 20, 8), 1.5, 1.5);
-                                dc.DrawRectangle(midAccent, null, new Rect(sticky.Right - 27, sticky.Top + 26, 20, 8), 1.5, 1.5);
-                                dc.DrawLine(new Pen(Brush.Parse("#7A6E3A"), .9), new Point(sticky.Left + 20, sticky.Top + 20), new Point(sticky.Left + 17, sticky.Top + 26));
-                                dc.DrawLine(new Pen(Brush.Parse("#7A6E3A"), .9), new Point(sticky.Left + 24, sticky.Top + 20), new Point(sticky.Right - 17, sticky.Top + 26));
+                                var noteText = entry.Description != "" ? entry.Description : $"{entry.ChapterCount} temas registrados en el cuaderno.";
+                                DrawTextVector(dc, noteText, new Rect(sticky.Left + 5, sticky.Top + 10, sticky.Width - 10, sticky.Height - 13), 6.2, Brush.Parse("#3A3218"), FontWeight.SemiBold, maxLines: 4);
                             }
                             break;
                         }
 
                         case "Artículo":
                         {
-                            dc.DrawLine(new Pen(accent, 1.8), new Point(9, 10), new Point(w - 9, 10));
-                            dc.DrawLine(new Pen(accent, .7), new Point(9, 13), new Point(w - 9, 13));
-                            DrawTextVector(dc, "ARTÍCULO · SEPARATA", new Rect(9, 16, w - 18, 9), 5.8, accent, FontWeight.Bold, TextAlignment.Center, 1);
-                            DrawTextVector(dc, entry.Title, new Rect(10, 26, w - 20, 29), 11, darkInk, FontWeight.Bold, TextAlignment.Center, 2, true);
-                            if (entry.Author != "")
-                                DrawTextVector(dc, entry.Author, new Rect(10, 55, w - 20, 10), 7.5, mutedInk, FontWeight.Normal, TextAlignment.Center, 1, true);
+                            dc.DrawLine(new Pen(foilBrush, 1.8), new Point(9, 10), new Point(w - 9, 10));
+                            dc.DrawLine(new Pen(foilBrush, .7), new Point(9, 13), new Point(w - 9, 13));
+                            var artHeader = entry.Template != "" && entry.Template != "Clásica" ? entry.Template.ToUpperInvariant() : "ARTÍCULO · SEPARATA";
+                            DrawTextVector(dc, artHeader, new Rect(9, 15.5, w - 18, 9), 5.5, foilBrush, FontWeight.Bold, TextAlignment.Center, 1);
+                            DrawTextVector(dc, entry.Title, new Rect(10, 25, w - 20, 28), 10.8, darkInk, FontWeight.Bold, TextAlignment.Center, 2, true);
+                            var artAuthor = entry.Author != "" ? entry.Author : entry.PrimaryFact;
+                            if (artAuthor != "")
+                                DrawTextVector(dc, artAuthor, new Rect(10, 54, w - 20, 10), 7.2, mutedInk, FontWeight.Normal, TextAlignment.Center, 1, true);
 
-                            var abstractBox = new Rect(11, 67, w - 22, 20);
-                            dc.DrawRectangle(EditionPalette.Mix(accentHex, "#F2EFE6", .85), null, abstractBox);
-                            dc.DrawLine(new Pen(accent, 1.2), abstractBox.TopLeft, abstractBox.BottomLeft);
-                            dc.DrawLine(new Pen(accent, 1.2), abstractBox.TopRight, abstractBox.BottomRight);
-                            dc.DrawRectangle(accent, null, new Rect(16, 71, 20, 2), 1, 1);
-                            dc.DrawRectangle(Brush.Parse("#7A7488"), null, new Rect(16, 76, w - 32, 1.8), 1, 1);
-                            dc.DrawRectangle(Brush.Parse("#7A7488"), null, new Rect(16, 81, w - 40, 1.8), 1, 1);
+                            var abstractBox = new Rect(11, 66, w - 22, 23);
+                            dc.DrawRectangle(darkFinish ? Brush.Parse("#26303A") : EditionPalette.Mix(accentHex, "#F2EFE6", .85), null, abstractBox);
+                            dc.DrawLine(new Pen(foilBrush, 1.2), abstractBox.TopLeft, abstractBox.BottomLeft);
+                            dc.DrawLine(new Pen(foilBrush, 1.2), abstractBox.TopRight, abstractBox.BottomRight);
+                            var absText = entry.PrimaryFact != "" ? entry.PrimaryFact : (entry.Description != "" ? entry.Description : "Resumen y metodología.");
+                            DrawTextVector(dc, absText, new Rect(15, 68.5, w - 30, 18), 5.8, darkInk, FontWeight.Normal, maxLines: 2, serif: true);
 
                             double colTop = 94, colMid = w / 2;
                             dc.DrawLine(new Pen(Brush.Parse("#D4CEBE"), .8), new Point(colMid, colTop), new Point(colMid, h - 12));
@@ -474,12 +559,16 @@ public sealed partial class Studio
                                 dc.DrawLine(new Pen(accent, 1.1), new Point(figRect.Left + 16, figRect.Top + 10), new Point(figRect.Left + 26, figRect.Bottom - 11));
                                 dc.DrawLine(new Pen(accent, 1.1), new Point(figRect.Left + 26, figRect.Bottom - 11), new Point(figRect.Right - 4, figRect.Top + 6));
                             }
-                            for (int r = 0; r < 9; r++)
+                            if (secs.Length > 0)
+                                DrawTextVector(dc, "1. " + secs[0], new Rect(10, colTop + 31, colMid - 14, 9), 5.5, foilBrush, FontWeight.Bold, maxLines: 1);
+                            if (secs.Length > 1)
+                                DrawTextVector(dc, "2. " + secs[1], new Rect(colMid + 4, colTop, colMid - 14, 9), 5.5, foilBrush, FontWeight.Bold, maxLines: 1);
+                            for (int r = 0; r < 7; r++)
                             {
-                                double ry = colTop + r * 6.8;
-                                if (r >= 5)
-                                    dc.DrawRectangle(Brush.Parse("#8E897D"), null, new Rect(10, ry, colMid - 15 - (r % 2) * 6, 1.8), 1, 1);
-                                dc.DrawRectangle(Brush.Parse("#8E897D"), null, new Rect(colMid + 4, ry, colMid - 14 - ((r + 1) % 3) * 5, 1.8), 1, 1);
+                                double ry = colTop + 11 + r * 6.8;
+                                if (r >= 4)
+                                    dc.DrawRectangle(mutedInk, null, new Rect(10, ry, colMid - 15 - (r % 2) * 6, 1.7), 1, 1);
+                                dc.DrawRectangle(mutedInk, null, new Rect(colMid + 4, ry, colMid - 14 - ((r + 1) % 3) * 5, 1.7), 1, 1);
                             }
                             break;
                         }
@@ -501,24 +590,33 @@ public sealed partial class Studio
                             for (int wv = 0; wv < 3; wv++)
                                 dc.DrawLine(postmarkPen, new Point(w - 50, 20 + wv * 4), new Point(w - 34, 20 + wv * 4));
 
-                            DrawTextVector(dc, "CARTA", new Rect(13, 13, 52, 9), 6.2, accent, FontWeight.Bold, maxLines: 1);
-                            dc.DrawRectangle(Brush.Parse("#B8A58C"), null, new Rect(13, 24, 34, 1.8), 1, 1);
-                            dc.DrawRectangle(Brush.Parse("#C8B79E"), null, new Rect(13, 29, 26, 1.8), 1, 1);
+                            var cartaTag = entry.Template != "" && entry.Template != "Clásica" ? entry.Template.ToUpperInvariant() : "CARTA FORMAL";
+                            DrawTextVector(dc, cartaTag, new Rect(13, 12, 68, 9), 5.6, foilBrush, FontWeight.Bold, maxLines: 1);
+                            var dest = entry.PrimaryFact != "" ? "Para: " + entry.PrimaryFact : (entry.SecondaryFact != "" ? entry.SecondaryFact : "Correspondencia oficial");
+                            DrawTextVector(dc, dest, new Rect(13, 22, 72, 15), 6.0, mutedInk, FontWeight.SemiBold, maxLines: 2);
 
-                            DrawTextVector(dc, entry.Title, new Rect(13, 41, w - 26, 32), 12, Brush.Parse("#2B211B"), FontWeight.Bold, maxLines: 2, serif: true);
-                            for (int l = 0; l < 5; l++)
-                                dc.DrawRectangle(Brush.Parse("#B8A68E"), null, new Rect(l == 0 ? 22 : 13, 76 + l * 7.5, w - (l == 0 ? 35 : 26) - (l == 4 ? 18 : 0), 1.6), 1, 1);
+                            DrawTextVector(dc, entry.Title, new Rect(13, 39, w - 26, 29), 11.2, darkInk, FontWeight.Bold, maxLines: 2, serif: true);
+                            if (entry.Description != "")
+                            {
+                                DrawTextVector(dc, entry.Description, new Rect(13, 70, w - 26, 42), 6.2, mutedInk, FontWeight.Normal, maxLines: 4, serif: true);
+                            }
+                            else
+                            {
+                                for (int l = 0; l < 5; l++)
+                                    dc.DrawRectangle(Brush.Parse("#B8A68E"), null, new Rect(l == 0 ? 22 : 13, 74 + l * 7.5, w - (l == 0 ? 35 : 26) - (l == 4 ? 18 : 0), 1.6), 1, 1);
+                            }
 
                             if (entry.Author != "")
-                                DrawTextVector(dc, entry.Author, new Rect(13, h - 25, w - 46, 12), 8.2, accent, FontWeight.SemiBold, maxLines: 1, serif: true);
+                                DrawTextVector(dc, entry.Author, new Rect(13, h - 25, w - 46, 12), 8.0, foilBrush, FontWeight.SemiBold, maxLines: 1, serif: true);
                             else
-                                dc.DrawLine(new Pen(accent, 1.2), new Point(13, h - 18), new Point(54, h - 18));
+                                dc.DrawLine(new Pen(foilBrush, 1.2), new Point(13, h - 18), new Point(54, h - 18));
 
                             var sealCenter = new Point(w - 23, h - 22);
                             dc.DrawEllipse(Brush.Parse("#30000000"), null, sealCenter + new Vector(1, 1.5), 11, 11);
                             dc.DrawEllipse(accent, new Pen(deepAccent, 1), sealCenter, 10.5, 10.5);
                             dc.DrawEllipse(null, new Pen(Brush.Parse("#F2D29B"), .8), sealCenter, 7.2, 7.2);
-                            dc.DrawEllipse(Brush.Parse("#F2D29B"), null, sealCenter, 2.2, 2.2);
+                            var sealInit = Initials(entry.Author != "" ? entry.Author : entry.Title)[..1];
+                            DrawTextVector(dc, sealInit, new Rect(sealCenter.X - 6, sealCenter.Y - 4.5, 12, 9), 6.5, Brush.Parse("#F2D29B"), FontWeight.Bold, TextAlignment.Center, 1, true);
                             break;
                         }
 
@@ -529,13 +627,15 @@ public sealed partial class Studio
                                 dc.DrawEllipse(Brushes.Ivory, new Pen(deepAccent, .7), new Point(5, ry), 2, 2);
 
                             dc.DrawRectangle(EditionPalette.Mix(accentHex, "#E4E7F4", .78), null, new Rect(10, 0, w - 10, 22));
-                            DrawTextVector(dc, "PROPUESTA", new Rect(16, 7, w - 24, 9), 6.2, accent, FontWeight.Bold, maxLines: 1);
-                            DrawTextVector(dc, entry.Title, new Rect(16, 27, w - 24, 30), 11.5, darkInk, FontWeight.Bold, maxLines: 2);
-                            if (entry.Author != "")
-                                DrawTextVector(dc, entry.Author, new Rect(16, 56, w - 24, 11), 7.8, accent, FontWeight.SemiBold, maxLines: 1);
+                            var propTag = entry.Template.Contains("GDD", StringComparison.OrdinalIgnoreCase) ? "PROPUESTA · GDD" : (entry.Template.Contains("Cotización", StringComparison.OrdinalIgnoreCase) ? "COTIZACIÓN" : "PROPUESTA");
+                            DrawTextVector(dc, propTag, new Rect(16, 6.5, w - 22, 9), 5.8, accent, FontWeight.Bold, maxLines: 1);
+                            DrawTextVector(dc, entry.Title, new Rect(16, 26, w - 24, 29), 11.2, darkInk, FontWeight.Bold, maxLines: 2);
+                            var clientOrAuthor = entry.PrimaryFact != "" ? entry.PrimaryFact : entry.Author;
+                            if (clientOrAuthor != "")
+                                DrawTextVector(dc, clientOrAuthor, new Rect(16, 55, w - 24, 11), 7.2, foilBrush, FontWeight.SemiBold, maxLines: 1);
 
-                            var gantt = new Rect(16, 72, w - 24, 62);
-                            dc.DrawRectangle(Brushes.White, new Pen(Brush.Parse("#C8CEE0"), .8), gantt, 3, 3);
+                            var gantt = new Rect(16, 70, w - 24, 64);
+                            dc.DrawRectangle(darkFinish ? Brush.Parse("#26303C") : Brushes.White, new Pen(Brush.Parse("#C8CEE0"), .8), gantt, 3, 3);
                             if (art != null)
                             {
                                 DrawCoverSlice(dc, art, gantt.Deflate(2), 2);
@@ -544,58 +644,65 @@ public sealed partial class Studio
                             {
                                 for (int c = 1; c <= 3; c++)
                                     dc.DrawLine(new Pen(Brush.Parse("#E8EBF4"), .8), new Point(gantt.Left + c * (gantt.Width / 4), gantt.Top + 4), new Point(gantt.Left + c * (gantt.Width / 4), gantt.Bottom - 4));
-                                (double left, double widthBar, string col)[] milestones = [(6, 34, accentHex), (20, 40, "#E06D53"), (38, 36, "#E5A93C"), (54, 32, "#38988E")];
+                                (double left, double widthBar, string col)[] milestones = [(6, 54, accentHex), (14, 58, "#E06D53"), (24, 56, "#E5A93C"), (36, 48, "#38988E")];
                                 for (int m = 0; m < milestones.Length; m++)
                                 {
-                                    double my = gantt.Top + 8 + m * 13;
-                                    dc.DrawRectangle(Brush.Parse(milestones[m].col), null, new Rect(gantt.Left + milestones[m].left, my, milestones[m].widthBar, 7.5), 3.5, 3.5);
+                                    double my = gantt.Top + 7 + m * 14;
+                                    var barRect = new Rect(gantt.Left + milestones[m].left, my, milestones[m].widthBar, 10);
+                                    dc.DrawRectangle(Brush.Parse(milestones[m].col), null, barRect, 3.5, 3.5);
+                                    var mLabel = m < secs.Length ? secs[m] : $"Fase {m + 1}";
+                                    DrawTextVector(dc, mLabel, barRect.Deflate(new Thickness(2, 1)), 5.2, Brushes.White, FontWeight.Bold, maxLines: 1);
                                 }
                             }
 
                             var budgetPill = new Rect(16, h - 24, w - 24, 14);
                             dc.DrawRectangle(accent, null, budgetPill, 3, 3);
-                            dc.DrawRectangle(Brushes.Ivory, null, new Rect(budgetPill.Left + 6, budgetPill.Top + 5.5, 36, 3), 1.5, 1.5);
-                            dc.DrawRectangle(Brush.Parse("#F5C862"), null, new Rect(budgetPill.Right - 24, budgetPill.Top + 4, 18, 6), 3, 3);
+                            var pillText = entry.SecondaryFact != "" ? entry.SecondaryFact : $"{entry.ChapterCount} bloques · Alcance";
+                            DrawTextVector(dc, pillText, new Rect(budgetPill.Left + 5, budgetPill.Top + 3, budgetPill.Width - 28, 9), 5.5, Brushes.Ivory, FontWeight.Bold, maxLines: 1);
+                            dc.DrawRectangle(Brush.Parse("#F5C862"), null, new Rect(budgetPill.Right - 20, budgetPill.Top + 4, 15, 6), 3, 3);
                             break;
                         }
 
                         case "Acta":
                         {
-                            dc.DrawRectangle(null, new Pen(accent, 1.1), new Rect(7, 10, w - 14, h - 17));
+                            dc.DrawRectangle(null, new Pen(foilBrush, 1.1), new Rect(7, 10, w - 14, h - 17));
                             dc.DrawRectangle(Brush.Parse("#747E78"), new Pen(Brush.Parse("#48504B"), .8), new Rect(w / 2 - 18, 3, 36, 9), 2, 2);
                             dc.DrawRectangle(Brush.Parse("#D8E0DA"), null, new Rect(w / 2 - 10, 5.5, 20, 3.5), 1.5, 1.5);
 
                             var headBox = new Rect(12, 16, w - 24, 15);
                             dc.DrawRectangle(EditionPalette.Mix(accentHex, "#E8ECE4", .82), new Pen(accent, .8), headBox, 1.5, 1.5);
-                            DrawTextVector(dc, "ACTA DE SESIÓN", new Rect(14, 19.5, w - 28, 9), 5.8, accent, FontWeight.Bold, TextAlignment.Center, 1);
+                            var actaTag = entry.Template != "" && entry.Template != "Clásica" ? entry.Template.ToUpperInvariant() : "ACTA DE SESIÓN";
+                            DrawTextVector(dc, actaTag, new Rect(14, 19.5, w - 28, 9), 5.5, accent, FontWeight.Bold, TextAlignment.Center, 1);
 
-                            DrawTextVector(dc, entry.Title, new Rect(13, 36, w - 26, 29), 11.2, darkInk, FontWeight.Bold, maxLines: 2);
-                            if (entry.Author != "")
-                                DrawTextVector(dc, entry.Author, new Rect(13, 64, w - 26, 11), 7.6, accent, FontWeight.SemiBold, maxLines: 1);
+                            DrawTextVector(dc, entry.Title, new Rect(13, 35, w - 26, 28), 11, darkInk, FontWeight.Bold, maxLines: 2);
+                            var actaMeta = entry.PrimaryFact != "" ? entry.PrimaryFact : entry.Author;
+                            if (actaMeta != "")
+                                DrawTextVector(dc, actaMeta, new Rect(13, 63, w - 26, 11), 7.0, foilBrush, FontWeight.SemiBold, maxLines: 1);
 
                             if (art != null)
                             {
-                                DrawCoverSlice(dc, art, new Rect(13, 78, w - 26, 48), 2);
+                                DrawCoverSlice(dc, art, new Rect(13, 77, w - 26, 49), 2);
                             }
                             else
                             {
+                                string[] defaultPts = ["Quórum y apertura", "Orden del día", "Acuerdos firmados"];
                                 for (int a = 0; a < 3; a++)
                                 {
-                                    double ay = 80 + a * 16;
+                                    double ay = 79 + a * 16;
                                     var chk = new Rect(13, ay, 10, 10);
-                                    dc.DrawRectangle(a < 2 ? softAccent : Brushes.White, new Pen(accent, 1.1), chk, 1.5, 1.5);
-                                    if (a < 2) DrawCheckmark(dc, chk.TopLeft, accent);
-                                    dc.DrawRectangle(darkInk, null, new Rect(28, ay + 2, w - 44 - (a % 2) * 12, 2.2), 1, 1);
-                                    dc.DrawRectangle(Brush.Parse("#9AA296"), null, new Rect(28, ay + 6.5, w - 54, 1.8), 1, 1);
+                                    dc.DrawRectangle(softAccent, new Pen(accent, 1.1), chk, 1.5, 1.5);
+                                    DrawCheckmark(dc, chk.TopLeft, accent);
+                                    var ptTitle = a < secs.Length ? secs[a] : defaultPts[a];
+                                    DrawTextVector(dc, ptTitle, new Rect(27, ay + 1, w - 40, 9), 6.2, darkInk, FontWeight.SemiBold, maxLines: 1);
                                 }
                             }
 
                             dc.DrawLine(new Pen(Brush.Parse("#7C857A"), 1), new Point(13, h - 18), new Point(44, h - 18));
                             dc.DrawLine(new Pen(Brush.Parse("#7C857A"), 1), new Point(w - 44, h - 18), new Point(w - 13, h - 18));
                             var stampCenter = new Point(w / 2, h - 22);
-                            dc.DrawEllipse(null, new Pen(accent, 1.2), stampCenter, 11, 11);
-                            dc.DrawEllipse(null, new Pen(accent, .6), stampCenter, 8, 8);
-                            dc.DrawRectangle(accent, null, new Rect(stampCenter.X - 6, stampCenter.Y - 1.2, 12, 2.4), 1, 1);
+                            dc.DrawEllipse(null, new Pen(foilBrush, 1.2), stampCenter, 11, 11);
+                            dc.DrawEllipse(null, new Pen(foilBrush, .6), stampCenter, 8, 8);
+                            dc.DrawRectangle(foilBrush, null, new Rect(stampCenter.X - 6, stampCenter.Y - 1.2, 12, 2.4), 1, 1);
                             break;
                         }
 
@@ -622,29 +729,36 @@ public sealed partial class Studio
                             }
                             dc.DrawGeometry(Brush.Parse("#E5E0D5"), new Pen(Brush.Parse("#B8B2A4"), .7), ear);
 
-                            DrawTextVector(dc, "DOCUMENTO", new Rect(11, 7, w - 32, 9), 6.2, Brushes.Ivory, FontWeight.Bold, maxLines: 1);
-                            DrawTextVector(dc, entry.Title, new Rect(11, 28, w - 22, 31), 11.8, darkInk, FontWeight.Bold, maxLines: 2);
-                            if (entry.Author != "")
-                                DrawTextVector(dc, entry.Author, new Rect(11, 58, w - 22, 11), 7.8, accent, FontWeight.SemiBold, maxLines: 1);
-                            dc.DrawLine(new Pen(accent, 1), new Point(11, 71), new Point(w - 11, 71));
+                            var docTag = entry.Template != "" && entry.Template != "Clásica" ? entry.Template.ToUpperInvariant() : "DOCUMENTO";
+                            DrawTextVector(dc, docTag, new Rect(11, 7, w - 31, 9), 5.6, Brushes.Ivory, FontWeight.Bold, maxLines: 1);
+                            DrawTextVector(dc, entry.Title, new Rect(11, 27, w - 22, 30), 11.4, darkInk, FontWeight.Bold, maxLines: 2);
+                            var docSub = entry.PrimaryFact != "" ? entry.PrimaryFact : (entry.Author != "" ? entry.Author : entry.Subtitle);
+                            if (docSub != "")
+                                DrawTextVector(dc, docSub, new Rect(11, 57, w - 22, 11), 7.2, foilBrush, FontWeight.SemiBold, maxLines: 1);
+                            dc.DrawLine(new Pen(foilBrush, 1), new Point(11, 70), new Point(w - 11, 70));
 
                             if (art != null)
                             {
-                                DrawCoverSlice(dc, art, new Rect(11, 77, w - 22, 48), 2);
+                                DrawCoverSlice(dc, art, new Rect(11, 76, w - 22, 48), 2);
                             }
                             else
                             {
-                                var quoteBox = new Rect(11, 77, w - 22, 26);
-                                dc.DrawRectangle(EditionPalette.Mix(accentHex, "#EAE6DC", .84), null, quoteBox, 2, 2);
-                                dc.DrawRectangle(accent, null, new Rect(11, 77, 3, 26), 1, 1);
-                                dc.DrawRectangle(darkInk, null, new Rect(19, 83, w - 38, 2.2), 1, 1);
-                                dc.DrawRectangle(mutedInk, null, new Rect(19, 89, w - 46, 2), 1, 1);
-                                dc.DrawRectangle(mutedInk, null, new Rect(19, 95, w - 54, 2), 1, 1);
+                                var quoteBox = new Rect(11, 76, w - 22, 27);
+                                dc.DrawRectangle(darkFinish ? Brush.Parse("#25303A") : EditionPalette.Mix(accentHex, "#EAE6DC", .84), null, quoteBox, 2, 2);
+                                dc.DrawRectangle(foilBrush, null, new Rect(11, 76, 3, 27), 1, 1);
+                                var snippet = entry.Description != "" ? entry.Description : (secs.Length > 0 ? string.Join(" · ", secs) : entry.Title);
+                                DrawTextVector(dc, snippet, new Rect(18, 79, w - 34, 21), 6.0, darkInk, FontWeight.Normal, maxLines: 3);
                             }
 
-                            for (int n = 0; n < 5; n++)
-                                dc.DrawRectangle(Brush.Parse("#A8A398"), null, new Rect(11, 112 + n * 7.5, w - 22 - (n == 4 ? 26 : (n % 2) * 10), 1.8), 1, 1);
-                            DrawTextVector(dc, "— 1 —", new Rect(11, h - 13, w - 22, 9), 6.2, mutedInk, FontWeight.SemiBold, TextAlignment.Center, 1);
+                            for (int n = 0; n < 3; n++)
+                            {
+                                double ry = 111 + n * 11;
+                                if (n < secs.Length)
+                                    DrawTextVector(dc, $"{n + 1}. {secs[n]}", new Rect(11, ry, w - 22, 9), 6.2, darkInk, FontWeight.SemiBold, maxLines: 1);
+                                else
+                                    dc.DrawRectangle(mutedInk, null, new Rect(11, ry + 3, w - 22 - (n % 2) * 14, 1.8), 1, 1);
+                            }
+                            DrawTextVector(dc, $"— 1 / {entry.ChapterCount} —", new Rect(11, h - 13, w - 22, 9), 6.0, mutedInk, FontWeight.SemiBold, TextAlignment.Center, 1);
                             break;
                         }
                     }
