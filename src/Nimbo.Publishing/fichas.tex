@@ -4,22 +4,27 @@
 \raggedbottom
 \renewcommand{\contentsname}{Índice de fichas}
 \newcommand{\portadaglosario}[2]{%
-  \thispagestyle{empty}\vspace*{.16\textheight}
-  {\small\sffamily\color{accent}GLOSARIO\par}\medskip
-  {\LARGE\bfseries\raggedright #1\par}\bigskip
-  {\color{accent}\rule{22mm}{1pt}}\par\vfill
-  #2\par\clearpage}
+  \thispagestyle{empty}\vspace*{.12\textheight}
+  {\noindent\color{accent}\rule{\linewidth}{1.4pt}\par\vspace{2pt}\color{accent!45}\rule{\linewidth}{0.5pt}\par}\bigskip
+  {\footnotesize\sffamily\bfseries\color{accent}COMPENDIO Y GLOSARIO DEL MUNDO\par}\medskip
+  {\LARGE\bfseries\raggedright #1\par}\medskip
+  {\color{accent}\rule{28mm}{1.1pt}}\par\vfill
+  {\noindent\color{accent!35}\rule{\linewidth}{0.5pt}\par\smallskip}
+  {\normalsize\itshape #2\par}\clearpage}
 \newcommand{\abrirficha}[2]{%
-  \clearpage{\small\sffamily\color{accent}#1\par}\smallskip
-  {\LARGE\bfseries\raggedright #2\par}
+  \clearpage
+  \noindent\colorbox{accent!12}{\parbox{\dimexpr\linewidth-2\fboxsep\relax}{%
+    \vspace{2pt}{\footnotesize\sffamily\bfseries\color{accent}#1\par}\vspace{1pt}%
+    {\LARGE\bfseries\raggedright\color{black} #2\par}\vspace{2pt}}}%
   \addcontentsline{toc}{section}{#2}%
-  \smallskip{\color{accent}\rule{\linewidth}{.5pt}}\par\medskip}
+  \par\vspace{2pt}{\noindent\color{accent}\rule{\linewidth}{1pt}}\par\medskip}
 \newcommand{\campoficha}[2]{%
-  \par\addvspace{5pt}%
-  {\small\sffamily\bfseries\color{accent}#1\par}\nopagebreak[4]%
+  \par\addvspace{6pt}%
+  {\small\sffamily\bfseries\color{accent}#1\par}\vspace{1pt}%
+  {\noindent\color{accent!28}\rule{\linewidth}{0.4pt}\par}\vspace{2pt}\nopagebreak[4]%
   {\raggedright #2\par}}
 \newcommand{\datoficha}[2]{%
   \par\addvspace{3pt}%
-  {\raggedright{\small\sffamily\bfseries\color{accent}#1}\enspace #2\par}}
+  {\raggedright\textcolor{accent}{\rule[.18ex]{.75ex}{.75ex}}\enspace{\small\sffamily\bfseries\color{accent}#1:}\enspace #2\par}}
 \newcommand{\retratoficha}[1]{%
-  \par{\centering\includegraphics[width=.8\linewidth,height=.29\textheight,keepaspectratio]{#1}\par}\smallskip}
+  \par\smallskip{\centering\setlength{\fboxsep}{2.5pt}\fcolorbox{accent!35}{white}{\includegraphics[width=.82\linewidth,height=.29\textheight,keepaspectratio]{#1}}\par}\medskip}

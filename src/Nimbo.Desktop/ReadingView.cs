@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.VisualTree;
 using Nimbo.Core;
 using System.Text.RegularExpressions;
 
@@ -1284,39 +1285,137 @@ public sealed partial class Studio
         return new Border { Child = root, BorderBrush = Edge, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), ClipToBounds = true };
     }
 
+    readonly Dictionary<string, double> filmstripHorizontalOffsets = [];
+
+    void CaptureCurrentFilmstripOffset(string workId)
+    {
+        if (page.Content is Control rootCtrl)
+        {
+            var existing = rootCtrl.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault(s => s.Name == "FilmstripScrollViewer");
+            if (existing != null && Equals(existing.Tag, "Restored"))
+                filmstripHorizontalOffsets[workId] = existing.Offset.X;
+        }
+    }
+
+    static void RestoreFilmstripOffset(ScrollViewer viewer, double targetX)
+    {
+        if (targetX <= 0)
+        {
+            viewer.Tag = "Restored";
+            return;
+        }
+        viewer.Offset = new Vector(targetX, 0);
+        bool restored = false;
+        void Apply()
+        {
+            if (restored) return;
+            if (viewer.Extent.Width > 0 && viewer.Viewport.Width > 0)
+            {
+                double maxOff = Math.Max(0, viewer.Extent.Width - viewer.Viewport.Width);
+                viewer.Offset = new Vector(Math.Min(targetX, maxOff), 0);
+                viewer.Tag = "Restored";
+                restored = true;
+            }
+        }
+        viewer.AttachedToVisualTree += (_, _) => Apply();
+        viewer.LayoutUpdated += (_, _) => Apply();
+    }
+
     void ReadPresentation(Work work, List<Chapter> sections, Chapter? selected)
     {
+        CaptureCurrentFilmstripOffset(work.Id);
         var section = selected ?? sections.FirstOrDefault();
-        var root = new DockPanel();
+        int currentIndex = section != null ? Math.Max(0, sections.IndexOf(section)) : 0;
+        var root = new DockPanel { Focusable = true };
         var top = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
-        top.Children.Add(Action("‹ Editar diapositiva", () => { chapter = section; Editor(); }));
+        top.Children.Add(Action("‹ Editar diapositiva", () => { if (sections.Count > 0) chapter = sections[currentIndex]; Editor(); }));
         top.Children.Add(Action("Vista previa PDF", async () => await Preview()));
         top.Children.Add(QuietAction("Exportar PDF…", async () => await Export(true)));
 
-        if (section != null)
+        Button? prevBtn = null, nextBtn = null;
+        ComboBox? pickerBox = null;
+        TextBlock? kickerTb = null;
+        var stageBox = new Viewbox
         {
-            int idx = sections.IndexOf(section);
-            var prev = Action("‹ Anterior", () => { if (idx > 0) ReadSection(sections[idx - 1]); });
-            prev.IsEnabled = idx > 0;
-            var next = Action("Siguiente ›", () => { if (idx + 1 < sections.Count) ReadSection(sections[idx + 1]); });
-            next.IsEnabled = idx + 1 < sections.Count;
-            top.Children.Add(prev);
-            var picker = new ComboBox { ItemsSource = sections, SelectedItem = section, MaxWidth = 300 };
-            picker.SelectionChanged += (_, _) => { if (picker.SelectedItem is Chapter target && target != section) ReadSection(target); };
-            top.Children.Add(picker);
-            top.Children.Add(next);
-            top.Children.Add(Kicker($"  Modo presentación 16:9  ·  Diapositiva {idx + 1} de {sections.Count}  ·  {(SlideLayouts.Contains(section.Layout) ? section.Layout : "Texto e imagen")}"));
+            Stretch = Stretch.Uniform,
+            MaxWidth = 1240,
+            Margin = new Thickness(8, 4, 8, 8)
+        };
+        var thumbFrames = new List<(Border Frame, TextBlock Label)>();
+        ScrollViewer? stripBar = null;
+        bool suppressPickerEvent = false;
+
+        void SelectSlide(int newIdx)
+        {
+            if (sections.Count == 0) return;
+            double keepX = (stripBar != null && Equals(stripBar.Tag, "Restored"))
+                ? stripBar.Offset.X
+                : filmstripHorizontalOffsets.GetValueOrDefault(work.Id, 0);
+            currentIndex = Math.Clamp(newIdx, 0, sections.Count - 1);
+            var active = sections[currentIndex];
+            chapter = active;
+            RememberSection(work, active);
+            if (prevBtn != null) prevBtn.IsEnabled = currentIndex > 0;
+            if (nextBtn != null) nextBtn.IsEnabled = currentIndex + 1 < sections.Count;
+            if (pickerBox != null && pickerBox.SelectedIndex != currentIndex)
+            {
+                suppressPickerEvent = true;
+                pickerBox.SelectedIndex = currentIndex;
+                suppressPickerEvent = false;
+            }
+            if (kickerTb != null)
+            {
+                var lay = SlideLayouts.Contains(active.Layout) ? active.Layout : "Texto e imagen";
+                kickerTb.Text = $"  MODO PRESENTACIÓN 16:9  ·  DIAPOSITIVA {currentIndex + 1} DE {sections.Count}  ·  {lay.ToUpperInvariant()}";
+            }
+            for (int i = 0; i < thumbFrames.Count; i++)
+            {
+                bool isCur = i == currentIndex;
+                thumbFrames[i].Frame.BorderBrush = isCur ? Accent : Edge;
+                thumbFrames[i].Frame.BorderThickness = new Thickness(isCur ? 2.5 : 1);
+                thumbFrames[i].Label.Foreground = isCur ? Accent : Foreground;
+                thumbFrames[i].Label.FontWeight = isCur ? FontWeight.SemiBold : FontWeight.Normal;
+            }
+            stageBox.Child = BuildSlideCanvas(work, active, 960);
+            if (stripBar != null)
+            {
+                filmstripHorizontalOffsets[work.Id] = keepX;
+                stripBar.Offset = new Vector(keepX, 0);
+            }
+        }
+
+        root.KeyDown += (_, e) =>
+        {
+            if (e.Key is Key.Left or Key.PageUp && currentIndex > 0) { SelectSlide(currentIndex - 1); e.Handled = true; }
+            else if (e.Key is Key.Right or Key.PageDown && currentIndex + 1 < sections.Count) { SelectSlide(currentIndex + 1); e.Handled = true; }
+        };
+
+        if (sections.Count > 0)
+        {
+            prevBtn = Action("‹ Anterior", () => SelectSlide(currentIndex - 1));
+            nextBtn = Action("Siguiente ›", () => SelectSlide(currentIndex + 1));
+            top.Children.Add(prevBtn);
+            pickerBox = new ComboBox { ItemsSource = sections, SelectedIndex = currentIndex, MaxWidth = 300 };
+            pickerBox.SelectionChanged += (_, _) =>
+            {
+                if (!suppressPickerEvent && pickerBox.SelectedIndex >= 0 && pickerBox.SelectedIndex != currentIndex)
+                    SelectSlide(pickerBox.SelectedIndex);
+            };
+            top.Children.Add(pickerBox);
+            top.Children.Add(nextBtn);
+            kickerTb = Kicker("");
+            top.Children.Add(kickerTb);
         }
         DockPanel.SetDock(top, Dock.Top);
         root.Children.Add(top);
 
-        if (section != null)
+        if (sections.Count > 0)
         {
             var filmstrip = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Margin = new Thickness(4, 10, 4, 4) };
             for (int i = 0; i < sections.Count; i++)
             {
+                int slideIdx = i;
                 var item = sections[i];
-                bool isCurrent = item == section;
                 var miniCard = Column(4);
                 var thumbBox = new Viewbox
                 {
@@ -1328,44 +1427,47 @@ public sealed partial class Studio
                 var frame = new Border
                 {
                     Child = thumbBox,
-                    BorderBrush = isCurrent ? Accent : Edge,
-                    BorderThickness = new Thickness(isCurrent ? 2.5 : 1),
+                    BorderBrush = Edge,
+                    BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(4),
                     Padding = new Thickness(1)
                 };
                 miniCard.Children.Add(frame);
                 var lbl = Label($"{i + 1:D2} · {item.Title}", 11.5);
                 lbl.MaxWidth = 176; lbl.TextWrapping = TextWrapping.NoWrap; lbl.TextTrimming = TextTrimming.CharacterEllipsis;
-                if (isCurrent) { lbl.Foreground = Accent; lbl.FontWeight = FontWeight.SemiBold; }
                 miniCard.Children.Add(lbl);
+                thumbFrames.Add((frame, lbl));
                 var btn = new Button
                 {
                     Content = miniCard,
+                    Focusable = false,
                     Background = Brushes.Transparent,
                     BorderThickness = new Thickness(0),
                     Padding = new Thickness(2),
                     Cursor = new Cursor(StandardCursorType.Hand)
                 };
-                btn.Click += (_, _) => { chapter = item; ReadSection(item); };
+                btn.Click += (_, _) => SelectSlide(slideIdx);
                 filmstrip.Children.Add(btn);
             }
-            var stripBar = new ScrollViewer
+            stripBar = new ScrollViewer
             {
+                Name = "FilmstripScrollViewer",
+                BringIntoViewOnFocusChange = false,
                 HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
                 VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
                 Content = filmstrip
             };
+            var initialX = filmstripHorizontalOffsets.GetValueOrDefault(work.Id, 0);
+            RestoreFilmstripOffset(stripBar, initialX);
+            stripBar.ScrollChanged += (_, _) =>
+            {
+                if (stripBar.IsLoaded && Equals(stripBar.Tag, "Restored"))
+                    filmstripHorizontalOffsets[work.Id] = stripBar.Offset.X;
+            };
             DockPanel.SetDock(stripBar, Dock.Bottom);
             root.Children.Add(stripBar);
-
-            var stageBox = new Viewbox
-            {
-                Stretch = Stretch.Uniform,
-                MaxWidth = 1240,
-                Margin = new Thickness(8, 4, 8, 8),
-                Child = BuildSlideCanvas(work, section, 960)
-            };
             root.Children.Add(stageBox);
+            SelectSlide(currentIndex);
         }
 
         page.Content = root;
@@ -2849,135 +2951,16 @@ public sealed partial class Studio
     internal void ReadDocumentPage(Work work, List<DocumentPageItem> pages, int pageIndex)
     {
         if (pages.Count == 0) return;
-        pageIndex = Math.Clamp(pageIndex, 0, pages.Count - 1);
-        var activePage = pages[pageIndex];
-        if (activePage.Section != null) chapter = activePage.Section;
+        CaptureCurrentFilmstripOffset(work.Id);
+        int currentIndex = Math.Clamp(pageIndex, 0, pages.Count - 1);
 
         var root = new DockPanel { Focusable = true };
-        int step = (documentReadingMode == 2 && pages.Count > 1) ? 2 : 1;
-        root.KeyDown += (_, e) =>
-        {
-            if (e.Key is Key.Left or Key.PageUp && pageIndex > 0)
-            {
-                ReadDocumentPage(work, pages, Math.Max(0, pageIndex - step));
-                e.Handled = true;
-            }
-            else if (e.Key is Key.Right or Key.PageDown && pageIndex + step < pages.Count)
-            {
-                ReadDocumentPage(work, pages, Math.Min(pages.Count - 1, pageIndex + step));
-                e.Handled = true;
-            }
-        };
-
-        var top = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
-        top.Children.Add(Action("‹ Editar", () => Editor()));
-        top.Children.Add(Action("Vista previa PDF", async () => await Preview()));
-        top.Children.Add(QuietAction("Exportar PDF…", async () => await Export(true)));
-
-        var prev = Action("‹ Hoja anterior", () => ReadDocumentPage(work, pages, Math.Max(0, pageIndex - step)));
-        prev.IsEnabled = pageIndex > 0;
-        var next = Action("Hoja siguiente ›", () => ReadDocumentPage(work, pages, Math.Min(pages.Count - 1, pageIndex + step)));
-        next.IsEnabled = pageIndex + step < pages.Count;
-        top.Children.Add(prev);
-
-        var pageLabels = pages.Select(p => $"Hoja {p.PageNumber} de {pages.Count} · {p.Label}").ToArray();
-        var picker = new ComboBox { ItemsSource = pageLabels, SelectedIndex = pageIndex, MaxWidth = 300 };
-        picker.SelectionChanged += (_, _) =>
-        {
-            if (picker.SelectedIndex >= 0 && picker.SelectedIndex != pageIndex)
-                ReadDocumentPage(work, pages, picker.SelectedIndex);
-        };
-        top.Children.Add(picker);
-        top.Children.Add(next);
-
-        var mode1 = QuietAction("1 hoja", () => { documentReadingMode = 1; ReadDocumentPage(work, pages, pageIndex); });
-        var mode2 = QuietAction("2 hojas", () => { documentReadingMode = 2; ReadDocumentPage(work, pages, pageIndex); });
-        var mode3 = QuietAction("Todas las hojas", () => { documentReadingMode = 3; ReadDocumentPage(work, pages, pageIndex); });
-        if (documentReadingMode == 1) mode1.Foreground = Accent;
-        else if (documentReadingMode == 2) mode2.Foreground = Accent;
-        else mode3.Foreground = Accent;
-        top.Children.Add(mode1);
-        if (pages.Count > 1) top.Children.Add(mode2);
-        if (pages.Count > 1) top.Children.Add(mode3);
-
-        var zoomOptions = new[] { "90 %", "100 %", "115 %" };
-        var currentZoomLabel = documentZoomScale < 0.95 ? "90 %" : documentZoomScale > 1.05 ? "115 %" : "100 %";
-        var zoomBox = new ComboBox { ItemsSource = zoomOptions, SelectedItem = currentZoomLabel, Width = 92 };
-        zoomBox.SelectionChanged += (_, _) =>
-        {
-            if (zoomBox.SelectedItem is string z && z != currentZoomLabel)
-            {
-                documentZoomScale = z == "90 %" ? 0.9 : z == "115 %" ? 1.15 : 1.0;
-                ReadDocumentPage(work, pages, pageIndex);
-            }
-        };
-        top.Children.Add(zoomBox);
-
-        DockPanel.SetDock(top, Dock.Top);
-        root.Children.Add(top);
-
-        if (pages.Count > 1)
-        {
-            var filmstrip = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(4, 8, 4, 4) };
-            for (int i = 0; i < pages.Count; i++)
-            {
-                int idx = i;
-                bool isCurrent = idx == pageIndex || (documentReadingMode == 2 && idx == pageIndex + 1);
-                var miniSheet = Column(4);
-                miniSheet.VerticalAlignment = VerticalAlignment.Center;
-                miniSheet.HorizontalAlignment = HorizontalAlignment.Center;
-                miniSheet.Children.Add(new TextBlock
-                {
-                    Text = $"HOJA {idx + 1}",
-                    FontSize = 10,
-                    FontWeight = FontWeight.Bold,
-                    Foreground = isCurrent ? Accent : Brush.Parse("#5A6570"),
-                    HorizontalAlignment = HorizontalAlignment.Center
-                });
-                miniSheet.Children.Add(new Border { Width = 44, Height = 1.2, Background = isCurrent ? Accent : Brush.Parse("#CFD7DE"), HorizontalAlignment = HorizontalAlignment.Center });
-                miniSheet.Children.Add(new TextBlock
-                {
-                    Text = pages[idx].Label,
-                    FontSize = 11,
-                    FontWeight = isCurrent ? FontWeight.SemiBold : FontWeight.Normal,
-                    Foreground = Brush.Parse("#1F262D"),
-                    TextWrapping = TextWrapping.Wrap,
-                    TextAlignment = TextAlignment.Center,
-                    MaxLines = 2,
-                    MaxWidth = 96,
-                    HorizontalAlignment = HorizontalAlignment.Center
-                });
-                var thumbCard = new Border
-                {
-                    Width = 108,
-                    Height = 68,
-                    Background = isCurrent ? EditionPalette.Mix(palette.Foil, "#FFFFFF", 0.85) : Brushes.White,
-                    BorderBrush = isCurrent ? Accent : Edge,
-                    BorderThickness = new Thickness(isCurrent ? 2.2 : 1),
-                    CornerRadius = new CornerRadius(4),
-                    Padding = new Thickness(6, 4),
-                    Child = miniSheet
-                };
-                var btn = new Button
-                {
-                    Content = thumbCard,
-                    Background = Brushes.Transparent,
-                    BorderThickness = new Thickness(0),
-                    Padding = new Thickness(2),
-                    Cursor = new Cursor(StandardCursorType.Hand)
-                };
-                btn.Click += (_, _) => { if (isAutomatedVerification) ReadDocumentPage(work, pages, idx); else Run(() => ReadDocumentPage(work, pages, idx)); };
-                filmstrip.Children.Add(btn);
-            }
-            var stripViewer = new ScrollViewer
-            {
-                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-                Content = filmstrip
-            };
-            DockPanel.SetDock(stripViewer, Dock.Bottom);
-            root.Children.Add(stripViewer);
-        }
+        Button? prevBtn = null, nextBtn = null, mode1Btn = null, mode2Btn = null, mode3Btn = null;
+        ComboBox? pickerBox = null;
+        ScrollViewer? stripViewer = null;
+        var stageHost = new ContentControl();
+        var thumbItems = new List<(Border Card, TextBlock Header, Border Rule, TextBlock Title)>();
+        bool suppressPicker = false;
 
         Control ScaleSheet(Border sheet)
         {
@@ -2991,56 +2974,246 @@ public sealed partial class Studio
             };
         }
 
-        if (documentReadingMode == 3)
+        void RenderPageState(int targetIndex)
         {
-            var allStack = Column(24);
-            allStack.Margin = new Thickness(16, 8, 16, 28);
-            allStack.HorizontalAlignment = HorizontalAlignment.Center;
-            foreach (var p in pages)
+            double keepX = (stripViewer != null && Equals(stripViewer.Tag, "Restored"))
+                ? stripViewer.Offset.X
+                : filmstripHorizontalOffsets.GetValueOrDefault(work.Id, 0);
+            currentIndex = Math.Clamp(targetIndex, 0, pages.Count - 1);
+            var activePage = pages[currentIndex];
+            if (activePage.Section != null)
             {
-                var pWrap = Column(6);
-                pWrap.HorizontalAlignment = HorizontalAlignment.Center;
-                pWrap.Children.Add(Kicker($"Hoja {p.PageNumber} de {pages.Count}  ·  {p.Label}"));
-                pWrap.Children.Add(ScaleSheet(p.BuildSheet()));
-                allStack.Children.Add(pWrap);
+                chapter = activePage.Section;
+                RememberSection(work, activePage.Section);
             }
-            root.Children.Add(new ScrollViewer { Content = allStack });
-        }
-        else if (documentReadingMode == 2 && pageIndex + 1 < pages.Count)
-        {
-            var spreadGrid = new Grid
+            int step = (documentReadingMode == 2 && pages.Count > 1) ? 2 : 1;
+            if (prevBtn != null) prevBtn.IsEnabled = currentIndex > 0;
+            if (nextBtn != null) nextBtn.IsEnabled = currentIndex + step < pages.Count;
+            if (pickerBox != null && pickerBox.SelectedIndex != currentIndex)
             {
-                ColumnDefinitions = new ColumnDefinitions("*,*"),
-                ColumnSpacing = 22,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(16, 8, 16, 24)
-            };
-            var leftPane = Column(6);
-            leftPane.HorizontalAlignment = HorizontalAlignment.Center;
-            leftPane.Children.Add(Kicker($"Hoja {activePage.PageNumber} de {pages.Count}  ·  {activePage.Label}"));
-            leftPane.Children.Add(ScaleSheet(activePage.BuildSheet()));
-            spreadGrid.Children.Add(leftPane);
+                suppressPicker = true;
+                pickerBox.SelectedIndex = currentIndex;
+                suppressPicker = false;
+            }
+            if (mode1Btn != null) mode1Btn.Foreground = documentReadingMode == 1 ? Accent : Quiet;
+            if (mode2Btn != null) mode2Btn.Foreground = documentReadingMode == 2 ? Accent : Quiet;
+            if (mode3Btn != null) mode3Btn.Foreground = documentReadingMode == 3 ? Accent : Quiet;
 
-            var nextPage = pages[pageIndex + 1];
-            var rightPane = Column(6);
-            rightPane.HorizontalAlignment = HorizontalAlignment.Center;
-            rightPane.Children.Add(Kicker($"Hoja {nextPage.PageNumber} de {pages.Count}  ·  {nextPage.Label}"));
-            rightPane.Children.Add(ScaleSheet(nextPage.BuildSheet()));
-            Grid.SetColumn(rightPane, 1);
-            spreadGrid.Children.Add(rightPane);
+            for (int i = 0; i < thumbItems.Count; i++)
+            {
+                bool isCurrent = i == currentIndex || (documentReadingMode == 2 && i == currentIndex + 1);
+                var (card, headTb, ruleBorder, titleTb) = thumbItems[i];
+                card.Background = isCurrent ? EditionPalette.Mix(palette.Foil, "#FFFFFF", 0.85) : Brushes.White;
+                card.BorderBrush = isCurrent ? Accent : Edge;
+                card.BorderThickness = new Thickness(isCurrent ? 2.2 : 1);
+                headTb.Foreground = isCurrent ? Accent : Brush.Parse("#5A6570");
+                ruleBorder.Background = isCurrent ? Accent : Brush.Parse("#CFD7DE");
+                titleTb.FontWeight = isCurrent ? FontWeight.SemiBold : FontWeight.Normal;
+            }
 
-            root.Children.Add(new ScrollViewer { Content = spreadGrid });
+            if (documentReadingMode == 3)
+            {
+                var allStack = Column(24);
+                allStack.Margin = new Thickness(16, 8, 16, 28);
+                allStack.HorizontalAlignment = HorizontalAlignment.Center;
+                foreach (var p in pages)
+                {
+                    var pWrap = Column(6);
+                    pWrap.HorizontalAlignment = HorizontalAlignment.Center;
+                    pWrap.Children.Add(Kicker($"Hoja {p.PageNumber} de {pages.Count}  ·  {p.Label}"));
+                    pWrap.Children.Add(ScaleSheet(p.BuildSheet()));
+                    allStack.Children.Add(pWrap);
+                }
+                stageHost.Content = new ScrollViewer { Content = allStack };
+            }
+            else if (documentReadingMode == 2 && currentIndex + 1 < pages.Count)
+            {
+                var spreadGrid = new Grid
+                {
+                    ColumnDefinitions = new ColumnDefinitions("*,*"),
+                    ColumnSpacing = 22,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(16, 8, 16, 24)
+                };
+                var leftPane = Column(6);
+                leftPane.HorizontalAlignment = HorizontalAlignment.Center;
+                leftPane.Children.Add(Kicker($"Hoja {activePage.PageNumber} de {pages.Count}  ·  {activePage.Label}"));
+                leftPane.Children.Add(ScaleSheet(activePage.BuildSheet()));
+                spreadGrid.Children.Add(leftPane);
+
+                var nextPage = pages[currentIndex + 1];
+                var rightPane = Column(6);
+                rightPane.HorizontalAlignment = HorizontalAlignment.Center;
+                rightPane.Children.Add(Kicker($"Hoja {nextPage.PageNumber} de {pages.Count}  ·  {nextPage.Label}"));
+                rightPane.Children.Add(ScaleSheet(nextPage.BuildSheet()));
+                Grid.SetColumn(rightPane, 1);
+                spreadGrid.Children.Add(rightPane);
+
+                stageHost.Content = new ScrollViewer { Content = spreadGrid };
+            }
+            else
+            {
+                var singleStack = Column(8);
+                singleStack.Margin = new Thickness(16, 8, 16, 24);
+                singleStack.HorizontalAlignment = HorizontalAlignment.Center;
+                singleStack.Children.Add(Kicker($"Hoja {activePage.PageNumber} de {pages.Count}  ·  {activePage.Label}"));
+                singleStack.Children.Add(ScaleSheet(activePage.BuildSheet()));
+                stageHost.Content = new ScrollViewer { Content = singleStack };
+            }
+
+            if (stripViewer != null)
+            {
+                filmstripHorizontalOffsets[work.Id] = keepX;
+                stripViewer.Offset = new Vector(keepX, 0);
+            }
         }
-        else
+
+        root.KeyDown += (_, e) =>
         {
-            var singleStack = Column(8);
-            singleStack.Margin = new Thickness(16, 8, 16, 24);
-            singleStack.HorizontalAlignment = HorizontalAlignment.Center;
-            singleStack.Children.Add(Kicker($"Hoja {activePage.PageNumber} de {pages.Count}  ·  {activePage.Label}"));
-            singleStack.Children.Add(ScaleSheet(activePage.BuildSheet()));
-            root.Children.Add(new ScrollViewer { Content = singleStack });
+            int step = (documentReadingMode == 2 && pages.Count > 1) ? 2 : 1;
+            if (e.Key is Key.Left or Key.PageUp && currentIndex > 0)
+            {
+                RenderPageState(Math.Max(0, currentIndex - step));
+                e.Handled = true;
+            }
+            else if (e.Key is Key.Right or Key.PageDown && currentIndex + step < pages.Count)
+            {
+                RenderPageState(Math.Min(pages.Count - 1, currentIndex + step));
+                e.Handled = true;
+            }
+        };
+
+        var top = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+        top.Children.Add(Action("‹ Editar", () => Editor()));
+        top.Children.Add(Action("Vista previa PDF", async () => await Preview()));
+        top.Children.Add(QuietAction("Exportar PDF…", async () => await Export(true)));
+
+        prevBtn = Action("‹ Hoja anterior", () =>
+        {
+            int step = (documentReadingMode == 2 && pages.Count > 1) ? 2 : 1;
+            RenderPageState(Math.Max(0, currentIndex - step));
+        });
+        nextBtn = Action("Hoja siguiente ›", () =>
+        {
+            int step = (documentReadingMode == 2 && pages.Count > 1) ? 2 : 1;
+            RenderPageState(Math.Min(pages.Count - 1, currentIndex + step));
+        });
+        top.Children.Add(prevBtn);
+
+        var pageLabels = pages.Select(p => $"Hoja {p.PageNumber} de {pages.Count} · {p.Label}").ToArray();
+        pickerBox = new ComboBox { ItemsSource = pageLabels, SelectedIndex = currentIndex, MaxWidth = 300 };
+        pickerBox.SelectionChanged += (_, _) =>
+        {
+            if (!suppressPicker && pickerBox.SelectedIndex >= 0 && pickerBox.SelectedIndex != currentIndex)
+                RenderPageState(pickerBox.SelectedIndex);
+        };
+        top.Children.Add(pickerBox);
+        top.Children.Add(nextBtn);
+
+        mode1Btn = QuietAction("1 hoja", () => { documentReadingMode = 1; RenderPageState(currentIndex); });
+        mode2Btn = QuietAction("2 hojas", () => { documentReadingMode = 2; RenderPageState(currentIndex); });
+        mode3Btn = QuietAction("Todas las hojas", () => { documentReadingMode = 3; RenderPageState(currentIndex); });
+        top.Children.Add(mode1Btn);
+        if (pages.Count > 1) top.Children.Add(mode2Btn);
+        if (pages.Count > 1) top.Children.Add(mode3Btn);
+
+        var zoomOptions = new[] { "90 %", "100 %", "115 %" };
+        var currentZoomLabel = documentZoomScale < 0.95 ? "90 %" : documentZoomScale > 1.05 ? "115 %" : "100 %";
+        var zoomBox = new ComboBox { ItemsSource = zoomOptions, SelectedItem = currentZoomLabel, Width = 92 };
+        zoomBox.SelectionChanged += (_, _) =>
+        {
+            if (zoomBox.SelectedItem is string z)
+            {
+                double newZoom = z == "90 %" ? 0.9 : z == "115 %" ? 1.15 : 1.0;
+                if (Math.Abs(newZoom - documentZoomScale) > 0.01)
+                {
+                    documentZoomScale = newZoom;
+                    RenderPageState(currentIndex);
+                }
+            }
+        };
+        top.Children.Add(zoomBox);
+
+        DockPanel.SetDock(top, Dock.Top);
+        root.Children.Add(top);
+
+        if (pages.Count > 1)
+        {
+            var filmstrip = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(4, 8, 4, 4) };
+            for (int i = 0; i < pages.Count; i++)
+            {
+                int idx = i;
+                var miniSheet = Column(4);
+                miniSheet.VerticalAlignment = VerticalAlignment.Center;
+                miniSheet.HorizontalAlignment = HorizontalAlignment.Center;
+                var headTb = new TextBlock
+                {
+                    Text = $"HOJA {idx + 1}",
+                    FontSize = 10,
+                    FontWeight = FontWeight.Bold,
+                    Foreground = Brush.Parse("#5A6570"),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                var ruleBorder = new Border { Width = 44, Height = 1.2, Background = Brush.Parse("#CFD7DE"), HorizontalAlignment = HorizontalAlignment.Center };
+                var titleTb = new TextBlock
+                {
+                    Text = pages[idx].Label,
+                    FontSize = 11,
+                    Foreground = Brush.Parse("#1F262D"),
+                    TextWrapping = TextWrapping.Wrap,
+                    TextAlignment = TextAlignment.Center,
+                    MaxLines = 2,
+                    MaxWidth = 96,
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                miniSheet.Children.Add(headTb);
+                miniSheet.Children.Add(ruleBorder);
+                miniSheet.Children.Add(titleTb);
+                var thumbCard = new Border
+                {
+                    Width = 108,
+                    Height = 68,
+                    Background = Brushes.White,
+                    BorderBrush = Edge,
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(6, 4),
+                    Child = miniSheet
+                };
+                thumbItems.Add((thumbCard, headTb, ruleBorder, titleTb));
+                var btn = new Button
+                {
+                    Content = thumbCard,
+                    Focusable = false,
+                    Background = Brushes.Transparent,
+                    BorderThickness = new Thickness(0),
+                    Padding = new Thickness(2),
+                    Cursor = new Cursor(StandardCursorType.Hand)
+                };
+                btn.Click += (_, _) => { if (isAutomatedVerification) RenderPageState(idx); else Run(() => RenderPageState(idx)); };
+                filmstrip.Children.Add(btn);
+            }
+            stripViewer = new ScrollViewer
+            {
+                Name = "FilmstripScrollViewer",
+                BringIntoViewOnFocusChange = false,
+                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                Content = filmstrip
+            };
+            var initialX = filmstripHorizontalOffsets.GetValueOrDefault(work.Id, 0);
+            RestoreFilmstripOffset(stripViewer, initialX);
+            stripViewer.ScrollChanged += (_, _) =>
+            {
+                if (stripViewer.IsLoaded && Equals(stripViewer.Tag, "Restored"))
+                    filmstripHorizontalOffsets[work.Id] = stripViewer.Offset.X;
+            };
+            DockPanel.SetDock(stripViewer, Dock.Bottom);
+            root.Children.Add(stripViewer);
         }
 
+        root.Children.Add(stageHost);
+        RenderPageState(currentIndex);
         page.Content = root;
     }
 }

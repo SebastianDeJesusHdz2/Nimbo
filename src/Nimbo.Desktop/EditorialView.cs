@@ -125,6 +125,11 @@ public sealed partial class Studio
             documentReadingMode=mode;
             for(int p=0;p<novelPages.Count;p++){ReadDocumentPage(novel,novelPages,p);Layout();}
         }
+        var activeStrip=page.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault(s=>s.Name=="FilmstripScrollViewer");
+        if(activeStrip!=null)activeStrip.Tag=null;
+        filmstripHorizontalOffsets[novel.Id]=180;
+        ReadDocumentPage(novel,novelPages,2);Layout();
+        if(Math.Abs(filmstripHorizontalOffsets[novel.Id]-180)>0.5)return Fail();
         var styles=BookCover.LetteringStyles;
         int styleIndex=0;
         foreach(var name in new[]{"Bajo el hielo","Manual de mareas","Cantos del sur","Las manos del reloj","La memoria del muelle","Voces del camino","La carta de Aro","Cuaderno de campo"}){
@@ -214,7 +219,7 @@ public sealed partial class Studio
         panel.Children.Add(Action("Vista previa de impresión", async () => await Preview()));
     }
     bool composing;
-    async Task Preview(bool glossary = false) => await Guard(async () =>
+    async Task Preview(bool glossary = false, string? nodeId = null, IReadOnlySet<string>? selection = null) => await Guard(async () =>
     {
         if (composing || !TrySave()) return;
         composing = true;
@@ -228,7 +233,7 @@ public sealed partial class Studio
             }
             var path = Path.Combine(dir.FullName, "nimbo-" + Guid.NewGuid().ToString("N") + ".pdf");
             status.Text = "Preparando vista previa…";
-            await Task.Run(() => Publisher.Export(work, shelf.Media, path, true, glossary, engine));
+            await Task.Run(() => Publisher.Export(work, shelf.Media, path, true, glossary, engine, nodeId, selection));
             Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); status.Text = "Vista previa abierta";
         }
         finally { composing = false; }
