@@ -96,13 +96,20 @@ public sealed partial class Studio
         return new Border
         {
             Width = sheetW,
-            MinHeight = sheetH,
+            Height = sheetH,
             Background = Brush.Parse("#FCFBF7"),
             BorderBrush = Brush.Parse("#C9D1D8"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
+            ClipToBounds = true,
             BoxShadow = BoxShadows.Parse("0 10 24 #24000000"),
-            Child = col,
+            Child = new Viewbox
+            {
+                Stretch = Stretch.Uniform,
+                StretchDirection = StretchDirection.DownOnly,
+                VerticalAlignment = VerticalAlignment.Top,
+                Child = new Border { Width = sheetW, Child = col }
+            },
             HorizontalAlignment = HorizontalAlignment.Center
         };
     }
@@ -224,13 +231,20 @@ public sealed partial class Studio
         return new Border
         {
             Width = sheetW,
-            MinHeight = sheetH,
+            Height = sheetH,
             Background = Brush.Parse("#FCFBF7"),
             BorderBrush = Brush.Parse("#C9D1D8"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
+            ClipToBounds = true,
             BoxShadow = BoxShadows.Parse("0 10 24 #24000000"),
-            Child = col,
+            Child = new Viewbox
+            {
+                Stretch = Stretch.Uniform,
+                StretchDirection = StretchDirection.DownOnly,
+                VerticalAlignment = VerticalAlignment.Top,
+                Child = new Border { Width = sheetW, Child = col }
+            },
             HorizontalAlignment = HorizontalAlignment.Center
         };
     }

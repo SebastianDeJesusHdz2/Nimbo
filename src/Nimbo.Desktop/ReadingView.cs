@@ -1768,30 +1768,81 @@ public sealed partial class Studio
         return match != null ? match.BuildSheet() : new Border();
     }
 
-    Border WrapPaperSheet(Control inner, Work work, bool isNovel)
+    Border WrapPaperSheet(Control inner, Work work, bool isNovel, int? pageNumber = null, bool showFooterRule = false, VerticalAlignment bodyAlignment = VerticalAlignment.Top)
     {
+        double sheetW = isNovel ? 520 : 680;
+        double sheetH = isNovel ? 735 : 880;
         var accentHex = ResolveFormatAccentHex(work);
         var accentBrush = Brush.Parse(accentHex);
         var paperBg = isNovel ? Brush.Parse("#FAF6EE") : Brushes.White;
-        Control content = inner;
-        if (work.FrameStyle is "Filete" or "Doble filete" or "Esquinas")
+        var pad = inner.Margin.Left > 0 || inner.Margin.Top > 0
+            ? inner.Margin
+            : new Thickness(isNovel ? 44 : 40, 32);
+        inner.Margin = new Thickness(0);
+
+        bool hasFrame = work.FrameStyle is "Filete" or "Doble filete" or "Esquinas";
+        double frameInset = hasFrame ? 24 : 0;
+        double innerW = Math.Max(200, sheetW - pad.Left - pad.Right - frameInset);
+
+        var pageDock = new DockPanel
+        {
+            Margin = pad,
+            LastChildFill = true
+        };
+
+        if (pageNumber is int pg && work.Publication.PageNumbers)
+        {
+            var footer = Column(4);
+            footer.Margin = new Thickness(0, 8, 0, 0);
+            if (showFooterRule)
+                footer.Children.Add(new Border { Height = 1, Background = Brush.Parse("#E2E6EA"), Margin = new Thickness(0, 0, 0, 2) });
+            footer.Children.Add(new TextBlock
+            {
+                Text = pg.ToString(),
+                FontFamily = isNovel ? new FontFamily("Georgia, Liberation Serif, serif") : FontFamily.Default,
+                FontSize = isNovel ? 13 : 12.5,
+                FontWeight = work.Type == "Apuntes" ? FontWeight.Bold : FontWeight.Normal,
+                Foreground = work.Type == "Apuntes" ? Brush.Parse("#004785") : Brush.Parse("#545E68"),
+                HorizontalAlignment = HorizontalAlignment.Center
+            });
+            DockPanel.SetDock(footer, Dock.Bottom);
+            pageDock.Children.Add(footer);
+        }
+
+        var fittedBody = new Viewbox
+        {
+            Stretch = Stretch.Uniform,
+            StretchDirection = StretchDirection.DownOnly,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = bodyAlignment,
+            Child = new Border
+            {
+                Width = innerW,
+                Child = inner
+            }
+        };
+        pageDock.Children.Add(fittedBody);
+
+        Control content = pageDock;
+        if (hasFrame)
         {
             content = new Border
             {
                 Margin = new Thickness(10),
                 BorderBrush = accentBrush,
                 BorderThickness = new Thickness(work.FrameStyle == "Doble filete" ? 2 : 1),
-                Child = inner
+                Child = pageDock
             };
         }
         return new Border
         {
-            Width = isNovel ? 520 : 680,
-            MinHeight = isNovel ? 735 : 880,
+            Width = sheetW,
+            Height = sheetH,
             Background = paperBg,
             BorderBrush = Brush.Parse("#C9D1D8"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(3),
+            ClipToBounds = true,
             BoxShadow = BoxShadows.Parse("0 12 28 #24000000"),
             Child = content,
             HorizontalAlignment = HorizontalAlignment.Center
@@ -1901,17 +1952,7 @@ public sealed partial class Studio
                         };
                         tocCol.Children.Add(btn);
                     }
-                    var spacer = new Border { Height = 280 };
-                    tocCol.Children.Add(spacer);
-                    tocCol.Children.Add(new TextBlock
-                    {
-                        Text = tocPageNum.ToString(),
-                        FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
-                        FontSize = 13,
-                        Foreground = muted,
-                        HorizontalAlignment = HorizontalAlignment.Center
-                    });
-                    return WrapPaperSheet(tocCol, work, true);
+                    return WrapPaperSheet(tocCol, work, true, tocPageNum, false);
                 }));
             }
         }
@@ -2039,7 +2080,7 @@ public sealed partial class Studio
                         };
                         idxCol.Children.Add(btn);
                     }
-                    return WrapPaperSheet(idxCol, work, false);
+                    return WrapPaperSheet(idxCol, work, false, 2, true);
                 }));
             }
         }
@@ -2448,7 +2489,7 @@ public sealed partial class Studio
                 pages.Add(new DocumentPageItem(partPageNum, section.Title, section, () =>
                 {
                     var partCol = Column(12);
-                    partCol.Margin = new Thickness(48, 210, 48, 36);
+                    partCol.Margin = new Thickness(48, 36);
                     partCol.HorizontalAlignment = HorizontalAlignment.Center;
                     partCol.Children.Add(new TextBlock
                     {
@@ -2470,16 +2511,7 @@ public sealed partial class Studio
                         TextAlignment = TextAlignment.Center,
                         HorizontalAlignment = HorizontalAlignment.Center
                     });
-                    partCol.Children.Add(new Border { Height = 230 });
-                    partCol.Children.Add(new TextBlock
-                    {
-                        Text = partPageNum.ToString(),
-                        FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
-                        FontSize = 13,
-                        Foreground = muted,
-                        HorizontalAlignment = HorizontalAlignment.Center
-                    });
-                    return WrapPaperSheet(partCol, work, true);
+                    return WrapPaperSheet(partCol, work, true, partPageNum, false, VerticalAlignment.Center);
                 }));
                 continue;
             }
@@ -2492,7 +2524,7 @@ public sealed partial class Studio
             var chunks = new List<List<Func<Control>>>();
             var currentChunk = new List<Func<Control>>();
             double currentWeight = 0;
-            double maxWeight = (sIdx == 0 && needsInlineMastheadOnFirstSection) ? 14.0 : (isNovel ? 18.0 : 20.0);
+            double maxWeight = (sIdx == 0 && needsInlineMastheadOnFirstSection) ? 13.5 : (isNovel ? 15.0 : 17.5);
 
             foreach (var (w, factory) in allItems)
             {
@@ -2501,7 +2533,7 @@ public sealed partial class Studio
                     if (currentChunk.Count > 0) chunks.Add(currentChunk);
                     currentChunk = [];
                     currentWeight = 0;
-                    maxWeight = isNovel ? 18.0 : 20.0;
+                    maxWeight = isNovel ? 17.0 : 19.0;
                     continue;
                 }
                 if (currentChunk.Count > 0 && currentWeight + w > maxWeight)
@@ -2509,7 +2541,7 @@ public sealed partial class Studio
                     chunks.Add(currentChunk);
                     currentChunk = [];
                     currentWeight = 0;
-                    maxWeight = isNovel ? 18.0 : 20.0;
+                    maxWeight = isNovel ? 17.0 : 19.0;
                 }
                 currentChunk.Add(factory);
                 currentWeight += w;
@@ -2544,14 +2576,18 @@ public sealed partial class Studio
                             var chapHeader = Column(4);
                             chapHeader.Margin = new Thickness(0, 12, 0, 8);
                             chapHeader.HorizontalAlignment = HorizontalAlignment.Left;
-                            chapHeader.Children.Add(new TextBlock
+                            bool hasExplicitPrefix = section.Title.StartsWith("Capítulo", StringComparison.OrdinalIgnoreCase) || section.Title.StartsWith("Parte", StringComparison.OrdinalIgnoreCase) || section.Title.StartsWith("Arco", StringComparison.OrdinalIgnoreCase);
+                            if (!hasExplicitPrefix)
                             {
-                                Text = section.Level == "Arc" ? "Parte" : $"Capítulo {thisNovelChapNum}",
-                                FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
-                                FontSize = 20,
-                                FontWeight = FontWeight.Bold,
-                                Foreground = ink
-                            });
+                                chapHeader.Children.Add(new TextBlock
+                                {
+                                    Text = section.Level == "Arc" ? "Parte" : $"Capítulo {thisNovelChapNum}",
+                                    FontFamily = new FontFamily("Georgia, Liberation Serif, serif"),
+                                    FontSize = 20,
+                                    FontWeight = FontWeight.Bold,
+                                    Foreground = ink
+                                });
+                            }
                             chapHeader.Children.Add(new TextBlock
                             {
                                 Text = section.Title,
@@ -2607,17 +2643,7 @@ public sealed partial class Studio
                     foreach (var buildCtrl in chunkFactories)
                         paper.Children.Add(buildCtrl());
 
-                    paper.Children.Add(new Border { Height = 1, Background = Brush.Parse("#E2E6EA"), Margin = new Thickness(0, 10, 0, 2) });
-                    paper.Children.Add(new TextBlock
-                    {
-                        Text = work.Type == "Apuntes" ? $"{pageNum}" : $"{pageNum}",
-                        FontSize = 12.5,
-                        FontWeight = work.Type == "Apuntes" ? FontWeight.Bold : FontWeight.Normal,
-                        Foreground = work.Type == "Apuntes" ? Brush.Parse("#004785") : muted,
-                        HorizontalAlignment = HorizontalAlignment.Center
-                    });
-
-                    return WrapPaperSheet(paper, work, isNovel);
+                    return WrapPaperSheet(paper, work, isNovel, pageNum, true);
                 }));
             }
         }
@@ -2756,7 +2782,7 @@ public sealed partial class Studio
                 pCol.Margin = new Thickness(38, 32);
                 if (capturedG == 0) pCol.Children.Add(BuildCvHeader());
                 foreach (var cs in groupSections) pCol.Children.Add(RenderCvSection(cs));
-                return WrapPaperSheet(pCol, work, false);
+                return WrapPaperSheet(pCol, work, false, capturedG + 1, pageGroups.Count > 1);
             }));
         }
         return cvPages;

@@ -115,12 +115,14 @@ public sealed partial class Studio
         ReadSection(libretaWork.Chapters[0]);Layout();
         if(Visible("Apuntes:") || !Visible("1   Tema 1"))return Fail();
         var libretaPages=BuildDocumentPages(libretaWork,680);
+        foreach(var p in libretaPages){var s=p.BuildSheet();if(Math.Abs(s.Width-680)>0.1 || Math.Abs(s.Height-880)>0.1)return Fail();}
         foreach(var mode in new[]{1,2,3,2,1}){
             documentReadingMode=mode;
             for(int p=0;p<libretaPages.Count;p++){ReadDocumentPage(libretaWork,libretaPages,p);Layout();}
         }
         var novelPages=BuildDocumentPages(novel,680);
         if(novelPages.Count<4 || novelPages[0].Label!="Portada" || novelPages[1].Label!="Contenido" || novelPages[^1].Label!="Contraportada")return Fail();
+        foreach(var p in novelPages){var s=p.BuildSheet();if(Math.Abs(s.Width-520)>0.1 || Math.Abs(s.Height-735)>0.1)return Fail();}
         foreach(var mode in new[]{1,2,3,2}){
             documentReadingMode=mode;
             for(int p=0;p<novelPages.Count;p++){ReadDocumentPage(novel,novelPages,p);Layout();}
@@ -157,6 +159,14 @@ public sealed partial class Studio
             foreach(var entry in realShelf.List()){
                 var opened=realShelf.Open(entry.Id);
                 Open(opened.Work,opened.Revision);Layout();
+                if(opened.Work.Type!="Presentación"){
+                    var docPages=BuildDocumentPages(opened.Work,680);
+                    double expW=opened.Work.IsNovel?520:680,expH=opened.Work.IsNovel?735:880;
+                    foreach(var dp in docPages){
+                        var sh=dp.BuildSheet();
+                        if(Math.Abs(sh.Width-expW)>0.1 || Math.Abs(sh.Height-expH)>0.1)return Fail();
+                    }
+                }
                 foreach(var ch in WorldModel.Ordered(opened.Work)){
                     chapter=ch;Editor();Layout();
                     ReadSection(ch);Layout();
